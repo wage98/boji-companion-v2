@@ -1,5 +1,5 @@
 /* ============================================================
-   训练日记 · app.js
+   Boji Companion V2 · app.js
    居家哑铃训练记录 App：常驻浮层桌宠 + 训练 / 饮食 / 数据 / 助手四个模块。
 
    设计约束（改动前请先读）：
@@ -18,20 +18,9 @@ const $$ = s => Array.from(document.querySelectorAll(s));
 const el = html => { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstChild; };
 // 加 String() 兜底——旧版传入非字符串（null/undefined/对象）会抛 s.replace is not a function
 const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
-const DEFAULT_COACH = '小练';
-// 教练身份：名字与头像可更换（预设三只连帽衫小狗形象 + 自定义上传），全局生效
-function coachName(){
-  const s = STATE && STATE.settings;
-  const n = s && typeof s.coachName === 'string' ? s.coachName.trim() : '';
-  return n ? n.slice(0, 10) : DEFAULT_COACH;
-}
-function coachAvatarSrc(){
-  const a = STATE && STATE.settings && STATE.settings.coachAvatar;
-  if(a && a.slice(0, 5) === 'data:') return a;
-  // 修复：COACH_AV_SVG 里存的是 SVG 标记字符串，旧版直接塞进 <img src> 必然渲染成破图
-  if(a && COACH_AV_SVG[a]) return svgURI(COACH_AV_SVG[a]);
-  return svgURI(COACH_AV_SVG.dog2);
-}
+const DEFAULT_COACH = 'Boji';
+function coachName(){ return DEFAULT_COACH; }
+function coachAvatarSrc(){ return BOJI_CANDIDATE; }
 const svgURI = s => 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(String(s == null ? '' : s));
 
 /* ---------- 视频深链（卓叔 B站合集，章节时间戳可点开自验） ---------- */
@@ -494,7 +483,7 @@ const FOLLOW_RE = /再(说|讲|详细|展开)(一点|些|点)?|详细(一点|些
  *  - GuilleHoardings/WorkoutTrackr：MODULAR_ARCHITECTURE.md + tests/ 单测，关注点分离。
  * 本层适配（保持单文件 vanilla 约定，零依赖）：
  *  - 分层：normalize（归一化）→ expand（同义词扩展）→ intent（意图识别，带 score）→ kbScore（知识库模糊匹配）
- *  - 接口：均为纯函数，输入容错（null/非字符串/超长/控制字符均不抛）；dialogue policy 仍由 nahidaReply 承担（对齐 Rasa Core）
+ *  - 接口：均为纯函数，输入容错（null/非字符串/超长/控制字符均不抛）；dialogue policy 由 Boji 回答策略处理（对齐 Rasa Core）
  *  - 错误处理：每层 try/catch，失败返回安全空值；绝不向 UI 抛异常（错误降级见 nlpKbScore/nlpReply 兜底）
  *  - 可测：见 tools/selfcheck-functional.js（归一化/同义/意图/匹配 各阶段独立单测）
  */
@@ -697,7 +686,7 @@ function dataReply(q){
   }
   return null;
 }
-function nahidaReply(text){
+function bojiReply(text){
   const raw=(text||'').trim(); if(!raw) return '你想问什么呢？(｡･ω･｡)';
   const q=raw.toLowerCase();
   // 0) 指代消解：”它/这个/再来点“ 补全为窗口内最近的真实问题
@@ -813,7 +802,12 @@ function profileDomainRecord(profile){
     nutritionIntent:['LOG_ONLY','MAINTAIN','GAIN','LOSE','CUSTOM'].includes(p.nutritionIntent)?p.nutritionIntent:'LOG_ONLY',
     customKcal:p.customKcal!=null&&p.customKcal!==''&&Number.isFinite(+p.customKcal)?+p.customKcal:null,
     customProteinG:p.customProteinG!=null&&p.customProteinG!==''&&Number.isFinite(+p.customProteinG)?+p.customProteinG:null,
-    waterGoalMl:p.waterGoalMl!=null&&p.waterGoalMl!==''&&Number.isFinite(+p.waterGoalMl)?+p.waterGoalMl:null,updatedAt:Date.now()};
+    waterGoalMl:p.waterGoalMl!=null&&p.waterGoalMl!==''&&Number.isFinite(+p.waterGoalMl)?+p.waterGoalMl:null,
+    trainingGoal:['HYPERTROPHY','GENERAL_FITNESS','STRENGTH'].includes(p.trainingGoal)?p.trainingGoal:null,
+    experienceLevel:['BEGINNER','INTERMEDIATE','ADVANCED'].includes(p.experienceLevel)?p.experienceLevel:null,
+    equipmentProfileCode:['A','B','C'].includes(p.equipmentProfileCode)?p.equipmentProfileCode:null,
+    typicalSessionMinutes:p.typicalSessionMinutes!=null&&Number.isFinite(+p.typicalSessionMinutes)?+p.typicalSessionMinutes:null,
+    updatedAt:Date.now()};
 }
 function readNutritionPreferences(prefix,previous){
   const p=previous||{},value=id=>{const el=$('#'+prefix+id);return el&&el.value!==''&&Number.isFinite(+el.value)?+el.value:null;};
@@ -828,11 +822,12 @@ function readNutritionPreferences(prefix,previous){
 /* ---------- V2 状态与 IndexedDB 持久化 ---------- */
 const DEFAULT_STATE = {
   profile:null, isFirstLaunch:true,
+  settings:{bg:'',coachName:'',coachAvatar:'',trainingMode:'learning'},
   checkins:{}, weights:{}, meals:{}, water:0, waterMl:null,
   scores:{},                                 // 每日训练评分 { feel, energy, sat, at }
   petPos:null, petDock:null, petMood:'happy', lastPetTouch:Date.now(),
   planEdits:{}, planOverrides:{}, exLast:{}, customLogs:{}, editPlan:false,
-  petSkin:'spiderV3',                        // 桌宠皮肤 nahida / spiderV1 / spiderV2 / spiderV3（统一切换）
+  petSkin:'boji',
   myEx:[], customExerciseCatalogInitialized:false, // 自定义动作的 canonical IDB projection
   bodyWeights:[],                            // 体重曲线 [{d:'Y-M-D', w:70.5}]
   vision:{ mode:'off', endpoint:'', token:'', model:'glm-4v-flash' },  // AI 图像识别
@@ -844,6 +839,7 @@ const DEFAULT_STATE = {
 let STATE = Object.assign({}, DEFAULT_STATE);
 let PERSONAL_RECORDS_READY = false;
 let MEAL_RECORDS = [], FOOD_DRAFTS = [], BODY_WEIGHT_RECORDS = [], WATER_ENTRIES = [], RUN_RECORDS = [];
+let ACTIVE_TAB = 'today', ACTIVE_MODULE = 'today', WORKOUT_HISTORY_RECORDS = [];
 let FOOD_SEARCH_OWNER = null, FOOD_AI_OWNER = null, FOOD_BARCODE_OWNER = null, FOOD_SEARCH_TIMER = null;
 let ACTIVE_FOOD_DRAFT = null;
 async function refreshPersonalRecords(){
@@ -899,10 +895,11 @@ function normalizeState(){
   if(!STATE.knowledge.read || typeof STATE.knowledge.read !== 'object') STATE.knowledge.read = {};
   if(typeof STATE.ctxLimit !== 'number' || STATE.ctxLimit < 0) STATE.ctxLimit = 0;
   if(STATE.waterMl == null && +STATE.water > 0) STATE.waterMl = Math.round(+STATE.water * 250);
-  if(!STATE.settings || typeof STATE.settings !== 'object' || Array.isArray(STATE.settings)) STATE.settings = { bg:'', coachName:'', coachAvatar:'' };
+  if(!STATE.settings || typeof STATE.settings !== 'object' || Array.isArray(STATE.settings)) STATE.settings = { bg:'', coachName:'', coachAvatar:'', trainingMode:'learning' };
   if(typeof STATE.settings.bg !== 'string') STATE.settings.bg = '';
   if(typeof STATE.settings.coachName !== 'string') STATE.settings.coachName = '';
   if(typeof STATE.settings.coachAvatar !== 'string') STATE.settings.coachAvatar = '';
+  if(!['learning','performance'].includes(STATE.settings.trainingMode)) STATE.settings.trainingMode='learning';
   if(!STATE.settings.petPhotoFit || typeof STATE.settings.petPhotoFit !== 'object') STATE.settings.petPhotoFit = { z:1, dx:0, dy:0 };
   if(!isFinite(+STATE.settings.petPhotoFit.z) || +STATE.settings.petPhotoFit.z <= 0) STATE.settings.petPhotoFit.z = 1;
   if(!isFinite(+STATE.settings.petPhotoFit.dx)) STATE.settings.petPhotoFit.dx = 0;
@@ -911,8 +908,7 @@ function normalizeState(){
   if(['A','B','C'].indexOf(STATE.planSet) < 0) STATE.planSet = 'A';
   if(STATE.planEdits.pump && !STATE.planEdits.core){ STATE.planEdits.core = STATE.planEdits.pump; delete STATE.planEdits.pump; }
   if(STATE.exLast.pump && !STATE.exLast.core){ STATE.exLast.core = STATE.exLast.pump; delete STATE.exLast.pump; }
-  if(STATE.petSkin in _PET_MAP) STATE.petSkin = _PET_MAP[STATE.petSkin];
-  if(_PET_KEYS.indexOf(STATE.petSkin) < 0) STATE.petSkin = 'spiderV3';
+  if(_PET_KEYS.indexOf(STATE.petSkin) < 0) STATE.petSkin = STATE.settings.petPhoto ? 'photo' : 'boji';
 }
 function hydrateState(value){
   STATE = Object.assign({}, DEFAULT_STATE, value && typeof value === 'object' && !Array.isArray(value) ? value : {});
@@ -926,15 +922,19 @@ async function saveAsync(queuedSnapshot){
   let snapshot = queuedSnapshot;
   try{ if(!snapshot) snapshot = JSON.parse(JSON.stringify(STATE)); }
   catch(error){
+    DATA_ERROR = `V2 本机状态无法保存：${error && error.message ? error.message : '状态无法序列化'}。当前更改尚未确认写入。`;
+    showStorageStatus();
     if(!_saveWarned){ _saveWarned = true; try{ toast(`V2 本机保存失败：${error && error.message ? error.message : '状态无法序列化'}`); }catch(_){} }
     return false;
   }
   const operation = _saveQueue.then(()=>BojiData.saveState(snapshot));
   _saveQueue = operation.catch(error=>{
+    DATA_ERROR = `V2 本机数据保存失败：${error && error.message ? error.message : '存储空间不足或不可用'}。当前更改尚未确认写入。`;
+    showStorageStatus();
     if(!_saveWarned){ _saveWarned = true; try{ toast(`V2 本机保存失败：${error && error.message ? error.message : '存储空间不足或不可用'}`); }catch(_){} }
     return false;
   });
-  return operation.then(()=>true, ()=>false);
+  return operation.then(()=>{if(DATA_ERROR&&DATA_ERROR.indexOf('本机数据保存失败')>=0){DATA_ERROR=null;showStorageStatus();}return true;}, ()=>false);
 }
 const save = () => {
   if(APP_INITIALIZING) return true;
@@ -959,18 +959,15 @@ if(!STATE.vision || typeof STATE.vision !== 'object') STATE.vision = { mode:'off
 if(!Array.isArray(STATE.runs)) STATE.runs = [];
 if(!STATE.knowledge || typeof STATE.knowledge !== 'object' || !STATE.knowledge.read) STATE.knowledge = { read:{} };
 if(typeof STATE.ctxLimit !== 'number' || STATE.ctxLimit < 0) STATE.ctxLimit = 0;   // 0 = 不限轮数
-/* 皮肤迁移（可逆：任何脏值/旧值都能落到合法皮肤，不会丢用户数据）
-   ：v2（去红蓝化版）升级为 v3（视频同款）——用户要的正是撤销 v2 那四项改动；
-   v2 仍保留在注册表里，可随时在「我的 → 桌宠形象」切回，切换不丢状态。 */
-const _PET_KEYS = ['nahida','spiderV1','spiderV2','spiderV3','official','photo'];
-const _PET_MAP  = { spider:'spiderV3', svg:'nahida', spiderV2:'spiderV3', official:'official' };
-if(STATE.petSkin in _PET_MAP) STATE.petSkin = _PET_MAP[STATE.petSkin];
-if(_PET_KEYS.indexOf(STATE.petSkin) < 0) STATE.petSkin = 'spiderV3';
+/* Normalize previous appearance preferences while preserving user Photo Pet data. */
+const _PET_KEYS = ['boji','photo'];
+if(_PET_KEYS.indexOf(STATE.petSkin) < 0) STATE.petSkin = STATE.settings.petPhoto ? 'photo' : 'boji';
 // 外观与教练设置（背景 / 教练名 / 教练头像），逐字段容错防脏数据
-if(!STATE.settings || typeof STATE.settings !== 'object') STATE.settings = { bg:'', coachName:'', coachAvatar:'' };
+if(!STATE.settings || typeof STATE.settings !== 'object') STATE.settings = { bg:'', coachName:'', coachAvatar:'', trainingMode:'learning' };
 if(typeof STATE.settings.bg !== 'string') STATE.settings.bg = '';
 if(typeof STATE.settings.coachName !== 'string') STATE.settings.coachName = '';
 if(typeof STATE.settings.coachAvatar !== 'string') STATE.settings.coachAvatar = '';
+if(!['learning','performance'].includes(STATE.settings.trainingMode)) STATE.settings.trainingMode='learning';
 // v1.2 照片桌宠：取景参数与五官模式（脏值一律回落到「不裁切 / 保留原图」）
 if(!STATE.settings.petPhotoFit || typeof STATE.settings.petPhotoFit !== 'object') STATE.settings.petPhotoFit = { z:1, dx:0, dy:0 };
 if(!isFinite(+STATE.settings.petPhotoFit.z) || +STATE.settings.petPhotoFit.z <= 0) STATE.settings.petPhotoFit.z = 1;
@@ -1100,6 +1097,7 @@ const suggKg = e => {
   return Math.max(1, Math.round(d * (e.base||0.4)));
 }
 function indexWorkoutHistory(history){
+  WORKOUT_HISTORY_RECORDS = Array.isArray(history) ? history.slice() : [];
   COMPLETED_TRAINING_DAYS = new Set();
   COMPLETED_SETS_BY_DATE = new Map();
   (Array.isArray(history)?history:[]).forEach(workout=>{
@@ -1133,7 +1131,7 @@ function overloadSuggestion(t, i){
 // 打字机气泡语速配置（可按需调慢/调快）
 const TYPE = { charMs:42, startDelay:140, dwellPerChar:52, minDwell:2600, maxDwell:6200 };
 
-// 台词池：随机抽取、不连续重复；语气活泼可爱（沿用小练，不瞎编知识）
+// 台词池：随机抽取、不连续重复；语气活泼可爱（沿用Boji，不瞎编知识）
 const LINES = {
   happy:['今天也要元气满满哦~','陪你一起变强(｡･ω･｡)ﾉ','要不要先喝口水呀','今天也要好好吃饭才行~'],
   expect:['该动一动啦，别瘫着~','今天的训练在等你哦','来，和我一起练嘛(｡•ᴗ•｡)','热身做好了没？'],
@@ -1154,443 +1152,58 @@ const _lastIdx = {};
 function pickLine(pool){ const arr = LINES[pool] || LINES.happy; if(arr.length===1) return arr[0];
   let i; do { i = Math.floor(Math.random()*arr.length); } while(i === _lastIdx[pool]); _lastIdx[pool] = i;
   return arr[i].replace('{c}', coachName()); }
-/* ---------- 桌宠形象 ：方案 A「分层 SVG」· 精致 Q 版自绘皮肤 ----------
-   设计要点：
-   ① 一种情绪 = 一组图层参数（眼型/嘴型/腮红/特效），不是 N 张独立图 → 几 KB、零依赖。
-   ② 图层顺序：后发 → 身体（腿/裙/袖/臂） → 脸 → 刘海与鬓发 → 腮红 → 眉 → 眼 → 嘴 → 头饰 → 特效。
-      眉眼嘴画在刘海之上（二次元标准「透刘海」画法），保证表情始终清晰。
-   ③ 配色集中在 PET_THEME，将来做「捏桌宠」只需改主题对象，图层代码不动。
-   ④ Q 版头身比约 1.35:1（头 78px / 身 58px），五官集中、眼大、下巴圆。 */
-const PET_THEME = {
-  hairHi:'#ffffff', hairA:'#f2f9f0', hairB:'#d2e8d6', hairC:'#a3ccb0', hairD:'#7db08e',
-  skinA:'#fff6ec', skinB:'#ffdfc4', skinSh:'#f3c3a0',
-  eyeA:'#b4f0c8', eyeB:'#4dbb84', eyeC:'#186344', eyeLine:'#3b2f28',
-  dressA:'#ffffff', dressB:'#e9f2e8', trimA:'#93d89f', trimB:'#4da269',
-  shoe:'#6cb379', gold:'#f3cd72', blush:'#ff8ca4', blush2:'#ff7f97',
-  leaf:'#7ec98c'
-};
-// 眼型参数表：每种情绪一组
+const BOJI_CANDIDATE = 'assets/boji-companion-candidate.png';
+const PET_THEME = { eyeLine:'#332c29', eyeC:'#245d4b', gold:'#efb44e', blush:'#dc8390', trimB:'#397360', skinA:'#fff5e8' };
 const PET_FACE = {
-  happy : { eye:'open',   mouth:'smile', blush:1, brow:'up',   fx:''      },
-  cheer : { eye:'smile',  mouth:'grin',  blush:1, brow:'up',   fx:'star'  },
-  proud : { eye:'open',   mouth:'smile', blush:1, brow:'flat', fx:'spark' },
-  expect: { eye:'star',   mouth:'small', blush:1, brow:'up',   fx:'note'  },
-  think : { eye:'squint', mouth:'small', blush:0, brow:'down', fx:'think' },
-  sad   : { eye:'tear',   mouth:'wave',  blush:0, brow:'sad',  fx:'sweat' },
-  sleep : { eye:'closed', mouth:'small', blush:0, brow:'flat', fx:'zzz'   },
-  wave  : { eye:'smile',  mouth:'grin',  blush:1, brow:'up',   fx:'note'  },
-  hover : { eye:'open',   mouth:'o',     blush:1, brow:'up',   fx:'heart' },
-  drag  : { eye:'star',   mouth:'o',     blush:1, brow:'up',   fx:'star'  },
-  blink : { eye:'closed', mouth:'smile', blush:1, brow:'flat', fx:''      },
+  happy:{eye:'open',mouth:'smile',blush:1}, cheer:{eye:'smile',mouth:'grin',blush:1},
+  proud:{eye:'open',mouth:'smile',blush:1}, expect:{eye:'open',mouth:'small',blush:1},
+  think:{eye:'open',mouth:'small',blush:0}, sad:{eye:'open',mouth:'wave',blush:0},
+  sleep:{eye:'closed',mouth:'small',blush:0}, wave:{eye:'smile',mouth:'grin',blush:1},
+  hover:{eye:'open',mouth:'o',blush:1}, drag:{eye:'open',mouth:'o',blush:1},
+  blink:{eye:'closed',mouth:'smile',blush:1}
 };
-const PET_DEFS = (function(){
-  const T = PET_THEME;
-  return `<defs>
-    <linearGradient id="ph" x1=".5" y1="0" x2=".5" y2="1">
-      <stop offset="0" stop-color="${T.hairHi}"/><stop offset=".38" stop-color="${T.hairA}"/>
-      <stop offset=".76" stop-color="${T.hairB}"/><stop offset="1" stop-color="${T.hairC}"/></linearGradient>
-    <linearGradient id="ps" x1=".5" y1="0" x2=".5" y2="1">
-      <stop offset="0" stop-color="${T.skinA}"/><stop offset="1" stop-color="${T.skinB}"/></linearGradient>
-    <radialGradient id="pe" cx=".5" cy=".32" r=".8">
-      <stop offset="0" stop-color="${T.eyeA}"/><stop offset=".5" stop-color="${T.eyeB}"/>
-      <stop offset="1" stop-color="${T.eyeC}"/></radialGradient>
-    <linearGradient id="pd" x1=".5" y1="0" x2=".5" y2="1">
-      <stop offset="0" stop-color="${T.dressA}"/><stop offset="1" stop-color="${T.dressB}"/></linearGradient>
-    <linearGradient id="pt" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="${T.trimA}"/><stop offset="1" stop-color="${T.trimB}"/></linearGradient>
-    <radialGradient id="pb" cx=".5" cy=".5" r=".5">
-      <stop offset="0" stop-color="${T.blush2}" stop-opacity=".95"/>
-      <stop offset=".55" stop-color="${T.blush}" stop-opacity=".55"/>
-      <stop offset="1" stop-color="${T.blush}" stop-opacity="0"/></radialGradient>
-  </defs>`;
-})();
-/* 图层 1：后发（含两侧垂发与发梢） */
-function petHairBack(){
-  return `<g>
-    <ellipse cx="60" cy="51" rx="45.5" ry="42.5" fill="url(#ph)"/>
-    <path d="M24 58 C17 78 14 99 17 115 C24 107 30 91 33 74 C34 66 34 61 33 55Z" fill="url(#ph)"/>
-    <path d="M96 58 C103 78 106 99 103 115 C96 107 90 91 87 74 C86 66 86 61 87 55Z" fill="url(#ph)"/>
-    <path d="M17 112 C16 119 18 125 22 128 C25 122 25 116 24 111Z" fill="${PET_THEME.hairC}"/>
-    <path d="M103 112 C104 119 102 125 98 128 C95 122 95 116 96 111Z" fill="${PET_THEME.hairC}"/>
-  </g>`;
+function petEye(kind,cx,side){
+  const left=cx-9,right=cx+9,y=63,ink=PET_THEME.eyeLine;
+  if(kind==='closed'||kind==='smile') return '<path d="M'+left+' '+y+' Q'+cx+' '+(y+6)+' '+right+' '+y+'" stroke="'+ink+'" stroke-width="2.8" fill="none" stroke-linecap="round"/>';
+  return '<g><ellipse cx="'+cx+'" cy="'+y+'" rx="7.4" ry="9" fill="#fff"/><ellipse cx="'+cx+'" cy="'+(y+1)+'" rx="5.6" ry="7.2" fill="#397c61"/><ellipse cx="'+cx+'" cy="'+(y+2)+'" rx="2.5" ry="4.2" fill="'+PET_THEME.eyeC+'"/><circle cx="'+(cx-2)+'" cy="'+(y-2)+'" r="2.1" fill="#fff"/></g>';
 }
-/* 图层 2：身体（腿 → 鞋 → 裙 → 领 → 腰饰 → 泡泡袖 → 手臂） */
-function petBody(){
-  const T = PET_THEME;
-  return `<g>
-    <rect x="49" y="124" width="8.6" height="15" rx="4.3" fill="url(#ps)"/>
-    <rect x="62.4" y="124" width="8.6" height="15" rx="4.3" fill="url(#ps)"/>
-    <path d="M47.6 135 C47.6 142 51 146 55.4 146 C59 146 60 142 60 135Z" fill="${T.shoe}"/>
-    <path d="M60 135 C60 142 61 146 64.6 146 C69 146 72.4 142 72.4 135Z" fill="${T.shoe}"/>
-    <path d="M47.6 143 C51 145 59 145 60 143 L60 146 L47.6 146Z" fill="#57976a"/>
-    <path d="M60 143 C61 145 69 145 72.4 143 L72.4 146 L60 146Z" fill="#57976a"/>
-    <path d="M47 91 C44 101 42 113 39 123 C36.4 130 34.6 132.6 34.6 132.6 L85.4 132.6 C85.4 132.6 83.6 130 81 123 C78 113 76 101 73 91 C69 87 51 87 47 91Z" fill="url(#pd)"/>
-    <path d="M34.6 130.4 C46 134.4 74 134.4 85.4 130.4 L85.4 134 C74 138 46 138 34.6 134Z" fill="#dbe8dc"/>
-    <path d="M52 87.6 C56 92.4 64 92.4 68 87.6 C65 89.6 55 89.6 52 87.6Z" fill="url(#pt)"/>
-    <path d="M45.4 107 C52 111 68 111 74.6 107" stroke="url(#pt)" stroke-width="2.4" fill="none" stroke-linecap="round"/>
-    <circle cx="60" cy="109" r="2.8" fill="${T.gold}"/>
-    <circle cx="60" cy="109" r="1.2" fill="#fff" opacity=".7"/>
-    <ellipse cx="43.6" cy="98.6" rx="8.2" ry="7.2" fill="url(#pd)"/>
-    <ellipse cx="76.4" cy="98.6" rx="8.2" ry="7.2" fill="url(#pd)"/>
-    <path d="M38.6 103 C34.6 110 32.6 118 33.6 124 C36.6 123 39.6 117 41.6 110Z" fill="url(#ps)"/>
-    <path d="M81.4 103 C85.4 110 87.4 118 86.4 124 C83.4 123 80.4 117 78.4 110Z" fill="url(#ps)"/>
-    <circle cx="34.8" cy="125.6" r="4.2" fill="url(#ps)"/>
-    <circle cx="85.2" cy="125.6" r="4.2" fill="url(#ps)"/>
-  </g>`;
-}
-/* 图层 3：脸（包子脸：上圆下微尖、下巴圆润） */
-const PET_FACE_SHAPE = 'M23 52 C23 32 37 21 60 21 C83 21 97 32 97 52 C97 69 84 87 60 87 C36 87 23 69 23 52Z';
-function petFace(){
-  return `<g>
-    <path d="${PET_FACE_SHAPE}" fill="url(#ps)"/>
-    <path d="M34 50 C36 42 42 37 50 42 C53 46 56 48 60 48 C64 48 67 46 70 42 C78 37 84 42 86 50 C84 44 79 40 73 39 C69 41 65 43 60 43 C55 43 51 41 47 39 C41 40 36 44 34 50Z" fill="${PET_THEME.skinSh}" opacity=".5"/>
-  </g>`;
-}
-/* 图层 4：前发（刘海 + 两侧鬓发 + 呆毛 + 高光） */
-function petHairFront(){
-  const T = PET_THEME;
-  return `<g>
-    <path d="M60 5 C66 1 75 2 80 7.4 C73 7.4 66.6 9.6 62.4 14.6 C60.6 10.6 59.4 7.6 60 5Z" fill="url(#ph)"/>
-    <path d="M23 54 C23 34 37 20 60 20 C83 20 97 34 97 54
-             C94 46 90.4 40.4 86.4 37.4
-             C85.4 50 84.4 62 84.4 74
-             C81 69 79 61 78.2 52.6
-             C76 47.6 72.6 45.6 68.6 45.4
-             C66.4 49 63.4 51.2 60 51.4
-             C56.6 51.2 53.6 49 51.4 45.4
-             C47.4 45.6 44 47.6 41.8 52.6
-             C41 61 39 69 35.6 74
-             C35.6 62 34.6 50 33.6 37.4
-             C29.6 40.4 26 46 23 54Z" fill="url(#ph)"/>
-    <path d="M31 43 C39 27 50 24.6 61 24.6 C72 24.6 83 28 89 43 C81 32 72 28.4 61 28.4 C49 28.4 39 32.6 31 43Z" fill="#fff" opacity=".5"/>
-    <g stroke="${T.hairD}" stroke-width="1.1" fill="none" stroke-linecap="round" opacity=".55">
-      <path d="M50.6 25.6 C49.6 32 49.4 38 50.2 44.4"/>
-      <path d="M60 23 C60 30 60 38 60 49.4"/>
-      <path d="M69.4 25.6 C70.4 32 70.6 38 69.8 44.4"/>
-      <path d="M41.4 30.6 C40 38 39.6 46 40.4 54.6"/>
-      <path d="M78.6 30.6 C80 38 80.4 46 79.6 54.6"/>
-    </g>
-    <path d="M41.8 52.6 C44 47.6 47.4 45.6 51.4 45.4 C53.6 49 56.6 51.2 60 51.4 C63.4 51.2 66.4 49 68.6 45.4 C72.6 45.6 76 47.6 78.2 52.6" stroke="${T.hairD}" stroke-width="1.2" fill="none" stroke-linecap="round" opacity=".65"/>
-    <path d="M33.6 37.4 C34.6 50 35.6 62 35.6 74" stroke="${T.hairD}" stroke-width="1" fill="none" opacity=".5"/>
-    <path d="M86.4 37.4 C85.4 50 84.4 62 84.4 74" stroke="${T.hairD}" stroke-width="1" fill="none" opacity=".5"/>
-  </g>`;
-}
-/* 图层 5：眉毛（画在刘海之上 = 二次元「透刘海」） */
-function petBrow(kind){
-  const c = PET_THEME.eyeC, op = .62;
-  const up   = `<path d="M39.6 51.4 Q46 47.2 52.4 50.4" stroke="${c}" stroke-width="1.9" fill="none" stroke-linecap="round" opacity="${op}"/>
-                <path d="M67.6 50.4 Q74 47.2 80.4 51.4" stroke="${c}" stroke-width="1.9" fill="none" stroke-linecap="round" opacity="${op}"/>`;
-  const flat = `<path d="M40 51.6 L52 50.2" stroke="${c}" stroke-width="1.8" fill="none" stroke-linecap="round" opacity="${op}"/>
-                <path d="M68 50.2 L80 51.6" stroke="${c}" stroke-width="1.8" fill="none" stroke-linecap="round" opacity="${op}"/>`;
-  const down = `<path d="M40 50 Q46 47 52 51.6" stroke="${c}" stroke-width="1.9" fill="none" stroke-linecap="round" opacity="${op}"/>
-                <path d="M68 51.6 Q74 47 80 50" stroke="${c}" stroke-width="1.9" fill="none" stroke-linecap="round" opacity="${op}"/>`;
-  const sadB = `<path d="M39.6 49.4 Q46 52.6 52.4 53.4" stroke="${c}" stroke-width="1.9" fill="none" stroke-linecap="round" opacity="${op}"/>
-                <path d="M67.6 53.4 Q74 52.6 80.4 49.4" stroke="${c}" stroke-width="1.9" fill="none" stroke-linecap="round" opacity="${op}"/>`;
-  if(kind==='flat') return flat;
-  if(kind==='down') return down;
-  if(kind==='sad')  return sadB;
-  return up;
-}
-/* 图层 6：单眼绘制（cx=45.6 左 / 74.4 右；side 决定眼尾朝向） */
-function petEye(kind, cx, side){
-  const T = PET_THEME, cy = 63, L = T.eyeLine;
-  const tailX = (side === 'L') ? cx - 9.4 : cx + 9.4;
-  const tail  = `<path d="M${tailX} ${cy-3.2} l${(side==='L'?-3.4:3.4)} -2.4" stroke="${L}" stroke-width="2.7" fill="none" stroke-linecap="round"/>`;
-  const lash  = `<path d="M${cx-9.4} ${cy-3.2} Q${cx} ${cy-11.8} ${cx+9.4} ${cy-3.2}" stroke="${L}" stroke-width="3.2" fill="none" stroke-linecap="round"/>`;
-  const lid   = `<path d="M${cx-7} ${cy-9.6} Q${cx} ${cy-13.4} ${cx+7} ${cy-9.6}" stroke="${T.eyeC}" stroke-width="1.6" fill="none" stroke-linecap="round" opacity=".5"/>`;
-  if(kind==='smile')  return `<g><path d="M${cx-9} ${cy+1.2} Q${cx} ${cy-7.4} ${cx+9} ${cy+1.2}" stroke="${L}" stroke-width="3.3" fill="none" stroke-linecap="round"/>${tail}</g>`;
-  if(kind==='closed') return `<g><path d="M${cx-9} ${cy-1.4} Q${cx} ${cy+4.6} ${cx+9} ${cy-1.4}" stroke="${L}" stroke-width="2.9" fill="none" stroke-linecap="round"/><path d="M${cx-7} ${cy-7} Q${cx} ${cy-10.4} ${cx+7} ${cy-7}" stroke="${L}" stroke-width="1.5" fill="none" stroke-linecap="round" opacity=".55"/></g>`;
-  if(kind==='star')   return `<path d="M${cx} ${cy-9.4} l2.7 5.8 6.3.5 -4.8 4.1 1.5 6.2 -5.7-3.4 -5.7 3.4 1.5-6.2 -4.8-4.1 6.3-.5Z" fill="${T.gold}" stroke="${T.eyeC}" stroke-width=".9" stroke-linejoin="round"/>`;
-  const white = `<ellipse cx="${cx}" cy="${cy}" rx="9.2" ry="10.2" fill="#fff"/>`;
-  const iris  = `<ellipse cx="${cx}" cy="${cy+.8}" rx="7.8" ry="8.8" fill="url(#pe)"/>`;
-  const pupil = `<ellipse cx="${cx}" cy="${cy+1.8}" rx="3.7" ry="5.1" fill="${T.eyeC}"/>`;
-  const hi    = `<ellipse cx="${cx-2.9}" cy="${cy-3.6}" rx="3" ry="2.7" fill="#fff" opacity=".97"/>
-                 <circle cx="${cx+3.4}" cy="${cy+4.2}" r="1.6" fill="#fff" opacity=".72"/>`;
-  const under = `<path d="M${cx-8.6} ${cy+6.6} Q${cx} ${cy+10.4} ${cx+8.6} ${cy+6.6}" stroke="${L}" stroke-width="1.4" fill="none" stroke-linecap="round" opacity=".45"/>`;
-  const base  = white + iris + pupil + hi + under + lash + tail + lid;
-  if(kind==='squint') return `<g>${white}${iris}${hi}
-      <path d="M${cx-10} ${cy-1.6} Q${cx} ${cy-5.2} ${cx+10} ${cy-1.6} L${cx+10} ${cy-14} L${cx-10} ${cy-14} Z" fill="${PET_THEME.skinA}"/>
-      <path d="M${cx-10} ${cy-1.6} Q${cx} ${cy-5.2} ${cx+10} ${cy-1.6}" stroke="${L}" stroke-width="3.1" fill="none" stroke-linecap="round"/>${tail}</g>`;
-  if(kind==='tear')   return `<g>${base}<path d="M${cx+6.8} ${cy+8.4} c1.9 2.7 2.9 4.2 2.9 5.6 a2.9 2.9 0 0 1-5.8 0 c0-1.4 1-2.9 2.9-5.6Z" fill="#7ec8f0" opacity=".92"/><path d="M${cx+5.6} ${cy+9.6} q.8 1.6 1.6 2.4" stroke="#fff" stroke-width=".9" fill="none" opacity=".8"/></g>`;
-  if(kind==='wide')   return `<g><ellipse cx="${cx}" cy="${cy}" rx="10" ry="11.4" fill="#fff"/>
-      <ellipse cx="${cx}" cy="${cy+1}" rx="6.2" ry="7.2" fill="url(#pe)"/>
-      <ellipse cx="${cx}" cy="${cy+1.8}" rx="2.8" ry="4" fill="${T.eyeC}"/>
-      <ellipse cx="${cx-2.6}" cy="${cy-3.4}" rx="2.6" ry="2.3" fill="#fff" opacity=".97"/>${under}${lash}${tail}</g>`;
-  if(kind==='heart')  return `<path d="M${cx} ${cy+7.6} c-6.4-7.2-16.6-3-16.6 5.4 0 7.6 10.6 13.4 16.6 18.8 6-5.4 16.6-11.2 16.6-18.8 0-8.4-10.2-12.6-16.6-5.4Z" fill="#ff8fa6" stroke="#e26a83" stroke-width=".9"/>`;
-  return `<g>${base}</g>`;
-}
-/* 图层 7：嘴 */
 function petMouth(kind){
-  const m = '#c26b74', my = 77.4, dk = '#a9505b';
-  if(kind==='o')     return `<g><ellipse cx="60" cy="${my}" rx="4.4" ry="5.2" fill="${dk}"/><ellipse cx="60" cy="${my+1.8}" rx="3" ry="2.8" fill="#e58a92"/></g>`;
-  if(kind==='small') return `<path d="M58 ${my+.4} Q60 ${my+2.8} 62 ${my+.4}" stroke="${m}" stroke-width="2" fill="none" stroke-linecap="round"/>`;
-  if(kind==='wave')  return `<path d="M55.4 ${my+1.2} Q57.8 ${my-2.4} 60 ${my+1.2} Q62.2 ${my-2.4} 64.6 ${my+1.2}" stroke="${m}" stroke-width="2" fill="none" stroke-linecap="round"/>`;
-  if(kind==='grin')  return `<g><path d="M53.6 ${my-1.6} Q60 ${my+7.4} 66.4 ${my-1.6} Q60 ${my-3.4} 53.6 ${my-1.6}Z" fill="${dk}"/><path d="M56.6 ${my+1.8} Q60 ${my+5.4} 63.4 ${my+1.8} Q60 ${my+3} 56.6 ${my+1.8}Z" fill="#fff" opacity=".85"/></g>`;
-  return `<path d="M55.2 ${my-1.8} Q60 ${my+3.6} 64.8 ${my-1.8}" stroke="${m}" stroke-width="2.1" fill="none" stroke-linecap="round"/>`;
-}
-/* 图层 8：特效 */
-function petFx(kind){
-  const T = PET_THEME;
-  if(kind==='star')  return `<g fill="${T.gold}"><path d="M100 30 l2.1 4.8 5.2.4-4 3.4 1.2 5.1-4.5-2.7-4.5 2.7 1.2-5.1-4-3.4 5.2-.4Z"/><path d="M16 44 l1.5 3.5 3.8.3-2.9 2.4.9 3.8-3.3-2-3.3 2 .9-3.8-2.9-2.4 3.8-.3Z" opacity=".85"/></g>`;
-  if(kind==='spark') return `<g fill="${T.gold}" opacity=".9"><circle cx="101" cy="38" r="2.6"/><circle cx="94" cy="28" r="1.6"/><circle cx="19" cy="48" r="2.1"/><circle cx="26" cy="40" r="1.4"/></g>`;
-  if(kind==='note')  return `<g fill="#7fb98a" font-family="serif"><text x="95" y="34" font-size="14">&#9834;</text><text x="17" y="50" font-size="10">&#9835;</text></g>`;
-  if(kind==='think') return `<g><ellipse cx="97" cy="31" rx="9.4" ry="6.8" fill="#fff" opacity=".92"/><ellipse cx="97" cy="31" rx="9.4" ry="6.8" fill="none" stroke="${T.trimB}" stroke-width="1" opacity=".5"/><circle cx="88" cy="40" r="2.1" fill="#fff" opacity=".85"/><circle cx="83" cy="46" r="1.4" fill="#fff" opacity=".7"/></g>`;
-  if(kind==='sweat') return `<path d="M96 28 c2.8 4.2 4.2 6.4 4.2 8.4 a4.2 4.2 0 0 1-8.4 0 c0-2 1.4-4.2 4.2-8.4Z" fill="#8fd0f0" opacity=".9"/>`;
-  if(kind==='zzz')   return `<g fill="#8ea8c9" font-family="serif" font-style="italic"><text x="92" y="32" font-size="13">z</text><text x="100" y="23" font-size="9.5">z</text><text x="106" y="16" font-size="7.5">z</text></g>`;
-  if(kind==='heart') return `<path d="M98 36 c-3.2-3.6-8.4-1.5-8.4 2.8 0 3.8 5.2 6.8 8.4 9.6 3.2-2.8 8.4-5.8 8.4-9.6 0-4.3-5.2-6.4-8.4-2.8Z" fill="#ff8fa6"/>`;
-  return '';
-}
-/* 组装：一种情绪 = 一组图层参数（也支持传对象，供眨眼等瞬时帧复用嘴型/腮红） */
-function nahidaSVG(mood){
-  const f = (mood && typeof mood==='object') ? mood : (PET_FACE[mood] || PET_FACE.happy);
-  const T = PET_THEME;
-  const blush = f.blush
-    ? `<ellipse cx="38.2" cy="71.4" rx="9.4" ry="6" fill="url(#pb)"/><ellipse cx="81.8" cy="71.4" rx="9.4" ry="6" fill="url(#pb)"/>`
-    : '';
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 150" width="120" height="150">
-${PET_DEFS}
-<ellipse cx="60" cy="146" rx="26" ry="4" fill="#000" opacity=".07"/>
-${petHairBack()}
-${petBody()}
-${petFace()}
-${petHairFront()}
-${blush}
-${petBrow(f.brow)}
-${petEye(f.eye, 45.6, 'L')}${petEye(f.eye, 74.4, 'R')}
-${petMouth(f.mouth)}
-<path d="M81 17.6 C89.4 9.6 100.6 11.6 103.6 19.6 C95.6 23.6 87.6 23.6 81 17.6Z" fill="url(#pt)"/>
-<path d="M83.6 18.6 C89.6 14.6 97 15.6 101 19.6" stroke="#fff" stroke-width="1.3" fill="none" opacity=".55"/>
-<circle cx="86.6" cy="16.4" r="3.4" fill="#fff"/>
-<circle cx="86.6" cy="16.4" r="1.7" fill="${T.gold}"/>
-${petFx(f.fx)}
-</svg>`;
-}
-/* ---------- 桌宠形象 ：「小蛛」视频同款风格自绘皮肤 ----------
-   参考用户提供的 Q 版桌宠视频（抖音@ggbone）与三张参考图；自绘矢量实现（非搬运素材文件）：
-   ① 头身比约 1.5:1 的大头 Q 版；② 白色大「眼罩」+ 粗黑描边（贴纸感）；③ 蛛网纹红蓝战衣；
-   ④ 表情 = 眼罩形态（睁/眯/弯月/星星/爱心/泪/闭眼）+ 小嘴 + 特效，复用与小练同一套
-   PET_FACE 情绪参数与情绪状态机——换形象零成本接入现有眨眼/彩蛋/台词体系。 */
-/* 小蛛版本主题：早期版(v1)=初始灵感稿；现版(v2)=完成差异化的正式版。
-   新增 v3=「视频同款」重制版（按 docs/小蛛桌宠·按视频款式重制规格书.md 落地）：
-   配色取视频实测值（主红 #C92848 / 藏蓝 #344383 / 描边 #241018），纹样回到中心放射蛛网，
-   胸标回到蜘蛛徽记，身形比回到 1.00 —— 即撤销 v2 的「去红蓝化」四项改动。
-   差异与版权护栏见 docs/小蛛形象差异说明.md。 */
-const SPIDER_THEME = {
-  v1: { ink:'#26221f', red:'#d93a3a', redD:'#a52222', blue:'#3d6bd8', lens:'#ffffff', web:'radial',  emblem:'spider',   body:1.00, eyeShape:'classic', label:'早期版' },
-  v2: { ink:'#2b2622', red:'#e2694a', redD:'#b34a2f', blue:'#2f8f7a', lens:'#f4fbf8', web:'diag',    emblem:'dumbbell', body:1.07, eyeShape:'classic', label:'现版' },
-  v3: { ink:'#241018', red:'#c92848', redHL:'#d73256', redD:'#8e1d30',
-        blue:'#344383', blueD:'#222c5c', lens:'#ffffff',
-        web:'radial', webW:1.2, webOp:0.45, webRays:6,
-        emblem:'spider', body:1.00, lw:2.8, eyeShape:'video', label:'视频同款' }
-};
-/* 主题取值：缺字段一律补默认，避免旧主题读到 undefined 后整张 SVG 渲染成黑块 */
-function spTheme(v){
-  const t = SPIDER_THEME[v] || SPIDER_THEME.v3;
-  return {
-    ink: t.ink || '#241018',
-    red: t.red || '#c92848',
-    redHL: t.redHL || t.red || '#c92848',
-    redD: t.redD || '#8e1d30',
-    blue: t.blue || '#344383',
-    blueD: t.blueD || t.blue || '#344383',
-    lens: t.lens || '#ffffff',
-    web: t.web || 'radial',
-    webW: (typeof t.webW === 'number') ? t.webW : 1,        // 蛛网线宽
-    webOp: (typeof t.webOp === 'number') ? t.webOp : 0.3,   // 蛛网不透明度（v3 提到 .45：0.3 在 104px 下几乎看不见）
-    webRays: (typeof t.webRays === 'number') ? t.webRays : 7,
-    emblem: t.emblem || 'spider',
-    body: (typeof t.body === 'number') ? t.body : 1,
-    lw: (typeof t.lw === 'number') ? t.lw : 2.4,        // 躯干/四肢描边线宽（v3 提到 2.8 贴视频粗描边）
-    eyeShape: t.eyeShape || 'classic',
-    label: t.label || ''
-  };
-}
-let _SP = spTheme('v3');   // 当前生效主题（只由 spiderSVG 切换，幂等可回退）
-/* 眼罩基础形（左眼；右眼由镜像变换生成）
-   classic = v1/v2 的圆润椭圆；video = v3 的大水滴/杏仁形（内侧收尖角指向鼻梁、外侧圆钝上挑） */
-const SPIDER_LENS = {
-  classic: 'M50 38 C36 34 24 44 23 57 C22 71 32 80 44 78 C53 76 57 67 56 55 C55 45 54 40 50 38 Z',
-  video:   'M23 50 C23 39.5 33 35 43 37 C51 39 57 49 58.5 56.5 C50 67.5 36 71.5 28 65 C24 61.5 23 56 23 50 Z'
-};
-function spLensPath(){ return (_SP.eyeShape === 'video') ? SPIDER_LENS.video : SPIDER_LENS.classic; }
-/* 头部蛛网纹：从头顶中心放射 + 三圈同心弧（裁剪在头圆内）
-   ：v3 用 6 条主干（差异化护栏：不做高密度全覆盖），线宽/不透明度按主题可调 */
-const SPIDER_RAYS = {
-  6: [[106.4,24.4],[93.9,45.9],[72.4,58.4],[47.6,58.4],[26.1,45.9],[13.6,24.4]],
-  7: [[101,12],[95.5,32.5],[80.5,47.5],[60,53],[39.5,47.5],[24.5,32.5],[19,12]]
-};
-function spWeb(){
-  const set = SPIDER_RAYS[_SP.webRays] || SPIDER_RAYS[7];
-  const rays = set.map(p=>`<line x1="60" y1="12" x2="${p[0]}" y2="${p[1]}"/>`).join('');
-  const rings = [13,23,33].map(r=>`<circle cx="60" cy="12" r="${r}"/>`).join('');
-  if(_SP.web === 'diag'){
-    const g=[]; for(let i=-2;i<=10;i++){ const o=i*13; g.push(`<line x1="${14+o}" y1="12" x2="${14+o+46}" y2="98"/>`); g.push(`<line x1="${14+o+46}" y1="12" x2="${14+o}" y2="98"/>`); }
-    return `<g stroke="${_SP.ink}" stroke-width=".9" fill="none" opacity=".22">${g.join('')}</g>`;
-  }
-  return `<g stroke="${_SP.ink}" stroke-width="${_SP.webW}" fill="none" opacity="${_SP.webOp}">${rays}${rings}</g>`;
-}
-/* 身体：小腿红靴 → 手臂 → 圆润躯干 → 蓝裤 → 胸前小蜘蛛 */
-function spBody(){
-  const ink = _SP.ink, lw = _SP.lw;
-  return `<g>
-  <g stroke="${ink}" stroke-width="${lw}" stroke-linejoin="round" stroke-linecap="round">
-    <rect x="49.5" y="116" width="9" height="18" rx="4.5" fill="${_SP.blue}"/>
-    <rect x="61.5" y="116" width="9" height="18" rx="4.5" fill="${_SP.blue}"/>
-    <path d="M47.5 130 C45 136.5 50.5 140 55.5 137.8 L56.5 130Z" fill="${_SP.red}"/>
-    <path d="M72.5 130 C75 136.5 69.5 140 64.5 137.8 L63.5 130Z" fill="${_SP.red}"/>
-    <ellipse cx="38.5" cy="105" rx="6" ry="9.5" transform="rotate(22 38.5 105)" fill="${_SP.red}"/>
-    <ellipse cx="81.5" cy="105" rx="6" ry="9.5" transform="rotate(-22 81.5 105)" fill="${_SP.red}"/>
-    <circle cx="34.5" cy="115" r="4.4" fill="${_SP.red}"/>
-    <circle cx="85.5" cy="115" r="4.4" fill="${_SP.red}"/>
-    <path d="M47.5 90 C44.5 100 44.5 111 47.5 119.5 C55.5 123.5 64.5 123.5 72.5 119.5 C75.5 111 75.5 100 72.5 90 C64.5 85.5 55.5 85.5 47.5 90Z" fill="${_SP.red}"/>
-    <path d="M46.8 107 L73.2 107 L73.2 117.5 C64.5 121.5 55.5 121.5 46.8 117.5Z" fill="${_SP.blue}"/>
-  </g>
-  ${spEmblem()}
-  </g>`;
-}
-/* 胸标：dumbbell=哑铃(v2) / spider=自绘简化蜘蛛(v1·v3)
-   版权护栏：蜘蛛为自绘简笔——躯干用细长对称椭圆（长宽比约 0.62，明显瘦于官方徽记的饱满造型），
-   八条腿一律用「两段直线 + 一个钝角折点」绘制，不使用官方徽记的平滑弧线腿与末端圆点。 */
-function spEmblem(){
-  if(_SP.emblem === 'dumbbell'){
-    return `<g stroke="${_SP.ink}" stroke-width="1.6" stroke-linecap="round" fill="${_SP.lens}">
-         <rect x="52" y="98.4" width="16" height="4.2" rx="2.1"/>
-         <rect x="48.4" y="96.6" width="3.4" height="7.8" rx="1.7" fill="${_SP.blue}"/>
-         <rect x="68.2" y="96.6" width="3.4" height="7.8" rx="1.7" fill="${_SP.blue}"/>
-       </g>`;
-  }
-  // 左半侧四条折线腿（x>60 的右半由镜像生成）
-  const legs = [
-    'M57.6 98.0 L54.2 96.0 L51.6 93.8',
-    'M57.6 100.0 L53.6 99.8 L50.4 99.3',
-    'M57.6 103.0 L53.6 104.0 L50.6 105.6',
-    'M57.8 104.8 L54.6 106.6 L52.0 108.4'
-  ].map(d=>`<path d="${d}"/>`).join('');
-  return `<g fill="none" stroke="${_SP.ink}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-      ${legs}
-      <g transform="translate(120,0) scale(-1,1)">${legs}</g>
-    </g>
-    <ellipse cx="60" cy="101.3" rx="2.6" ry="4.2" fill="${_SP.ink}"/>
-    <circle cx="60" cy="96.0" r="2.0" fill="${_SP.ink}"/>`;
-}
-/* 单只眼罩（左眼）：kind 与 PET_FACE.eye 对应 */
-function spEye(kind){
-  const ink = _SP.ink;
-  const video = (_SP.eyeShape === 'video');
-  // 视频同款(v3)只保留「大镜片」这一种眼型——不再出现星星眼/爱心眼/泪眼/大瞳孔等装饰
-  if(video && kind !== 'closed' && kind !== 'smile') kind = 'open';
-  const lens = `<path d="${spLensPath()}" fill="${_SP.lens}" stroke="${ink}" stroke-width="${video?3.4:3}" stroke-linejoin="round"/>`;
-  const lid  = y => `<g clip-path="url(#spLc)"><path d="M14 ${y} Q40 ${y+9} 66 ${y} L66 96 L14 96Z" fill="${_SP.red}"/><path d="M14 ${y} Q40 ${y+9} 66 ${y}" stroke="${ink}" stroke-width="2" fill="none"/></g>`;
-  if(kind==='smile')  return `<path d="M27 60 Q40 46 53 60 Q40 54 27 60Z" fill="#fff" stroke="${ink}" stroke-width="2.4" stroke-linejoin="round"/>`;
-  if(kind==='closed') return `<path d="M28 57 Q40 67 52 57" stroke="${ink}" stroke-width="3" fill="none" stroke-linecap="round"/>`;
-  if(kind==='squint') return lens + lid(47);
-  if(kind==='star')   return lens + `<path d="M39 48.6 l2.7 5.8 6.3.5 -4.8 4.1 1.5 6.2 -5.7-3.4 -5.7 3.4 1.5-6.2 -4.8-4.1 6.3-.5Z" fill="#f3cd72" stroke="${ink}" stroke-width=".9" stroke-linejoin="round"/>`;
-  if(kind==='heart')  return lens + `<path d="M39 63.5 c-3.4-3.8-8.9-1.6-8.9 3 0 4 5.5 7.2 8.9 10.1 3.4-2.9 8.9-6.1 8.9-10.1 0-4.6-5.5-6.8-8.9-3Z" fill="#ff8fa6" stroke="${ink}" stroke-width="1"/>`;
-  if(kind==='tear')   return lens + `<path d="M53 70 c1.9 2.7 2.9 4.2 2.9 5.6 a2.9 2.9 0 0 1-5.8 0 c0-1.4 1-2.9 2.9-5.6Z" fill="#7ec8f0" opacity=".92"/>`;
-  if(kind==='wide')   return lens + `<circle cx="39" cy="59" r="4.6" fill="#5b8dd9"/><circle cx="37.4" cy="57.4" r="1.6" fill="#fff"/>`;
-  return lens;
-}
-/* 小嘴（画在面罩下巴处，Q 版夸张化表情） */
-function spMouth(kind){
-  const ink = _SP.ink;
-  if(kind==='grin')  return `<path d="M54.5 83.5 Q60 91 65.5 83.5 Q60 86 54.5 83.5Z" fill="${ink}"/>`;
-  if(kind==='o')     return `<ellipse cx="60" cy="86" rx="3.1" ry="3.7" fill="#8c2f2f" stroke="${ink}" stroke-width="1.4"/>`;
-  if(kind==='wave')  return `<path d="M56 85.5 Q58 83 60 85.5 Q62 88 64 85.5" stroke="${ink}" stroke-width="2" fill="none" stroke-linecap="round"/>`;
-  if(kind==='small') return `<path d="M58.4 85 Q60 86.6 61.6 85" stroke="${ink}" stroke-width="2" fill="none" stroke-linecap="round"/>`;
-  if(kind==='smile') return `<path d="M56 84.5 Q60 88 64 84.5" stroke="${ink}" stroke-width="2.2" fill="none" stroke-linecap="round"/>`;
-  return '';
-}
-/* 组装：小蛛（与小练同一情绪参数表 PET_FACE） */
-function spiderSVG(mood, variant){
-  _SP = spTheme(variant);
-  const f = (mood && typeof mood==='object') ? mood : (PET_FACE[mood] || PET_FACE.happy);
-  const bw = _SP.body;
-  const video = (_SP.eyeShape === 'video');
-  // 视频款：角色悬浮于桌面之上，无地面阴影；也不叠加闪光/爱心类特效（视频未观测到，证据不足不臆造）
-  const ground = video ? '' : `<ellipse cx="60" cy="146" rx="24" ry="4" fill="#000" opacity=".08"/>`;
-  const fx = video ? '' : (f.fx || '');
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 150" width="120" height="150">
-<defs>
-  <clipPath id="spHd"><circle cx="60" cy="54" r="40.6"/></clipPath>
-  <clipPath id="spLc"><path d="${spLensPath()}"/></clipPath>
-</defs>
-${ground}
-<g transform="translate(${60*(1-bw)},${126*(1-bw)}) scale(${bw})">${spBody()}</g>
-<circle cx="60" cy="54" r="42" fill="${_SP.red}" stroke="${_SP.ink}" stroke-width="3"/>
-<g clip-path="url(#spHd)">
-  <ellipse cx="60" cy="99" rx="48" ry="16" fill="${_SP.redD}" opacity=".4"/>
-  ${spWeb()}
-</g>
-<g>${spEye(f.eye)}</g>
-<g transform="translate(120,0) scale(-1,1)">${spEye(f.eye)}</g>
-${spMouth(f.mouth)}
-${fx ? petFx(fx) : ''}
-</svg>`;
-}
-/* 皮肤注册表：统一入口，四种自绘形象 + 一种立绘位图（切换只换渲染器，桌宠状态/配置/动画完全不受影响）
-   nahida  = 自绘桌宠（小练）
-   spiderV1= 小蛛·早期版（初始灵感稿：红蓝高对比 + 放射蛛网 + 蜘蛛胸标 + 略修长）
-   spiderV2= 小蛛·现版（差异化正式版：珊瑚红/松绿 + 斜向网格 + 哑铃胸标 + 更圆更矮）
-   spiderV3= 小蛛·视频同款（默认，按参考视频重制）
-   official= 立绘位图（assets/nahida-icon.webp；位图皮肤不做眨眼/表情换帧，溯源见 assets/CREDITS.md）
-   注：对外显示名一律不含角色本名，只称「官方立绘」，避免第三方角色字样出现在界面上。 */
-const PET_SKINS = [
-  { key:'nahida',   name:'自绘桌宠', render: m => nahidaSVG(m) },
-  { key:'spiderV1', name:'小蛛 · 早期版',    render: m => spiderSVG(m, 'v1') },
-  { key:'spiderV2', name:'小蛛 · 现版',      render: m => spiderSVG(m, 'v2') },
-  { key:'spiderV3', name:'小蛛 · 视频同款',  render: m => spiderSVG(m, 'v3') },
-  { key:'official', name:'官方立绘', render: m => nahidaSVG(m), asset:'assets/nahida-icon.webp' },
-  { key:'photo',   name:'照片桌宠', render: m => photoPetSVG(m, (STATE.settings && STATE.settings.petPhoto) || ''), photo:true }
+  if(kind==='o') return '<ellipse cx="60" cy="78" rx="3.5" ry="4.2" fill="#a9505b"/>';
+  if(kind==='small') return '<path d="M58 78 Q60 80 62 78" stroke="#a9505b" stroke-width="1.8" fill="none" stroke-linecap="round"/>';
+  if(kind==='wave') return '<path d="M55 78 Q58 75 60 78 Q62 81 65 78" stroke="#a9505b" stroke-width="1.8" fill="none" stroke-linecap="round"/>';
+  return '<path d="M54 76 Q60 83 66 76" stroke="#a9505b" stroke-width="2" fill="none" stroke-linecap="round"/>';
+}const PET_SKINS = [
+  { key:'boji', name:'Boji', asset:BOJI_CANDIDATE, render:()=>'' },
+  { key:'photo', name:'照片桌宠', render:m=>photoPetSVG(m, (STATE.settings && STATE.settings.petPhoto) || ''), photo:true }
 ];
-function skinBy(key){ for(let i=0;i<PET_SKINS.length;i++) if(PET_SKINS[i].key===key) return PET_SKINS[i]; return PET_SKINS[0]; }
-/* 皮肤调度层（旧接口保留，行为不变，便于回退） */
+function skinBy(key){ return PET_SKINS.find(row=>row.key===key) || PET_SKINS[0]; }
 function petSVG(mood){
-  const sk = skinBy(STATE.petSkin);
-  if(sk.key === 'nahida') return nahidaSVG(mood);
-  // 照片桌宠：每次实时合成（照片可能刚换），不走 dataURI 缓存
-  if(sk.key === 'photo') return photoPetSVG(mood, (STATE.settings && STATE.settings.petPhoto) || '');
-  if(sk.key === 'spiderV1') return spiderSVG(mood, 'v1');
-  if(sk.key === 'spiderV2') return spiderSVG(mood, 'v2');
-  return spiderSVG(mood, 'v3');
+  if(STATE.petSkin==='photo') return photoPetSVG(mood, (STATE.settings && STATE.settings.petPhoto) || '');
+  return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 150" width="240" height="300"><image href="'+BOJI_CANDIDATE+'" width="120" height="150" preserveAspectRatio="xMidYMid slice"/></svg>';
 }
-const PET_ART = {};   // 皮肤:情绪 → dataURI 缓存（同一情绪只生成一次）
 function petArtURI(mood){
-  const k = STATE.petSkin + ':' + ((mood && typeof mood==='object') ? 'obj:' + JSON.stringify(mood) : (mood || 'happy'));
-  // 照片桌宠实时合成，不进缓存（换照片后必须立刻生效，不能用旧 dataURI）
-  if(skinBy(STATE.petSkin).photo) return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(petSVG(mood));
-  if(!PET_ART[k]) PET_ART[k] = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(petSVG(mood));
-  return PET_ART[k];
+  if(skinBy(STATE.petSkin).photo) return 'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(petSVG(mood));
+  return BOJI_CANDIDATE;
 }
-// 皮肤映射层：换形象只改这里，桌宠引擎与 CSS 动画完全不动
 function applyPetArt(mood){
-  const img = document.getElementById('pet-img'); if(!img) return;
-  const sk = skinBy(STATE.petSkin);
-  // 视频款(v3)为悬浮角色，隐藏地面阴影（视频实测无地面阴影）
-  const pet = document.getElementById('pet');
-  if(pet){ pet.classList.toggle('pet-video', sk.key === 'spiderV3'); pet.classList.toggle('skin-photo', sk.key === 'photo'); }
-  if(sk.asset && !sk.photo){ img.src = sk.asset; return; }
-  img.src = petArtURI(mood || STATE.petMood || 'happy');
+  const img=document.getElementById('pet-img');if(!img)return;
+  const skin=skinBy(STATE.petSkin),pet=document.getElementById('pet');
+  if(pet){pet.classList.remove('pet-video');pet.classList.toggle('skin-photo',skin.key==='photo');}
+  img.src=skin.asset&&!skin.photo?skin.asset:petArtURI(mood||STATE.petMood||'happy');
 }
-// 随机眨眼：只对睁眼情绪生效；瞬时帧保留原嘴型/腮红，135ms 后还原。官方皮肤不支持图层，自动跳过
 let blinkTimer=null;
 function scheduleBlink(){
   clearTimeout(blinkTimer);
-  blinkTimer = setTimeout(()=>{
-    const mood = STATE.petMood || 'happy';
-    const f = PET_FACE[mood];
-    // 自绘 SVG 皮肤做眨眼帧；位图皮肤（有 asset，如官方立绘）是整图，无法换眼型，跳过
-    if(f && (f.eye==='open' || f.eye==='star') && !document.hidden && !skinBy(STATE.petSkin).asset){
-      const img = document.getElementById('pet-img');
-      if(img){
-        img.src = petArtURI({ eye:'closed', mouth:f.mouth, blush:f.blush, brow:f.brow, fx:'' });
-        setTimeout(()=>{ if(STATE.petMood===mood) applyPetArt(mood); scheduleBlink(); }, 135);
-        return;
-      }
+  blinkTimer=setTimeout(()=>{
+    const pet=document.getElementById('pet');
+    const reduce=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if(pet&&!document.hidden&&!reduce){
+      pet.classList.add('boji-blink');
+      setTimeout(()=>pet.classList.remove('boji-blink'),150);
     }
     scheduleBlink();
-  }, 3000 + Math.random()*3800);
-}
-let petTimer=null, idleTimer=null, sleepTimer=null, nudgeTimer=null;
+  },3700+Math.random()*3300);
+}let petTimer=null, idleTimer=null, sleepTimer=null, nudgeTimer=null;
 function setMood(mood, autoRevertMs){
   const pet = $('#pet'); if(!pet) return;
   Array.from(pet.classList).forEach(c=>{ if(c.startsWith('mood-')) pet.classList.remove(c); });
@@ -1776,7 +1389,7 @@ const VOICE_MOOD = {
   sad:    { rate:0.84, pitch:0.87, vol:0.86 },
   sleep:  { rate:0.78, pitch:0.85, vol:0.72 }
 };
-// 音色偏好：优先中文女声（小练的设定是元气女教练），逐级回落
+// 音色偏好：优先中文女声（Boji的设定是元气女教练），逐级回落
 const VOICE_PREF = [/tingting/i, /meijia/i, /yaoyao/i, /huihui/i, /xiaoxiao/i, /yunxi/i, /female/i, /女/i, /zh/i];
 function vc(v, a, b){ v = +v; if(!isFinite(v)) return a; return v < a ? a : (v > b ? b : v); }
 function voicePick(){
@@ -2124,7 +1737,7 @@ function navExitAttempt(){
     return;
   }
   NAV.lastExit = now;
-  toast('再按一次退出训练日记 (｡･ω･｡)');
+  toast('再按一次退出 Boji Companion (｡･ω･｡)');
   navPush('shield');                      // 补一层哨兵，防止下一次直接离开
 }
 
@@ -2134,9 +1747,30 @@ function navExitAttempt(){
 function openPanel(id){ const p=$('#'+id); p.classList.add('open'); p.setAttribute('aria-hidden','false'); navOpen(id); }
 function closePanel(id){ navUIClose(id); voiceSync(); }   // 回到桌面：语音恢复（有未说完的会接着说）
 function openAssistant(){ renderAssistant(); voiceSync(); if($('#assistant').classList.contains('open')){ return; } openPanel('assistant'); setMood('wave',1500); voiceSync(); }
+function tabForModule(name){
+  if(name==='diet'||name==='run'||name==='knowledge')return 'boji';
+  if(name==='data')return 'progress';
+  if(name==='profile')return 'profile';
+  return ['today','training','boji','progress'].includes(name)?name:'today';
+}
+function updateDockState(tab){
+  ACTIVE_TAB=tab;
+  $$('#dock .dock-item[data-go]').forEach(button=>{
+    const selected=button.dataset.go===tab;
+    button.classList.toggle('active',selected);
+    if(selected)button.setAttribute('aria-current','page');else button.removeAttribute('aria-current');
+  });
+}
 function goModule(name){
-  const titles={training:['训练计划','居家哑铃 · 点日期看当天动作'],diet:['今日饮食','拍照记录吃进来的'],run:['跑步','GPS 记录轨迹 · 配速 · 卡路里'],knowledge:['知识库','肌肉生长与增肌原理'],data:['我的数据','打卡·月历·评分·趋势'],profile:['我的','档案与设置']};
-  $('#mod-title').textContent=titles[name][0]; $('#mod-sub').textContent=titles[name][1];
+  const titles={training:['训练','学习动作，或进入今天的训练'],boji:['Boji','记录与陪伴都在这里'],progress:['进步','训练规律、力量记录与趋势'],data:['进步','训练规律、力量记录与趋势'],profile:['我的','档案与设置'],diet:['饮食记录','已确认的餐点与营养记录'],run:['跑步','记录路线、距离与时间'],knowledge:['训练知识','有来源边界的训练与营养问答']};
+  if(name==='today'){
+    updateDockState('today');ACTIVE_MODULE='today';renderHome();
+    if($('#module').classList.contains('open'))closePanel('module');
+    return;
+  }
+  const title=titles[name]||titles.today;
+  updateDockState(tabForModule(name));ACTIVE_MODULE=name;
+  $('#mod-title').textContent=title[0]; $('#mod-sub').textContent=title[1];
   renderModule(name);
   voiceSync();                                          // 离开桌面：立即停语音并释放
   if($('#module').classList.contains('open')) return;   // 已打开：只重渲染，不重复压栈
@@ -2152,29 +1786,33 @@ function renderHome(){
   $('#sb-time').textContent = $('#c-time').textContent;
   $('#c-date').textContent = `${WEEKDAY[now.getDay()]} · ${now.getMonth()+1}月${now.getDate()}日`;
   const t=getDayType(now.getDay());
-  const done = isDayComplete(todayKey());
+  const setsToday=COMPLETED_SETS_BY_DATE.get(todayKey())||0;
   $('#home-stats').innerHTML = `
-    <div class="hs-pill">🏠 居家哑铃</div>
-    <div class="hs-pill">今天<b> ${dayTypeLabel(t)}</b></div>
-    <div class="hs-pill">打卡<b> ${done?'已✓':'未'}</b></div>
+    <div class="hs-pill">今日<b> ${dayTypeLabel(t)}</b></div>
+    <div class="hs-pill">已完成<b> ${setsToday} 组</b></div>
     <div class="hs-pill">连续<b> ${streak()} 天</b></div>`;
   const ht = $('#home-today');
   if(t==='rest'){
-    ht.innerHTML = `<div class="hc-head"><span class="hc-ic">🌿</span><div><b>今天休息日</b><span>肌肉在悄悄生长</span></div></div>
-      <p class="hc-sub">睡够 7.5h、蛋白吃够，或快走 30 分钟。点底部“训练”可看其他训练日动作。</p>`;
+    ht.innerHTML = `<div class="hc-head"><span class="hc-ic" aria-hidden="true">🌿</span><div><b>今天安排休息</b><span>按你当前选择的每周训练安排</span></div>
+      <button class="hc-go" id="hc-go">查看训练 ›</button></div>
+      <p class="hc-sub">今天的日历安排为休息日。你可以查看其他训练日，或按自己的状态安排轻松活动。</p>
+      <p class="boji-note"><b>Boji：</b>你选择的${esc(planSetMeta().name)}方案把今天列为休息日。</p>
+      <details class="today-why"><summary>为什么今天练这个？</summary><p>本周计划按你选择的训练方案和星期安排显示。今天对应休息日，训练记录不会因此增加。</p></details>`;
+    $('#hc-go').onclick=()=>goModule('training');
   } else {
-    const plan = PLANS[t]; const exDone = STATE.checkins[todayKey()]?.ex || {};
-    const doneN = plan.ex.filter((_,i)=>exDone[i]).length, pct = Math.round(doneN/plan.ex.length*100);
-    ht.innerHTML = `<div class="hc-head"><span class="hc-ic">💪</span><div><b>${plan.name}</b><span>${plan.greeting}</span></div>
-      <button class="hc-go" id="hc-go">进入 ›</button></div>
-      <div class="hc-chips">${plan.ex.slice(0,5).map((e,i)=>`<span class="hc-chip${exDone[i]?' on':''}">${exDone[i]?'✓ ':''}${e.name}</span>`).join('')}${plan.ex.length>5?`<span class="hc-chip more">+${plan.ex.length-5}</span>`:''}</div>
-      <div class="hc-bar"><i style="width:${pct}%"></i></div>`;
+    const plan = PLANS[t];
+    ht.innerHTML = `<div class="hc-head"><span class="hc-ic" aria-hidden="true">💪</span><div><b>${plan.name}</b><span>今天的训练安排</span></div>
+      <button class="hc-go" id="hc-go">开始训练 ›</button></div>
+      <p class="hc-sub">今天计划包含 ${plan.ex.length} 个动作；训练组会在保存后计入记录。</p>
+      <div class="hc-chips">${plan.ex.slice(0,4).map(e=>`<span class="hc-chip">${e.name}</span>`).join('')}${plan.ex.length>4?`<span class="hc-chip more">+${plan.ex.length-4}</span>`:''}</div>
+      <p class="boji-note"><b>Boji：</b>${esc(planSetMeta().name)}按星期安排今天的${esc(plan.name)}；进度只会在训练组保存后更新。</p>
+      <details class="today-why"><summary>为什么今天练这个？</summary><p>这是你当前训练方案按星期安排的内容。系统没有根据缺少的档案或 AI 生成新计划。</p></details>`;
     $('#hc-go').onclick = ()=>goModule('training');
   }
 }
 
 /* ============================================================
-   助手对话（小练）
+   助手对话（Boji）
    ============================================================ */
 /* 修复：旧正则把「证据标记 + 正文」整段一起替换掉，
    导致知识库里的「星级证据：NSCA 建议…」只剩一个「证据等级 B」徽章、正文消失（用户看到的是残缺回答）。
@@ -2202,7 +1840,7 @@ function renderAssistant(){
 function sendMsg(text){
   text=(text||$('#chat-text').value).trim(); if(!text) return;
   $('#chat-text').value=''; addMsg('user',text); setMood('think',1400);
-  setTimeout(()=>{ const r=nahidaReply(text); addMsg('bot',r); setMood(/完成|棒|厉害|✓/.test(r)?'cheer':'happy',2600); }, 620);
+  setTimeout(()=>{ const r=bojiReply(text); addMsg('bot',r); setMood(/完成|棒|厉害|✓/.test(r)?'cheer':'happy',2600); }, 620);
 }
 
 /* ============================================================
@@ -2594,17 +2232,107 @@ function renderRun(body){
 
 function renderModule(name){
   const body=$('#mod-body');
+  if(name==='today'){renderHome();return;}
+  if(name==='boji')return renderBoji(body);
+  if(name==='progress'||name==='data')return renderProgress(body);
   if(name==='training') return renderTraining(body);
   if(name==='diet') return renderDiet(body);
   if(name==='run') return renderRun(body);
   if(name==='knowledge') return renderKnowledge(body);
-  if(name==='data') return renderData(body);
   if(name==='profile') return renderProfile(body);
+}
+function renderBoji(body){
+  body.innerHTML=`<section class="boji-hero card"><img class="boji-portrait" src="${BOJI_CANDIDATE}" alt="Boji，原创训练伙伴角色立绘候选"><div><span class="eyebrow">你的训练伙伴</span><h2>你好，我是 Boji</h2><p>我会陪你记录训练、饮食和恢复。需要建议时，我会说明记录依据和不确定的地方。</p><button class="btn-grad" data-boji-action="ask">问 Boji</button></div></section>
+    <section class="card"><h3>快速记录</h3><div class="boji-actions">
+      <button type="button" data-boji-action="food"><span aria-hidden="true">🍽️</span><b>记录饮食</b></button>
+      <button type="button" data-boji-action="barcode"><span aria-hidden="true">▥</span><b>扫条码</b></button>
+      <button type="button" data-boji-action="run"><span aria-hidden="true">🏃</span><b>开始跑步</b></button>
+      <button type="button" data-boji-action="weight"><span aria-hidden="true">⚖</span><b>记录体重</b></button>
+      <button type="button" data-boji-action="ask"><span aria-hidden="true">✦</span><b>问 Boji</b></button>
+      <button type="button" data-boji-action="photo"><span aria-hidden="true">📷</span><b>照片伙伴</b></button>
+    </div></section>
+    <section class="card boji-photo-note"><h3>伙伴形象</h3><p>Boji 角色与 Photo Pet 分开保存。Photo Pet 图片只保存在本机，可以随时替换或移除。</p><button class="ex-do ghost-btn" data-boji-action="photo">管理 Photo Pet</button></section>`;
+  body.querySelectorAll('[data-boji-action]').forEach(button=>button.onclick=()=>{
+    const action=button.dataset.bojiAction;
+    if(action==='ask'){openAssistant();return;}
+    if(action==='food'||action==='barcode'){
+      goModule('diet');openFoodSheet(0,$('#mod-body'),null);
+      if(action==='barcode')setTimeout(()=>{const scan=$('#fs-bc');if(scan)scan.click();else toast('当前浏览器没有可用的条码扫描器；可手动录入食品条码。');},0);
+      return;
+    }
+    if(action==='run'){goModule('run');return;}
+    if(action==='weight'){
+      goModule('data');const input=$('#wt-in');if(input){if(input.scrollIntoView)input.scrollIntoView({block:'center'});input.focus();}
+      return;
+    }
+    if(action==='photo'){
+      goModule('profile');setTimeout(()=>{const target=$('#skin-row')||$('#pet-photo-up');if(target&&target.scrollIntoView)target.scrollIntoView({block:'center',behavior:'smooth'});},0);
+    }
+  });
+}
+function progressStrengthSummary(){
+  const grouped=new Map();
+  WORKOUT_HISTORY_RECORDS.filter(row=>row&&row.session&&row.session.status==='COMPLETED')
+    .slice().sort((a,b)=>(a.session.startedAt||0)-(b.session.startedAt||0))
+    .forEach(workout=>{
+      const sessions=new Map((workout.exerciseSessions||[]).map(row=>[row.exerciseSessionId,row]));
+      const best=new Map();
+      (workout.sets||[]).filter(row=>row&&row.completed===true&&Number.isFinite(+row.weightKg)&&Number.isFinite(+row.reps))
+        .forEach(set=>{
+          const exercise=sessions.get(set.exerciseSessionId);if(!exercise||!exercise.exerciseId)return;
+          const old=best.get(exercise.exerciseId);
+          if(!old||+set.weightKg>+old.weightKg||(+set.weightKg===+old.weightKg&&+set.reps>+old.reps))best.set(exercise.exerciseId,{exerciseId:exercise.exerciseId,
+            name:exercise.nameSnapshot||exercise.exerciseId,sessionId:workout.session.sessionId,date:workout.session.localDateKey,weightKg:+set.weightKg,reps:+set.reps});
+        });
+      best.forEach(item=>{const list=grouped.get(item.exerciseId)||[];list.push(item);grouped.set(item.exerciseId,list);});
+    });
+  const comparable=Array.from(grouped.values()).filter(rows=>rows.length>1).sort((a,b)=>b[b.length-1].date.localeCompare(a[a.length-1].date))[0];
+  if(!comparable){
+    const weighted=Array.from(grouped.values()).reduce((sum,rows)=>sum+rows.length,0);
+    return weighted?`${weighted} 条已完成训练含实际负重；还没有足够的同动作跨训练记录作比较。`:'保存训练组的实际重量后，进步页会显示同一动作的变化。';
+  }
+  const before=comparable[comparable.length-2],latest=comparable[comparable.length-1];
+  const change=latest.weightKg>before.weightKg?`重量从 ${before.weightKg} kg 增至 ${latest.weightKg} kg`:
+    latest.weightKg===before.weightKg&&latest.reps>before.reps?`重量保持 ${latest.weightKg} kg，次数从 ${before.reps} 增至 ${latest.reps}`:
+    `最近记录为 ${latest.weightKg} kg × ${latest.reps} 次，上次为 ${before.weightKg} kg × ${before.reps} 次`;
+  return `${latest.name}：${change}（${before.date} → ${latest.date}）。只比较已保存的实际组记录。`;
+}
+function renderProgress(body){
+  renderData(body);
+  const completed=WORKOUT_HISTORY_RECORDS.filter(row=>row&&row.session&&row.session.status==='COMPLETED');
+  const week=new Date();week.setHours(0,0,0,0);week.setDate(week.getDate()-6);
+  const weekKey=BojiData.localDateKey(week);
+  const weekly=new Set(completed.filter(row=>row.session.localDateKey>=weekKey&&row.session.localDateKey<=todayKey()).map(row=>row.session.localDateKey)).size;
+  const latest=completed.slice().sort((a,b)=>(b.session.endedAt||b.session.startedAt||0)-(a.session.endedAt||a.session.startedAt||0))[0];
+  const issue=ACTIVE_WORKOUT?`有一节训练仍在进行：${ACTIVE_WORKOUT.session.localDateKey}。保存的组会保留，可继续完成。`:
+    latest?`最近一次完成训练：${latest.session.localDateKey}；近 7 天有 ${weekly} 天完成训练。`:'当前没有已完成的训练记录。';
+  const summary=document.createElement('section');summary.className='progress-first card';
+  summary.innerHTML=`<h3>先看这三件事</h3><div class="progress-answer"><b>力量变化</b><p>${esc(progressStrengthSummary())}</p></div>
+    <div class="progress-answer"><b>训练规律</b><p>过去 7 天完成了 ${weekly} 天训练。统计只计入已完成的 WorkoutSession。</p></div>
+    <div class="progress-answer"><b>值得留意</b><p>${esc(issue)}</p></div>`;
+  body.insertBefore(summary,body.firstChild);
+  const heading=document.createElement('h3');heading.className='progress-detail-heading';heading.textContent='训练日历与身体记录';
+  body.insertBefore(heading,summary.nextSibling);
+}
+function refreshProgressSurface(body){
+  if(ACTIVE_MODULE==='progress'||ACTIVE_MODULE==='data')return renderProgress(body);
+  return renderData(body);
 }
 const PROGRESSION_SUGGESTIONS = new Map();
 let PENDING_ADJUSTMENT = null;
 function trainingTemplate(id){return TRAINING_CATALOG&&TRAINING_CATALOG.templates.find(row=>row.templateId===id)||null;}
 function exerciseDefinition(id){return TRAINING_CATALOG&&TRAINING_CATALOG.exercises.find(row=>row.exerciseId===id)||null;}
+function previousExerciseSet(exerciseId,excludeSessionId){
+  const sessions=WORKOUT_HISTORY_RECORDS.filter(row=>row&&row.session&&row.session.status==='COMPLETED'&&row.session.sessionId!==excludeSessionId)
+    .slice().sort((a,b)=>(b.session.endedAt||b.session.startedAt||0)-(a.session.endedAt||a.session.startedAt||0));
+  for(const workout of sessions){
+    const exerciseIds=new Set((workout.exerciseSessions||[]).filter(row=>row.exerciseId===exerciseId).map(row=>row.exerciseSessionId));
+    const set=(workout.sets||[]).filter(row=>row.completed===true&&exerciseIds.has(row.exerciseSessionId))
+      .sort((a,b)=>(b.setIndex||0)-(a.setIndex||0))[0];
+    if(set)return{date:workout.session.localDateKey,weightKg:set.weightKg,reps:set.reps};
+  }
+  return null;
+}
 function templateMinutes(template){return Math.ceil((template&&template.exercises||[]).reduce((sum,row)=>sum+row.sets*((row.restSeconds||60)/60)+row.sets*1.2,0));}
 function adjustmentProposal(date,day,code,minutes){
   if(!PLAN_SETS[code]||!PLAN_SETS[code].days[day])return{ok:false,reason:'所选方案没有适用于今天的训练模板。'};
@@ -2661,9 +2389,13 @@ async function hydrateCustomExercises(){
 function renderTraining(body){
   if(!TRAINING_CATALOG){body.innerHTML='<div class="card"><h4>训练数据暂不可用</h4><p>本机训练数据库未就绪，当前无法开始或修改训练。</p></div>';return;}
   const key=selKey(),parts=key.split('-').map(Number),weekday=new Date(parts[0],parts[1]-1,parts[2]).getDay(),day=getDayType(weekday),code=planProfileForDate(key);
+  const mode=STATE.settings.trainingMode==='performance'?'performance':'learning';
+  const minuteChoices=[15,25,35,45,60,90],preferredMinutes=Math.max(10,Math.min(180,+(STATE.profile&&STATE.profile.typicalSessionMinutes)||45));
+  const defaultMinutes=minuteChoices.reduce((best,n)=>Math.abs(n-preferredMinutes)<Math.abs(best-preferredMinutes)?n:best,minuteChoices[0]);
   const template=day==='rest'?null:trainingTemplate('template:'+code+':'+day),active=ACTIVE_WORKOUT&&ACTIVE_WORKOUT.session.status==='ACTIVE'?ACTIVE_WORKOUT:null;
   const workout=active&&active.session.localDateKey===key?active:null;
-  let html='<div class="card"><h4>本周安排</h4><div class="week">';
+  let html='<div class="mode-switch card" role="group" aria-label="训练模式"><b>训练模式</b><button type="button" data-training-mode="learning" class="'+(mode==='learning'?'active':'')+'" aria-pressed="'+(mode==='learning')+'">学习</button><button type="button" data-training-mode="performance" class="'+(mode==='performance'?'active':'')+'" aria-pressed="'+(mode==='performance')+'">表现</button><span>'+(mode==='learning'?'先看动作要点，再记录组数':'突出上次记录和当前组')+'</span></div>';
+  html+='<div class="card"><h4>本周安排</h4><div class="week">';
   for(let i=0;i<7;i++){const d=new Date();d.setDate(d.getDate()-d.getDay()+i);const k=BojiData.localDateKey(d),cls=['wday'];
     if(d.getDay()===wd())cls.push('today');if(k===key)cls.push('sel');if(isDayComplete(k))cls.push('done');
     html+='<button class="'+cls.join(' ')+'" data-day="'+k+'"><span>'+WEEKDAY[d.getDay()][1]+'</span><span class="wd-d">'+d.getDate()+'</span><span>'+
@@ -2680,13 +2412,18 @@ function renderTraining(body){
     workout.exerciseSessions.forEach((ex,i)=>{
       const p=t&&t.exercises[i]||{},def=exerciseDefinition(ex.exerciseId),sets=workout.sets.filter(x=>x.exerciseSessionId===ex.exerciseSessionId);
       const current=sets.some(x=>x.setId===s.currentSetId),teaching=def&&def.teaching||p.teaching||{},video=teaching.video;
+      const last=previousExerciseSet(ex.exerciseId,s.sessionId),currentSet=sets.find(x=>!x.completed);
+      const learningContent='<div class="learning-content"><div><b>动作标准</b><p>'+esc(teaching.form||'在舒适范围内控制动作')+'</p></div>'+((teaching.breathing||p.breathing)?'<div><b>呼吸</b><p>'+esc(teaching.breathing||p.breathing)+'</p></div>':'')+
+        ((teaching.tempo||p.tempo)?'<div><b>节奏</b><p>'+esc(teaching.tempo||p.tempo)+'</p></div>':'')+'<div><b>常见错误</b><p>'+esc(teaching.commonErrors||'动作过程中保持稳定，避免借力。')+'</p></div><div><b>安全提示</b><p>'+esc(teaching.safety||'如出现疼痛或不适，请停止并调整。')+'</p></div></div>';
+      const modeContent=mode==='learning'?learningContent:'<details class="learning-details"><summary>动作教学与安全</summary>'+learningContent+'</details>';
+      const videoContent=video&&video.sourceUrl?'<button class="ex-video" data-video-url="'+esc(video.sourceUrl)+'" data-video-label="'+esc(video.title||def.name)+'">▶ '+
+        esc(video.title||'打开动作教学')+'</button><span class="tag">'+esc(video.matchLevel||'UNVERIFIED')+' · '+esc(video.availability||'UNKNOWN')+'</span>':'';
+      const performanceContent=mode==='performance'?'<div class="performance-context"><span>上次：'+(last?(esc(last.date)+' · '+(last.weightKg==null?'重量未填':esc(last.weightKg)+' kg')+' × '+esc(last.reps)+' 次'):'暂无同动作已完成记录')+'</span><span>当前：'+
+        (currentSet?('第 '+(currentSet.setIndex+1)+' 组 · 目标 '+esc(currentSet.targetReps)+' 次'):'本动作各组均已保存')+'</span></div>':'';
       html+='<div class="ex"><div class="ex-top"><span class="ex-no">'+(i+1)+'</span><span class="ex-name">'+esc(ex.nameSnapshot)+
         '</span><span class="ex-sets">'+ex.targetSets+'×'+esc(ex.targetReps)+' · 休'+(p.restSeconds||60)+'s</span></div>'+
         (def&&def.targetMuscles&&def.targetMuscles.length?'<div class="ex-muscle">'+esc(def.targetMuscles.join(' · '))+'</div>':'')+
-        '<div class="ex-kv"><span class="k">动作标准</span><span class="v ok">'+esc(teaching.form||'按舒适范围控制动作')+
-        '</span><span class="k">注意事项</span><span class="v warn">'+esc(teaching.commonErrors||teaching.safety||'如有疼痛请停止')+'</span></div>'+
-        (video&&video.sourceUrl?'<button class="ex-video" data-video-url="'+esc(video.sourceUrl)+'" data-video-label="'+esc(video.title||def.name)+'">▶ '+
-          esc(video.title||'打开动作教学')+'</button><span class="tag">'+esc(video.matchLevel||'UNVERIFIED')+' · '+esc(video.availability||'UNKNOWN')+'</span>':'')+'<div class="workout-sets">';
+        performanceContent+modeContent+videoContent+'<div class="workout-sets">';
       sets.forEach(set=>{
         const enabled=!set.completed&&set.setId===s.currentSetId,weight=STATE.weights[key]&&STATE.weights[key][String(i)]||'';
         const rirOptions=Array.from({length:11},(_,n)=>'<option value="'+n+'" '+(set.rir===n?'selected':'')+'>'+n+'</option>').join('');
@@ -2714,7 +2451,7 @@ function renderTraining(body){
       '<button class="btn-grad" id="start-workout" '+(active?'disabled':'')+'>'+(active?'请先完成当前训练':'开始今天训练')+'</button><div class="dash"></div><h4>调整今天</h4>'+
       '<p>选择可用器械和时间，预览动作与依据；确认后才会应用。</p><div class="mx-grid"><label>器械档案<select id="adjust-profile">'+
       ['A','B','C'].map(k=>'<option value="'+k+'" '+(k===code?'selected':'')+'>'+esc(PLAN_SETS[k].name)+'</option>').join('')+
-      '</select></label><label>可用时间<select id="adjust-minutes">'+[15,25,35,45,60,90].map(n=>'<option value="'+n+'" '+(n===45?'selected':'')+'>'+n+' 分钟</option>').join('')+
+      '</select></label><label>可用时间<select id="adjust-minutes">'+minuteChoices.map(n=>'<option value="'+n+'" '+(n===defaultMinutes?'selected':'')+'>'+n+' 分钟</option>').join('')+
       '</select></label></div><button class="ex-do" id="preview-adjustment">预览调整</button><div id="adjustment-preview"></div></div>';
   }
   const customs=Array.isArray(STATE.myEx)?STATE.myEx.filter(item=>item&&typeof item.id==='string'&&typeof item.name==='string'&&item.name.trim()):[];
@@ -2733,6 +2470,7 @@ function renderTraining(body){
     '<label>要点备注<input id="mx-note" maxlength="240"></label><button class="btn-grad" id="mx-save">保存动作</button><button class="ex-do" id="mx-cancel">取消</button></div>';
   else html+='<button class="btn-grad ghost-btn" id="mx-add">＋ 添加自定义动作</button>';
   html+='</div>';body.innerHTML=html;
+  $$('#mod-body [data-training-mode]').forEach(button=>button.onclick=()=>{STATE.settings.trainingMode=button.dataset.trainingMode;save();renderTraining(body);});
   $$('#mod-body .wday').forEach(b=>b.onclick=()=>{STATE.selDate=b.dataset.day;save();PROGRESSION_SUGGESTIONS.clear();renderTraining(body);});
   const resume=$('#resume-workout');if(resume)resume.onclick=()=>{STATE.selDate=active.session.localDateKey;save();renderTraining(body);};
   const start=$('#start-workout');if(start)start.onclick=()=>beginWorkout(key,day,body);
@@ -3764,17 +3502,17 @@ function renderData(body){
     bars+=`<div class="bar" style="height:${h}px"><span>${dt.getDate()}</span></div>`; });
   body.innerHTML+=`<div class="card"><h4>近 7 日动作数 <span class="tag">最近 7 天</span></h4><div class="chart">${bars}</div><p style="font-size:10.5px;color:var(--faint);margin-top:6px">统计口径：今天及前 6 个自然日，每根柱子为当天完成的动作个数（含未打卡但已勾选的动作）。</p></div>
     ${weightCardHtml()}
-    <div class="card"><h4>知识库</h4><p style="font-size:12.5px;color:var(--ink2);line-height:1.7">小练内置 <b style="color:var(--pink)">${KB.length}</b> 条训练/营养问答。旧版证据标签尚无可核验的来源登记，相关内容已标记为“来源待核”。点“聊天”随时问。</p></div>`;
+    <div class="card"><h4>知识库</h4><p style="font-size:12.5px;color:var(--ink2);line-height:1.7">Boji内置 <b style="color:var(--pink)">${KB.length}</b> 条训练/营养问答。旧版证据标签尚无可核验的来源登记，相关内容已标记为“来源待核”。点“聊天”随时问。</p></div>`;
   // 绑定：月历翻页 / 选日 / 评分
-  const pm=body.querySelector('[data-pm]'); if(pm) pm.onclick=()=>{ dataMonth.m--; if(dataMonth.m<0){ dataMonth.m=11; dataMonth.y--; } renderData(body); };
-  const nm=body.querySelector('[data-nm]'); if(nm) nm.onclick=()=>{ dataMonth.m++; if(dataMonth.m>11){ dataMonth.m=0; dataMonth.y++; } renderData(body); };
+  const pm=body.querySelector('[data-pm]'); if(pm) pm.onclick=()=>{ dataMonth.m--; if(dataMonth.m<0){ dataMonth.m=11; dataMonth.y--; } refreshProgressSurface(body); };
+  const nm=body.querySelector('[data-nm]'); if(nm) nm.onclick=()=>{ dataMonth.m++; if(dataMonth.m>11){ dataMonth.m=0; dataMonth.y++; } refreshProgressSurface(body); };
   $$('#mod-body [data-cal]').forEach(b=>b.onclick=()=>{
     const k=b.dataset.cal;
     if(!STATE.checkins[k]){ toast('这一天还没有打卡记录哦'); return; }
     dataScoreDay=k;
     const s=STATE.scores[k]||{};
     _scoreDraft={ feel:s.feel, energy:s.energy, sat:s.sat };
-    renderData(body);
+    refreshProgressSurface(body);
   });
   $$('#mod-body .stars').forEach(st=>st.querySelectorAll('.star').forEach(s=>s.onclick=()=>{
     const f=st.dataset.sf, n=+s.dataset.star;
@@ -3784,9 +3522,9 @@ function renderData(body){
   const sv=$('#score-save'); if(sv) sv.onclick=()=>{
     if(!( _scoreDraft.feel||_scoreDraft.energy||_scoreDraft.sat )){ toast('先点星星打个分吧 (｡･ω･｡)'); return; }
     STATE.scores[dataScoreDay]=Object.assign({ at:Date.now() }, _scoreDraft);
-    save(); setMood('happy',1800); toast('已保存训练评分，小练看到你的感受啦'); renderData(body);
+    save(); setMood('happy',1800); toast('已保存训练评分，Boji 看到了你的记录'); refreshProgressSurface(body);
   };
-  const dl=$('#score-del'); if(dl) dl.onclick=()=>{ delete STATE.scores[dataScoreDay]; _scoreDraft={}; save(); renderData(body); toast('已清除该日评分'); };
+  const dl=$('#score-del'); if(dl) dl.onclick=()=>{ delete STATE.scores[dataScoreDay]; _scoreDraft={}; save(); refreshProgressSurface(body); toast('已清除该日评分'); };
   // 体重记录（夹取 30–200kg；非法输入不写入，只提示）
   const wtAdd=$('#wt-add');
   if(wtAdd) wtAdd.onclick=async()=>{
@@ -3795,7 +3533,7 @@ function renderData(body){
     try{
       let nextProfile=STATE.profile;
       if(STATE.profile){nextProfile=Object.assign({},STATE.profile,{weight:+v.toFixed(1)});await BojiData.putProfile(profileDomainRecord(nextProfile));STATE.profile=nextProfile;save();}
-      const ok=await logWeight(v,'DATA_PAGE');renderData(body);
+      const ok=await logWeight(v,'DATA_PAGE');refreshProgressSurface(body);
       setMood('happy',1500); toast(ok?'已记录今日体重 ✨':'今日体重已更新');
     }catch(error){toast('体重未完全保存：'+(error.message||'本机存储不可用'));}
   };
@@ -3813,35 +3551,7 @@ const BG_PRESETS = {
   p4:'linear-gradient(165deg,#dbeeff,#bcd9f5 55%,#9fc3ea)',
   p5:'linear-gradient(165deg,#fdf3e7,#f6e4cf 55%,#eecfb4)'
 };
-function coachDogSVG(o){
-  // o: {hood, hoodText, fur, ear, patch, cap}
-  const ink = '#2b2320';
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
-  <path d="M7 48 C7 36.5 14 30.5 24 30.5 C34 30.5 41 36.5 41 48Z" fill="${o.hood}" stroke="${ink}" stroke-width="1.6"/>
-  <text x="24" y="42.5" font-size="5.4" fill="#fff" text-anchor="middle" font-weight="bold" font-family="Arial,sans-serif">${o.hoodText}</text>
-  <path d="M11.5 31.5 C14 26 34 26 36.5 31.5 C32 34.5 16 34.5 11.5 31.5Z" fill="${o.hood}" stroke="${ink}" stroke-width="1.4"/>
-  <ellipse cx="11.5" cy="15" rx="4.6" ry="7.4" transform="rotate(-16 11.5 15)" fill="${o.ear}" stroke="${ink}" stroke-width="1.4"/>
-  <ellipse cx="36.5" cy="15" rx="4.6" ry="7.4" transform="rotate(16 36.5 15)" fill="${o.ear}" stroke="${ink}" stroke-width="1.4"/>
-  <circle cx="24" cy="19.5" r="12.6" fill="${o.fur}" stroke="${ink}" stroke-width="1.6"/>
-  ${o.patch ? `<path d="M24 7.2 A12.6 12.6 0 0 1 36.6 19.5 L29 19.5 A7 7 0 0 0 24 12.8Z" fill="${o.patch}" stroke="${ink}" stroke-width="1.2"/>` : ''}
-  ${o.cap ? `<path d="M13 12.5 A12.4 12.4 0 0 1 35 12.5 L36 14 L12 14Z" fill="${o.cap}" stroke="${ink}" stroke-width="1.4"/><rect x="20" y="4.6" width="8" height="3.4" rx="1.7" fill="${o.cap}" stroke="${ink}" stroke-width="1.2"/>` : ''}
-  <circle cx="19.2" cy="19.5" r="1.7" fill="${ink}"/>
-  <circle cx="28.8" cy="19.5" r="1.7" fill="${ink}"/>
-  <circle cx="18.5" cy="18.8" r=".55" fill="#fff"/>
-  <circle cx="28.1" cy="18.8" r=".55" fill="#fff"/>
-  <ellipse cx="24" cy="24" rx="2" ry="1.5" fill="${ink}"/>
-  <path d="M24 25.5 L24 27 M24 27 C22.6 28.6 20.8 28 20.4 26.8 M24 27 C25.4 28.6 27.2 28 27.6 26.8" stroke="${ink}" stroke-width="1.1" fill="none" stroke-linecap="round"/>
-  </svg>`;
-}
-const COACH_AV_SVG = {
-  dog1: coachDogSVG({ hood:'#5ba8e0', hoodText:'ALA LEI', fur:'#fdf3e4', ear:'#8a5a34' }),
-  dog2: coachDogSVG({ hood:'#2e2e33', hoodText:'Lanny',  fur:'#f0b060', ear:'#c98a3e', cap:'#f08c3e' }),
-  dog3: coachDogSVG({ hood:'#4caf6d', hoodText:'卡布达', fur:'#fbf7ef', ear:'#2e2e33', patch:'#2e2e33' })
-};
-/* 图片型壁纸预设（v1.1 恢复用户要求的角色壁纸）。与渐变预设分开存：
-   图片必须先预加载成功再切换，失败/超时（8s）回落安全渐变，避免「只显示一半 / 空白」。
-   对外显示名不含角色本名，只称「角色壁纸」。 */
-const BG_IMAGES = { card:'assets/nahida-card.webp' };
+const BG_IMAGES = { card:BOJI_CANDIDATE };
 const BG_IMG_FALLBACK = BG_PRESETS.p3;
 // 统一的安全图片切换：先铺底色 → 预加载 → 成功才换图，失败/超时回落
 function setBgImage(src){
@@ -3882,7 +3592,7 @@ function applyCoachIdentity(){
   const meta = document.querySelector('.assistant .ph-meta b'); if(meta) meta.textContent = nm;
   const inp = document.getElementById('chat-text'); if(inp) inp.placeholder = `问${nm}任何训练/营养问题…`;
   const ob = document.querySelector('#onboard .sub');
-  if(ob) ob.innerHTML = `我是<b>${esc(nm)}</b>，你的<b>居家哑铃</b>增肌教练，以后常驻你手机桌面陪你练啦~`;
+  if(ob) ob.innerHTML = `我是<b>${esc(nm)}</b>，你的训练伙伴，会陪你记录训练、饮食和恢复。`;
   const obBtn = document.getElementById('ob-save'); if(obBtn) obBtn.textContent = `开始和${nm}一起练`;
 }
 // 设置类大字符串（背景图 dataURL）保存的额度保护：失败要明确告诉用户，不能静默丢数据
@@ -3895,7 +3605,7 @@ function saveSafe(){
 /* ---------- 我的 ---------- */
 function renderProfile(body){
   const p=STATE.profile; const g=dailyGoal();
-  const avatar = p && p.avatar ? p.avatar : svgURI(COACH_AV_SVG.dog2);
+  const avatar = p && p.avatar ? p.avatar : BOJI_CANDIDATE;
   body.innerHTML=`<div class="profile-head"><img id="pf-av" src="${avatar}" alt=""><b id="pf-name">${esc(p?(p.name||'训练者'):'训练者')}</b><span>${p?`${p.height}cm · ${p.weight}kg · 哑铃${p.dumbbell}kg`:'未设置档案'}</span>
     <button class="hc-go" id="pf-av-btn">📷 更换头像</button></div>
     <div class="card" style="padding:6px 14px">
@@ -3905,6 +3615,10 @@ function renderProfile(body){
         <label>身高 cm<input id="pe-h" type="number" inputmode="decimal" value="${p?p.height:''}"></label>
         <label>体重 kg<input id="pe-w" type="number" inputmode="decimal" value="${p?p.weight:''}"></label>
         <label>单哑铃 kg<input id="pe-d" type="number" inputmode="decimal" value="${p?p.dumbbell:''}"></label>
+        <label>训练目标<select id="pe-goal"><option value=""${!p||!p.trainingGoal?' selected':''}>未设置</option><option value="HYPERTROPHY"${p&&p.trainingGoal==='HYPERTROPHY'?' selected':''}>增肌</option><option value="GENERAL_FITNESS"${p&&p.trainingGoal==='GENERAL_FITNESS'?' selected':''}>综合体能 / 建立习惯</option><option value="STRENGTH"${p&&p.trainingGoal==='STRENGTH'?' selected':''}>提升力量</option></select></label>
+        <label>训练经验<select id="pe-experience"><option value=""${!p||!p.experienceLevel?' selected':''}>未设置</option><option value="BEGINNER"${p&&p.experienceLevel==='BEGINNER'?' selected':''}>刚开始 / 正在学习</option><option value="INTERMEDIATE"${p&&p.experienceLevel==='INTERMEDIATE'?' selected':''}>有规律训练经验</option><option value="ADVANCED"${p&&p.experienceLevel==='ADVANCED'?' selected':''}>熟悉训练与自我调节</option></select></label>
+        <label>器械与地点<select id="pe-equipment"><option value="A"${(!p||!p.equipmentProfileCode?STATE.planSet:p.equipmentProfileCode)==='A'?' selected':''}>居家哑铃 · 有卧推椅</option><option value="B"${(!p||!p.equipmentProfileCode?STATE.planSet:p.equipmentProfileCode)==='B'?' selected':''}>居家哑铃 · 无卧推椅</option><option value="C"${(!p||!p.equipmentProfileCode?STATE.planSet:p.equipmentProfileCode)==='C'?' selected':''}>健身房器械</option></select></label>
+        <label>通常训练时长（分钟）<input id="pe-session-minutes" type="number" inputmode="numeric" min="10" max="180" value="${p&&p.typicalSessionMinutes||''}"></label>
         <label>营养目标<select id="pe-intent"><option value="LOG_ONLY"${!p||!p.nutritionIntent||p.nutritionIntent==='LOG_ONLY'?' selected':''}>仅记录</option><option value="MAINTAIN"${p&&p.nutritionIntent==='MAINTAIN'?' selected':''}>维持估算</option><option value="GAIN"${p&&p.nutritionIntent==='GAIN'?' selected':''}>增重估算</option><option value="LOSE"${p&&p.nutritionIntent==='LOSE'?' selected':''}>减重估算</option><option value="CUSTOM"${p&&p.nutritionIntent==='CUSTOM'?' selected':''}>自定义</option></select></label>
         <label>自定义热量 kcal<input id="pe-custom-kcal" type="number" inputmode="numeric" min="500" max="10000" value="${p&&p.customKcal||''}"></label>
         <label>自定义蛋白质 g<input id="pe-custom-protein" type="number" inputmode="decimal" min="1" max="500" value="${p&&p.customProteinG||''}"></label>
@@ -3929,17 +3643,7 @@ function renderProfile(body){
       <p style="font-size:10.5px;color:var(--faint);padding:2px 0 8px">下方可更换：桌宠形象 / 桌面背景 / 教练名字与头像。</p>
     </div>
     <div class="card" style="padding:6px 14px">
-      <h4 style="margin:8px 0 2px">教练与外观</h4>
-      <div class="pf-edit">
-        <label>教练名字<input id="co-name" type="text" maxlength="10" placeholder="小练" value="${esc(STATE.settings.coachName||'')}"></label>
-      </div>
-      <p class="set-lab">教练头像</p>
-      <div class="av-row" id="co-avs">
-        <button class="av-pick${STATE.settings.coachAvatar==='dog1'?' on':''}" data-av="dog1" title="阿拉雷">${COACH_AV_SVG.dog1}</button>
-        <button class="av-pick${STATE.settings.coachAvatar==='dog2'?' on':''}" data-av="dog2" title="Lanny">${COACH_AV_SVG.dog2}</button>
-        <button class="av-pick${STATE.settings.coachAvatar==='dog3'?' on':''}" data-av="dog3" title="卡布达">${COACH_AV_SVG.dog3}</button>
-        <button class="av-pick${(STATE.settings.coachAvatar||'').slice(0,5)==='data:'?' on':''}" id="co-av-up" title="上传自定义头像"><span class="up-ic">📷</span></button>
-      </div>
+      <h4 style="margin:8px 0 2px">外观设置</h4>
       <p class="set-lab">桌面背景（建议浅色，深色壁纸文字可能看不清）</p>
       <div class="bg-swatches" id="bg-sw">
         <button class="bg-swatch bw0${(STATE.settings.bg==='card'||!STATE.settings.bg)?' on':''}" data-bg="card" title="角色壁纸（默认）"></button>
@@ -4015,7 +3719,7 @@ function renderProfile(body){
       <h4 style="margin:8px 0 2px">关于与更新 <span class="tag">v${APP_VERSION}</span></h4>
       <p style="font-size:11px;color:var(--faint);line-height:1.7">
         桌面图标 / 应用名若仍是旧的：这是<b>添加到主屏幕那一刻</b>由系统保存的快照，之后改代码不会自动覆盖它。<br>
-        刷新方法：<b>长按桌面图标 → 删除/移除</b>，再用浏览器打开本站 → <b>添加到主屏幕</b>，即可变成新图标与「训练日记」。<br>
+        刷新方法：<b>长按桌面图标 → 删除/移除</b>，再用浏览器打开本站 → <b>添加到主屏幕</b>，即可显示 Boji 图标与名称。<br>
         若打开后仍是旧画面：在浏览器设置里<b>清除本站数据</b>（或卸载后重装）即可。
       </p>
     </div>
@@ -4036,45 +3740,34 @@ function renderProfile(body){
     if(!Number.isFinite(h)||h<140||h>220||!Number.isFinite(w)||w<30||w>200||!Number.isFinite(d)||d<=0||d>100){toast('请核对身高 140–220、体重 30–200、哑铃 0–100 kg');return;}
     const prefs=readNutritionPreferences('pe-',STATE.profile);if(!prefs.ok){toast(prefs.message);return;}
     const name=($('#pe-name').value||'').trim().slice(0,12)||'训练者';
-    const next=Object.assign({},STATE.profile,{height:h,weight:+w.toFixed(1),dumbbell:d,name},prefs.value),weightChanged=STATE.profile.weight!==+w.toFixed(1);
+    const trainingGoal=$('#pe-goal').value||null,experienceLevel=$('#pe-experience').value||null,equipmentProfileCode=$('#pe-equipment').value||null;
+    const minutesField=$('#pe-session-minutes').value,typicalSessionMinutes=minutesField===''?null:+minutesField;
+    if(trainingGoal&&!['HYPERTROPHY','GENERAL_FITNESS','STRENGTH'].includes(trainingGoal)||experienceLevel&&!['BEGINNER','INTERMEDIATE','ADVANCED'].includes(experienceLevel)||
+      equipmentProfileCode&&!['A','B','C'].includes(equipmentProfileCode)||typicalSessionMinutes!=null&&(!Number.isFinite(typicalSessionMinutes)||typicalSessionMinutes<10||typicalSessionMinutes>180)){toast('请核对训练背景选项与 10–180 分钟时长');return;}
+    const next=Object.assign({},STATE.profile,{height:h,weight:+w.toFixed(1),dumbbell:d,name,trainingGoal,experienceLevel,equipmentProfileCode,typicalSessionMinutes},prefs.value),weightChanged=STATE.profile.weight!==+w.toFixed(1);
     try{
-      await BojiData.putProfile(profileDomainRecord(next));STATE.profile=next;save();
+      await BojiData.putProfile(profileDomainRecord(next));STATE.profile=next;
+      if(equipmentProfileCode){STATE.planSet=equipmentProfileCode;applyPlanSet();}
+      save();
       if(weightChanged)await logWeight(w,'PROFILE_EDIT');
       renderProfile(body);toast('档案已保存');
     }catch(error){toast('档案已部分保存，请检查体重记录：'+(error.message||'本机存储不可用'));}
   };
   const nameInput=$('#pe-name');if(nameInput)nameInput.oninput=()=>{const preview=$('#pf-name');if(preview)preview.textContent=(nameInput.value||'').trim().slice(0,12)||'训练者';};
-  ['pe-name','pe-h','pe-w','pe-d','pe-intent','pe-custom-kcal','pe-custom-protein','pe-water-goal'].forEach(id=>{const field=$('#'+id);if(field)field.onchange=saveProfileEdits;});
+  ['pe-name','pe-h','pe-w','pe-d','pe-goal','pe-experience','pe-equipment','pe-session-minutes','pe-intent','pe-custom-kcal','pe-custom-protein','pe-water-goal'].forEach(id=>{const field=$('#'+id);if(field)field.onchange=saveProfileEdits;});
   // 教练与外观设置（教练名即时生效不重渲染防丢焦点；头像/背景/桌宠形象点选即换）
-  const coName=$('#co-name');
-  if(coName) coName.oninput=()=>{
-    STATE.settings.coachName = coName.value.trim().slice(0,10);
-    save(); applyCoachIdentity();
-  };
   // 训练方案切换：只换数据源，打卡 / 重量 / 自定义动作一律不动
   const planPick=$('#plan-pick');
-  if(planPick) planPick.onclick=e=>{
+  if(planPick) planPick.onclick=async e=>{
     const b=e.target.closest('.plan-pick'); if(!b) return;
     const k=b.dataset.plan;
     if(['A','B','C'].indexOf(k) < 0) return;   // 脏值一律忽略，不写进 STATE
     if(k===STATE.planSet) return;
-    STATE.planSet=k; save(); applyPlanSet();
-    renderProfile(body); renderHome();
-    toast('已切换到 ' + PLAN_SETS[k].name);
-  };
-  const coAvs=$('#co-avs');
-  if(coAvs) coAvs.onclick=e=>{
-    const b=e.target.closest('.av-pick'); if(!b) return;
-    if(b.id==='co-av-up'){
-      const inp=document.createElement('input'); inp.type='file'; inp.accept='image/*';
-      inp.onchange=()=>{ const f=inp.files && inp.files[0]; if(!f) return;
-        compressImage(f, 128, du=>{ if(!du){ toast('图片读取失败'); return; }
-          STATE.settings.coachAvatar=du; if(saveSafe()){ applyCoachIdentity(); renderProfile(body); toast('教练头像已更新 ✨'); } }); };
-      inp.click(); return;
-    }
-    STATE.settings.coachAvatar=b.dataset.av; save();
-    coAvs.querySelectorAll('.av-pick').forEach(x=>x.classList.toggle('on', x===b));
-    applyCoachIdentity(); toast('教练头像已更新 ✨');
+    try{
+      if(STATE.profile){const next=Object.assign({},STATE.profile,{equipmentProfileCode:k});await BojiData.putProfile(profileDomainRecord(next));STATE.profile=next;}
+      STATE.planSet=k;save();applyPlanSet();renderProfile(body);renderHome();
+      toast('已切换到 ' + PLAN_SETS[k].name);
+    }catch(error){toast('训练方案没有完整保存：'+(error.message||'本机存储不可用'));}
   };
   // v1.1 桌宠：照片做桌宠 / 溜达开关 / 语音朗读开关
   const petPhotoUp=$('#pet-photo-up');
@@ -4258,7 +3951,7 @@ function exportCSV(){
     }));
   }
   const csv = ckRows.map(_csvRow).join('\r\n') + '\r\n\r\n' + wRows.map(_csvRow).join('\r\n') + '\r\n\r\n' + mRows.map(_csvRow).join('\r\n');
-  downloadFile(`训练日记-记录-${todayKey()}.csv`, 'text/csv;charset=utf-8', '\ufeff' + csv);   // BOM：Excel 不乱码
+  downloadFile(`Boji-记录-${todayKey()}.csv`, 'text/csv;charset=utf-8', '\ufeff' + csv);   // BOM：Excel 不乱码
   toast('已导出 CSV（打卡/重量/饮食三段）');
 }
 async function importLegacySnapshot(snapshot, sourceLabel){
@@ -4383,16 +4076,24 @@ function pickLocalVideo(){
    引导 / 完成 / 计时 / toast
    ============================================================ */
 function toast(t){ const el=$('#toast'); el.textContent=t; el.classList.add('show'); clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove('show'),2200); }
+function showStorageStatus(){
+  const notice=$('#critical-storage-error');if(!notice)return;
+  notice.textContent=DATA_ERROR||'';notice.hidden=!DATA_ERROR;
+}
 function showOnboard(){ if(STATE.isFirstLaunch){ $('#onboard').classList.add('show'); navOpen('onboard'); } }
 $('#ob-save') && ($('#ob-save').onclick=async()=>{
   const h=+$('#ob-h').value, w=+$('#ob-w').value, d=+$('#ob-d').value;
   if(h<140||h>220||w<30||w>200||!d){ toast('身高140-220、体重30-200、哑铃重量必填'); return; }
+  const trainingGoal=$('#ob-goal').value,experienceLevel=$('#ob-experience').value,equipmentProfileCode=$('#ob-equipment').value,typicalSessionMinutes=+$('#ob-session-minutes').value;
+  if(!['HYPERTROPHY','GENERAL_FITNESS','STRENGTH'].includes(trainingGoal)||!['BEGINNER','INTERMEDIATE','ADVANCED'].includes(experienceLevel)||
+    !['A','B','C'].includes(equipmentProfileCode)||!Number.isFinite(typicalSessionMinutes)||typicalSessionMinutes<10||typicalSessionMinutes>180){toast('请填写训练目标、经验、器械方案和 10–180 分钟的训练时长');return;}
   const prefs=readNutritionPreferences('ob-',{});if(!prefs.ok){toast(prefs.message);return;}
-  const profile=Object.assign({height:h,weight:+w.toFixed(1),dumbbell:d,name:'训练者'},prefs.value);
+  const profile=Object.assign({height:h,weight:+w.toFixed(1),dumbbell:d,name:'训练者',trainingGoal,experienceLevel,equipmentProfileCode,typicalSessionMinutes},prefs.value);
   try{
     await BojiData.putProfile(profileDomainRecord(profile));
     await logWeight(w,'ONBOARDING');
-    STATE.profile=profile;STATE.isFirstLaunch=false;if(!save())throw new Error('本机应用状态保存失败');
+    STATE.profile=profile;STATE.planSet=equipmentProfileCode;STATE.settings.trainingMode=experienceLevel==='ADVANCED'?'performance':'learning';applyPlanSet();
+    STATE.isFirstLaunch=false;if(!save())throw new Error('本机应用状态保存失败');
     navUIClose('onboard');setMood('cheer',3000);toast(`开始和${coachName()}一起练吧！`);renderHome();
   }catch(error){toast('档案未完整保存：'+(error.message||'本机存储不可用'));}
 });
@@ -4413,7 +4114,7 @@ function hideBoot(){
 }
 /* 预取关键图片到浏览器缓存（空闲时做，不抢首屏带宽） */
 function prewarmAssets(){
-  const list = ['assets/icon.svg'];
+  const list = [BOJI_CANDIDATE];
   try{
     if(BG_IMAGES && BG_IMAGES.card) list.push(BG_IMAGES.card);
     const sk = skinBy(STATE.petSkin);
@@ -4439,7 +4140,11 @@ async function boot(){
       weight:canonicalProfile.weightKg!=null?canonicalProfile.weightKg:STATE.profile&&STATE.profile.weight,
       dumbbell:canonicalProfile.availableDumbbellMaxKg!=null?canonicalProfile.availableDumbbellMaxKg:STATE.profile&&STATE.profile.dumbbell,
       nutritionIntent:canonicalProfile.nutritionIntent||STATE.profile&&STATE.profile.nutritionIntent||'LOG_ONLY',
-      customKcal:canonicalProfile.customKcal,customProteinG:canonicalProfile.customProteinG,waterGoalMl:canonicalProfile.waterGoalMl});
+      customKcal:canonicalProfile.customKcal,customProteinG:canonicalProfile.customProteinG,waterGoalMl:canonicalProfile.waterGoalMl,
+      trainingGoal:canonicalProfile.trainingGoal||STATE.profile&&STATE.profile.trainingGoal||null,
+      experienceLevel:canonicalProfile.experienceLevel||STATE.profile&&STATE.profile.experienceLevel||null,
+      equipmentProfileCode:canonicalProfile.equipmentProfileCode||STATE.profile&&STATE.profile.equipmentProfileCode||STATE.planSet,
+      typicalSessionMinutes:canonicalProfile.typicalSessionMinutes||STATE.profile&&STATE.profile.typicalSessionMinutes||null});
     await refreshPersonalRecords();
     indexWorkoutHistory(await BojiData.listWorkoutHistory());
     ACTIVE_WORKOUT = (await BojiData.listActiveWorkouts())[0] || null;
@@ -4463,6 +4168,7 @@ function bootUI(){
   }finally{
     APP_INITIALIZING = false;
   }
+  showStorageStatus();
   /* ---- ② 非关键：下一帧 / 空闲再做，避免拖慢首屏 ---- */
   const later = ()=>{ showOnboard(); prewarmAssets(); };
   if(typeof requestIdleCallback === 'function') requestIdleCallback(later, { timeout: 600 });
@@ -4481,7 +4187,6 @@ function bootUI(){
 function bindUI(){
   // dock
   $$('#dock .dock-item[data-go]').forEach(b=>b.onclick=()=>goModule(b.dataset.go));
-  $('#pet-talk').onclick=()=>openAssistant();
   // 面板关闭
   $$('[data-close]').forEach(b=>b.onclick=()=>closePanel(b.dataset.close));
   // 聊天

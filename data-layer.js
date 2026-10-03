@@ -703,6 +703,10 @@
       if(record.customProteinG!=null&&!validNumber(record.customProteinG,1,500))return {ok:false,reason:'customProteinG must be between 1 and 500'};
       if(record.waterGoalMl!=null&&!validNumber(record.waterGoalMl,250,10000))return {ok:false,reason:'waterGoalMl must be between 250 and 10000'};
       if(record.nutritionIntent==='CUSTOM'&&(record.customKcal==null||record.customProteinG==null))return {ok:false,reason:'custom nutrition intent requires both custom targets'};
+      if(record.trainingGoal!=null&&!['HYPERTROPHY','GENERAL_FITNESS','STRENGTH'].includes(record.trainingGoal))return {ok:false,reason:'profile trainingGoal is invalid'};
+      if(record.experienceLevel!=null&&!['BEGINNER','INTERMEDIATE','ADVANCED'].includes(record.experienceLevel))return {ok:false,reason:'profile experienceLevel is invalid'};
+      if(record.equipmentProfileCode!=null&&!['A','B','C'].includes(record.equipmentProfileCode))return {ok:false,reason:'profile equipmentProfileCode is invalid'};
+      if(record.typicalSessionMinutes!=null&&!validNumber(record.typicalSessionMinutes,10,180))return {ok:false,reason:'profile typicalSessionMinutes must be between 10 and 180'};
     }
     if (storeName === 'sessions') {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(record.localDateKey || '')) return { ok: false, reason: 'session needs a localDateKey' };

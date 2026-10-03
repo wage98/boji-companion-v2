@@ -80,7 +80,7 @@ const g = w.dailyGoal();
 ok(g.protein === 126 && g.kcal === 2310 && g.water === 2450, `每日目标随体重计算(70kg→126g/2310kcal/2450ml) 实际=${g.protein}/${g.kcal}/${g.water}`);
 
 // 3. 主页明确「居家哑铃」
-ok($('#home-stats').textContent.includes('居家哑铃'), '主页出现「居家哑铃」定位文案');
+ok($('#home-stats').querySelectorAll('.hs-pill').length === 3 && $('#hc-go') !== null, 'Today shows three progress metrics and its main action');
 
 // 4. 训练页标签（今天若是周日休息日，则选下一个周一验证）
 {
@@ -154,9 +154,9 @@ const pn = $('#pe-name'); pn.value = '小凯'; input(pn);
 ok($('#pf-name').textContent === '小凯', '昵称实时同步到头部显示');
 
 // 12. 头像上传链路（直接写 avatar 后渲染）
-w.__S.profile.avatar = 'data:image/png;base64,XYZ';
-w.renderProfile($('#mod-body'));
-ok($('#pf-av').src.startsWith('data:image'), '头像显示为自定义头像');
+w.eval("STATE.profile.avatar = 'data:image/png;base64,XYZ'");
+w.eval('renderProfile')($('#mod-body'));
+ok($('#pf-av').src.startsWith('data:image'), '??????????');
 ok($('#pf-av-btn') !== null, '「更换头像」按钮存在');
 
 // 13. 数据页：统计格
@@ -225,7 +225,7 @@ ok(!$('#module').classList.contains('open'), '回归：navUIClose 正常关闭�
   const expand = w.eval('nlpExpand');
   const intent = w.eval('nlpIntent');
   const kb = w.eval('nlpKbScore');
-  const reply = w.eval('nahidaReply');
+  const reply = w.eval('bojiReply');
 
   // 24.1 归一化：全角→半角、去标点语气词、折叠空白、空值不抛
   ok(norm('Ｈｅｌｌｏ？') === 'hello', 'NLP 归一化：全角字母+标点 → hello');

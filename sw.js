@@ -1,12 +1,4 @@
-// 训练日记 · Service Worker（离线缓存 app shell）
-// v1.2 启动体验修复要点：
-//  1) 页面与静态资源一律「缓存优先 + 后台更新」（stale-while-revalidate）
-//     —— 之前页面是网络优先：托管在 GitHub Pages 上时，每次启动都要等网络，
-//        网络慢/不通就长时间转圈甚至落到 GitHub 的 404 页。改成本地优先后，
-//        二次打开完全走本地缓存，断网也能秒开。
-//  2) install 阶段逐条 put（单条失败不影响整体），并缓存 index.html 作为导航兜底，
-//     确保任何情况下都能渲染出自己的页面，而不是托管方的错误页。
-//  3) 跳过等待 + 立即接管，避免旧 SW 卡住导致更新后仍加载旧资源。
+// Boji Companion V2 service worker. The V2 cache namespace is isolated from V1.
 const CACHE = 'boji-v2-rc-3';
 const ASSETS = [
   './',
@@ -15,10 +7,9 @@ const ASSETS = [
   './styles.css',
   './manifest.json',
   './assets/icon.svg',
-  './assets/icon-192.png',
-  './assets/icon-512.png',
-  './assets/nahida-card.webp',
-  './assets/nahida-icon.webp',
+  './assets/boji-icon-192.png',
+  './assets/boji-icon-512.png',
+  './assets/boji-companion-candidate.png',
 ];
 
 // 逐条写入：任一资源取不到也不让 install 整体失败
@@ -76,7 +67,7 @@ self.addEventListener('fetch', e => {
         return fresh;
       }
       return new Response(
-        '<!doctype html><meta charset="utf-8"><title>训练日记</title>' +
+        '<!doctype html><meta charset="utf-8"><title>Boji Companion V2</title>' +
         '<body style="font-family:system-ui;padding:24px;line-height:1.8">' +
         '<h3>暂时打不开</h3><p>没有可用的本地缓存，且网络未连通。</p>' +
         '<button onclick="location.reload()">重试</button></body>',

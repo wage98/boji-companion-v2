@@ -1,4 +1,4 @@
-/* 训练日记 v7.6 攻击式自检：脏数据 / 异常输入 / 边界值 / 失败兜底 */
+﻿/* 训练日记 v7.6 攻击式自检：脏数据 / 异常输入 / 边界值 / 失败兜底 */
 const fs = require('fs');
 const path = require('path');
 const { JSDOM } = require('jsdom');
@@ -282,28 +282,28 @@ check('D9 过期食物搜索结果与关闭面板后的响应均被丢弃', asyn
 
 /* ---------- E. 助手（知识库 / 多轮上下文） ---------- */
 check('E1 知识库条目数 ≥ 38', () => boot(null).__KB.length >= 38);
-check('E2 提问命中知识库', () => { const w = boot(J({ profile: { weight: 70 } })); return w.nahidaReply('蛋白质吃多少').indexOf('1.6') >= 0; });
+check('E2 提问命中知识库', () => { const w = boot(J({ profile: { weight: 70 } })); return w.bojiReply('蛋白质吃多少').indexOf('1.6') >= 0; });
 check('E3 追问“再详细点”接上下文', () => {
   const w = boot(J({ profile: { weight: 70 } }));
-  w.nahidaReply('蛋白质吃多少'); const r = w.nahidaReply('再详细点');
+  w.bojiReply('蛋白质吃多少'); const r = w.bojiReply('再详细点');
   return r.indexOf('接着【') >= 0 && r.length > 30; });
 check('E4 部分蛋白记录不推算目标缺口', () => {
   const w=boot(J({profile:{weight:70,nutritionIntent:'GAIN'}}));
   seedCanonicalMeals(w,[{mealId:'meal-partial-protein',localDateKey:dateKey(new Date()),mealTypeIndex:0,items:[{name:'Energy only',quantity:1,unit:'serving',provenance:{name:'DATABASE',quantity:'DATABASE',energyKcal:'DATABASE'},nutrients:{energyKcal:{value:400,unit:'kcal'}}}]}]);
-  const reply=w.nahidaReply('吃什么');
+  const reply=w.bojiReply('吃什么');
   return reply.includes('部分合计')&&!reply.includes('推荐：鸡胸');
 });
-check('E4 无上下文追问不误触发', () => { const w = boot(J({ profile: { weight: 70 } })); const r = w.nahidaReply('再详细点'); return r.indexOf('接着【') < 0; });
-check('E5 结合数据：今天练什么', () => { const w = boot(J({ profile: { weight: 70 } })); const r = w.nahidaReply('今天练什么'); return r.indexOf('今天练【') >= 0 || r.indexOf('休息日') >= 0; });
-check('E6 结合数据：我蛋白够吗', () => { const w = boot(J({ profile: { weight: 70 } })); const r = w.nahidaReply('我蛋白够吗'); return r.indexOf('目标') >= 0; });
-check('E7 结合数据：连续打卡', () => { const w = boot(J({ profile: { weight: 70 } })); return w.nahidaReply('我连打几天了').indexOf('连续打卡') >= 0; });
+check('E4 无上下文追问不误触发', () => { const w = boot(J({ profile: { weight: 70 } })); const r = w.bojiReply('再详细点'); return r.indexOf('接着【') < 0; });
+check('E5 结合数据：今天练什么', () => { const w = boot(J({ profile: { weight: 70 } })); const r = w.bojiReply('今天练什么'); return r.indexOf('今天练【') >= 0 || r.indexOf('休息日') >= 0; });
+check('E6 结合数据：我蛋白够吗', () => { const w = boot(J({ profile: { weight: 70 } })); const r = w.bojiReply('我蛋白够吗'); return r.indexOf('目标') >= 0; });
+check('E7 结合数据：连续打卡', () => { const w = boot(J({ profile: { weight: 70 } })); return w.bojiReply('我连打几天了').indexOf('连续打卡') >= 0; });
 check('E8 未知问题兜底（不瞎编 + v7.11 共情口径）', () => {
   const w = boot(J({ profile: { weight: 70 } }));
-  const r = w.nahidaReply('明天股票会涨吗');
+  const r = w.bojiReply('明天股票会涨吗');
   return /不想拍脑袋|不太确定|不确定/.test(r) && r.indexOf('卧推') >= 0;   // 必须给出替代话题，不能只说不知道
 });
-check('E9 空输入不崩', () => { const w = boot(J({ profile: { weight: 70 } })); return typeof w.nahidaReply('') === 'string'; });
-check('E10 极端输入（1 万字符）不崩', () => { const w = boot(J({ profile: { weight: 70 } })); return typeof w.nahidaReply('练'.repeat(10000)) === 'string'; });
+check('E9 空输入不崩', () => { const w = boot(J({ profile: { weight: 70 } })); return typeof w.bojiReply('') === 'string'; });
+check('E10 极端输入（1 万字符）不崩', () => { const w = boot(J({ profile: { weight: 70 } })); return typeof w.bojiReply('练'.repeat(10000)) === 'string'; });
 
 /* ---------- F. 回归：v7.4/v7.5 关键链路未回退 ---------- */
 check('F1 返回键层栈仍在', () => { const w = boot(J({ profile: { weight: 70 } })); w.goModule('training'); w.navUIClose('module'); return !w.document.querySelector('#module').classList.contains('open'); });
@@ -441,30 +441,18 @@ check('H7 体重曲线：空数据有兜底文案、单点无 NaN、多点生成
   return empty.indexOf('还没有体重记录') >= 0 && one.indexOf('NaN') < 0 && many.indexOf('NaN') < 0
       && many.indexOf('<path') >= 0 && bad;
 });
-check('H8 自绘形象：10 种情绪都能生成且无 undefined / 无外链', () => {
-  const w = boot(J({ profile: { weight: 70 } })); const f = w.eval('nahidaSVG');
-  const moods = ['happy','cheer','proud','expect','think','sad','sleep','wave','hover','drag'];
-  // 外链检查：只允许 SVG 命名空间声明，不允许任何 href/src/外域 URL（保证离线可用、无追踪）
-  const noRemote = s => {
-    const stripped = s.replace('http://www.w3.org/2000/svg', '');
-    return stripped.indexOf('http') < 0 && stripped.indexOf('href') < 0 && stripped.indexOf('src') < 0;
-  };
-  return moods.every(m => { const s = f(m);
-    return s.indexOf('<svg') === 0 && s.indexOf('undefined') < 0 && s.indexOf('NaN') < 0 && noRemote(s) && s.indexOf('<script') < 0; });
-});
-check('H9 皮肤切换：自绘 SVG 皮肤均输出 dataURI（无外链素材）', () => {
+check('H8 Boji candidate renderer stays on the local approved-candidate asset', () => {
   const w = boot(J({ profile: { weight: 70 } }));
-  // petArtURI 是 applyPetArt 写入 pet-img.src 的唯一来源：自绘 SVG → data URI（含编码后的 <svg），无外部 http(s):// 资源引用
-  // 注意：SVG 命名空间 xmlns="http://www.w3.org/2000/svg" 会被编码为 http%3A%2F%2F，故只查未编码的 http:// 与 https://
-  const okURI = s => typeof s === 'string' && s.indexOf('data:image/svg+xml') === 0 && s.indexOf('http://') < 0 && s.indexOf('https://') < 0 && s.indexOf('%3Csvg') > 0;
-  w.__S.petSkin = 'nahida';
-  const a = w.eval('petArtURI')('happy');
-  w.__S.petSkin = 'spiderV3';
-  const b = w.eval('petArtURI')('cheer');
-  // 真实调用 applyPetArt 确认切换皮肤不抛错（K2/K3 已覆盖状态保留）
-  w.__S.petSkin = 'nahida'; w.eval('applyPetArt')('happy');
-  w.__S.petSkin = 'spiderV3'; w.eval('applyPetArt')('cheer');
-  return okURI(a) && okURI(b);
+  return w.eval('coachAvatarSrc')() === 'assets/boji-companion-candidate.png'
+    && w.eval('skinBy')('boji').asset === 'assets/boji-companion-candidate.png'
+    && w.eval('petArtURI')('happy') === 'assets/boji-companion-candidate.png';
+});
+check('H9 Photo Pet remains a separate renderer and selection', () => {
+  const photo = 'data:image/png;base64,AAAA';
+  const w = boot(J({ profile: { weight: 70 }, petSkin: 'photo', settings: { petPhoto: photo } }));
+  const art = w.eval('petArtURI')('cheer');
+  return w.eval('skinBy')('photo').photo === true && art.indexOf('data:image/svg+xml') === 0
+    && art.indexOf(encodeURIComponent(photo)) >= 0;
 });
 check('H10 自定义动作：超名截断 / 组数夹取 / XSS 不执行', () => {
   return (async()=>{const w = boot(J({ profile: { weight: 70 } })); w.goModule('training');
@@ -608,8 +596,7 @@ async function aiChecks() {
   });
   }
 }
-
-asyncChecks().then(() => aiChecks()).then(() => v79Checks()).then(() => v710Checks()).then(() => v711Checks()).then(() => v80Checks()).then(() => v81Checks()).then(() => v110Checks()).then(() => v110bChecks()).then(() => v120Checks()).then(async () => {
+asyncChecks().then(() => aiChecks()).then(() => v79Checks()).then(() => v710Checks()).then(() => v711Checks()).then(() => v80Checks()).then(() => g5SurfaceChecks()).then(() => v81Checks()).then(() => v110Checks()).then(() => v110bChecks()).then(() => v120Checks()).then(async () => {
   await Promise.all(pendingChecks);
   console.log(results.join('\n'));
   console.log(`\n==== 攻击式自检：${pass} PASS / ${fail} FAIL ====`);
@@ -618,20 +605,17 @@ asyncChecks().then(() => aiChecks()).then(() => v79Checks()).then(() => v710Chec
 
 // ===== v7.9 增量：桌宠 Q 版形象 / 眨眼 / 彩蛋 / 知识库扩充 / 数据化回答 / 复制上一餐 =====
 async function v79Checks() {
-  // I1 形象：10 情绪 + 眨眼帧全部输出有效 SVG
+  // I1-I2 V2 character and local photo rendering
   {
     const w = boot(J({ profile: { weight: 70 } }));
-    const f = w.eval('nahidaSVG');
     const moods = ['happy','cheer','proud','expect','think','sad','sleep','wave','hover','drag','blink'];
-    const okAll = moods.every(m => { const s = f(m);
-      return s.indexOf('<svg') === 0 && s.indexOf('undefined') < 0 && s.indexOf('NaN') < 0 && s.indexOf('<script') < 0; });
-    check('I1 形象 v7.9：11 种帧（含眨眼）输出均有效', () => okAll);
-  }
-  // I2 眨眼帧支持对象参数（保留嘴型/腮红，不产生 NaN）
-  {
-    const w = boot(J({ profile: { weight: 70 } }));
-    const hb = w.eval('nahidaSVG')({ eye:'closed', mouth:'o', blush:1, brow:'up', fx:'' });
-    check('I2 眨眼帧对象参数 → 有效 SVG', () => hb.indexOf('<svg') === 0 && hb.indexOf('NaN') < 0);
+    const photo = 'data:image/png;base64,AAAA';
+    const svg = w.eval('photoPetSVG');
+    check('I1 Boji identity resolves to the local candidate asset', () => w.eval('coachAvatarSrc')() === 'assets/boji-companion-candidate.png');
+    check('I2 Photo Pet emits valid local SVG for supported moods', () => moods.every(m => {
+      const out = svg(m, photo);
+      return out.indexOf('<svg') === 0 && out.indexOf('undefined') < 0 && out.indexOf('NaN') < 0 && out.indexOf('<script') < 0;
+    }));
   }
   // I3 眨眼调度与连点彩蛋已接线
   {
@@ -643,8 +627,8 @@ async function v79Checks() {
   {
     const w = boot(J({ profile: { weight: 70 } }));
     check('I4 知识库条数 ≥ 60', () => w.eval('window.__KB').length >= 60);
-    const r1 = w.eval('nahidaReply')('奶茶能喝吗');
-    const r2 = w.eval('nahidaReply')('引体向上做不了');
+    const r1 = w.eval('bojiReply')('奶茶能喝吗');
+    const r2 = w.eval('bojiReply')('引体向上做不了');
     check('I5 新知识条目可命中（奶茶/引体）', () => r1.indexOf('液态热量') >= 0 && r2.indexOf('离心') >= 0);
   }
   // I6–I8 数据化回答（优先级与兜底）
@@ -668,28 +652,18 @@ async function v79Checks() {
   }
 }
 
-// ===== v7.10 增量：小蛛皮肤 / 悬挂翻转爱心 / 教练身份 / 桌面背景 / 识别评测联动 =====
+// ===== V2 增量：Boji 形象 / 桌宠行为 / 教练身份 / 桌面背景 / 识别评测联动 =====
 function v710Checks() {
-  // J1–J4 皮肤体系
+  // J1-J4 Boji and Photo Pet registry
   {
     const w = boot(J({ profile: { weight: 70 } }));
-    const svg = w.eval('spiderSVG')('happy', 'v2');
-    check('J1 小蛛 SVG 输出有效（svg 标签+viewBox）', () => svg.indexOf('<svg') >= 0 && svg.indexOf('viewBox') >= 0);
-    check('J2 无 petSkin 脏数据 → 默认迁移为 spiderV3（v8.0 视频同款）', () => w.__S.petSkin === 'spiderV3');
-    const moods = ['happy','cheer','proud','expect','think','sad','sleep','wave','hover','drag','blink'];
-    check('J3 小蛛三个版本 11 种帧全部输出有效', () => moods.every(m =>
-      w.eval('spiderSVG')(m,'v1').indexOf('<svg') >= 0
-      && w.eval('spiderSVG')(m,'v2').indexOf('<svg') >= 0
-      && w.eval('spiderSVG')(m,'v3').indexOf('<svg') >= 0));
-    const w2 = boot(J({ profile: { weight: 70 }, petSkin: 'svg' }));
-    // v1.1：official（立绘位图）恢复为合法皮肤，不再回落到 spiderV3
-    check('J4 旧值迁移：svg→nahida、spider→spiderV3、spiderV2→spiderV3、official→official、脏值→spiderV3',
-      () => w2.__S.petSkin === 'nahida'
-        && boot(J({ profile:{weight:70}, petSkin:'spider' })).__S.petSkin === 'spiderV3'
-        && boot(J({ profile:{weight:70}, petSkin:'spiderV2' })).__S.petSkin === 'spiderV3'
-        && boot(J({ profile:{weight:70}, petSkin:'official' })).__S.petSkin === 'official'
-        && boot(J({ profile:{weight:70}, petSkin:'spiderV1' })).__S.petSkin === 'spiderV1'
-        && boot(J({ profile:{weight:70}, petSkin:'__dirty__' })).__S.petSkin === 'spiderV3');
+    const keys = w.eval('PET_SKINS.map(x=>x.key)');
+    check('J1 companion registry contains Boji and Photo Pet', () => JSON.stringify(keys) === JSON.stringify(['boji','photo']));
+    check('J2 default companion selection is Boji with the local candidate asset', () => w.__S.petSkin === 'boji' && w.eval('skinBy')('boji').asset === 'assets/boji-companion-candidate.png');
+    check('J3 unknown saved selection safely falls back to Boji', () => boot(J({ profile: { weight: 70 }, petSkin: '__dirty__' })).__S.petSkin === 'boji');
+    const photo = 'data:image/png;base64,AAAA';
+    const w2 = boot(J({ profile: { weight: 70 }, petSkin: 'photo', settings: { petPhoto: photo } }));
+    check('J4 Photo Pet selection retains its saved image and renderer', () => w2.__S.petSkin === 'photo' && w2.eval('skinBy')('photo').photo === true && w2.eval('petArtURI')('happy').indexOf('data:image/svg+xml') === 0);
   }
   // J5–J7 桌宠行为
   {
@@ -702,33 +676,25 @@ function v710Checks() {
     w.eval('petHearts')(3);
     check('J7 冒爱心：petHearts → fly-heart 节点入列', () => w.document.querySelectorAll('#pet .fly-heart').length >= 3);
   }
-  // J8–J11 教练身份 + 背景
+  // J8-J11 fixed Boji identity and V2 wallpaper
   {
-    const w = boot(J({ profile: { weight: 70 }, settings: { coachName: '阿铁', bg: 'p3' } }));
-    check('J8 教练名可配置', () => w.eval('coachName')() === '阿铁');
+    const w = boot(J({ profile: { weight: 70 }, settings: { coachName: 'Legacy Name', bg: 'p3' } }));
+    check('J8 companion identity is the fixed Boji name', () => w.eval('coachName')() === 'Boji');
     const w2 = boot(J({ profile: { weight: 70 } }));
-    check('J9 教练名缺省回落小练', () => w2.eval('coachName')() === '小练');
+    check('J9 default companion identity is Boji', () => w2.eval('coachName')() === 'Boji');
     w.eval('applyCoachIdentity')();
-    check('J10 applyCoachIdentity → 聊天输入占位与引导文案生效', () => {
+    check('J10 identity copy and chat placeholder use Boji', () => {
       const inp = w.document.getElementById('chat-text');
       const ob = w.document.querySelector('#onboard .sub');
-      return inp && inp.placeholder.indexOf('阿铁') >= 0 && ob && ob.innerHTML.indexOf('阿铁') >= 0;
+      return inp && inp.placeholder.indexOf('Boji') >= 0 && ob && ob.textContent.indexOf('Boji') >= 0;
     });
     w.eval('applyWallpaper')();
-    // v1.1：默认背景恢复为角色壁纸（图片），加载失败/脏值一律回落到安全渐变，不再出现空白或半张图
-    check('J11 背景预设 p3 → wallpaper 渐变生效；脏 bg 回落安全渐变而非空白', () => {
+    check('J11 wallpaper preset and fallback remain visible', () => {
       const el = w.document.getElementById('wallpaper');
-      const okP3 = el.style.background.indexOf('linear-gradient') >= 0 && el.classList.contains('wall-custom');
+      const okPreset = el.style.background.indexOf('linear-gradient') >= 0 && el.classList.contains('wall-custom');
       w.__S.settings.bg = 'not-a-preset';
       w.eval('applyWallpaper')();
-      const okFall = el.style.background.indexOf('linear-gradient') >= 0 && el.classList.contains('wall-custom');
-      return okP3 && okFall;
-    });
-    check('J11b 默认（未设置 bg）走角色壁纸预加载，图片路径为 nahida-card.webp', () => {
-      const w3 = boot(J({ profile: { weight: 70 } }));
-      w3.eval('applyWallpaper')();
-      const img = w3.document.getElementById('wallpaper').__bgImg;
-      return !!img && String(img.src).indexOf('nahida-card.webp') >= 0;
+      return okPreset && String(el.__bgImg && el.__bgImg.src).indexOf('assets/boji-companion-candidate.png') >= 0;
     });
   }
   // J12–J14 识别优化联动
@@ -754,27 +720,20 @@ function v710Checks() {
 
 // ===== v7.11 增量：统一皮肤注册表 / 5 轮上下文 / 闲聊知识库 / 模拟评测联动 =====
 function v711Checks() {
-  // K1–K3 统一切换
+  // K1-K3 companion registry and state preservation
   {
     const w = boot(J({ profile: { weight: 70 } }));
     const keys = w.eval('PET_SKINS.map(x=>x.key)');
-    // v1.1：恢复立绘位图皮肤 official（对外名「官方立绘」，不含角色本名）+ 新增照片桌宠 photo
-    check('K1 皮肤注册表六键齐全（nahida/spiderV1/V2/V3/official/photo）',
-      () => JSON.stringify(keys) === JSON.stringify(['nahida','spiderV1','spiderV2','spiderV3','official','photo']));
-    check('K1b 位图皮肤有 asset 且对外名不含角色本名',
-      () => { const o = w.eval('skinBy')('official'); return !!o.asset && o.name.indexOf('纳西') < 0; });
-    check('K2 skinBy 脏键回落第一项而非崩溃', () => w.eval('skinBy')('bad-key').key === 'nahida');
-    // 切换保留停靠与情绪状态
+    check('K1 registry exposes Boji and Photo Pet', () => JSON.stringify(keys) === JSON.stringify(['boji','photo']));
+    check('K2 invalid skin lookup safely resolves to Boji', () => w.eval('skinBy')('bad-key').key === 'boji');
     w.__S.petDock = { edge:'top', off:0.5 }; w.__S.petMood = 'sleep';
     w.eval('applyDock')(); w.eval('applyPetArt')('sleep');
-    w.__S.petSkin = 'nahida'; w.eval('applyPetArt')('sleep');
-    check('K3 切换皮肤不丢状态（悬挂类保留 + 情绪保留）',
-      () => w.document.getElementById('pet').classList.contains('edge-t') && w.__S.petMood === 'sleep');
+    check('K3 companion rendering preserves dock and mood state', () => w.document.getElementById('pet').classList.contains('edge-t') && w.__S.petMood === 'sleep');
   }
   // K4–K6 上下文窗口（v1.1：默认不限轮数，可收回为 5 轮）
   {
     const w = boot(J({ profile: { weight: 70 } }));
-    const reply = w.eval('nahidaReply');
+    const reply = w.eval('bojiReply');
     ['卧推肩疼怎么办','深蹲膝盖响','鸡蛋吃几个','奶茶能喝吗','今天吃什么','随便聊聊','谢谢'].forEach(q => reply(q));
     // 默认开放全部：7 轮全部保留（不再是 5），但不得超过硬上限
     check('K4 上下文默认不限轮数（7 轮全留，且不超硬上限）', () => {
@@ -783,27 +742,24 @@ function v711Checks() {
     });
     check('K4b 收回为 5 轮后立即裁剪到 5', () => {
       const w2 = boot(J({ profile: { weight: 70 }, ctxLimit: 5 }));
-      const r2 = w2.eval('nahidaReply');
+      const r2 = w2.eval('bojiReply');
       ['卧推肩疼怎么办','深蹲膝盖响','鸡蛋吃几个','奶茶能喝吗','今天吃什么','随便聊聊','谢谢'].forEach(q => r2(q));
       return w2.eval('window.__CTX').hist.length === 5;
     });
     const w2 = boot(J({ profile: { weight: 70 } }));
-    const r2 = w2.eval('nahidaReply');
+    const r2 = w2.eval('bojiReply');
     r2('引体向上做不了'); const a = r2('它怎么练');
     check('K5 指代消解：“它”复用窗口内最近主题（引体→离心）', () => a.indexOf('离心') >= 0);
     check('K6 闲聊知识库命中（晚安/心情不好）', () => {
       const w3 = boot(J({ profile: { weight: 70 } }));
-      const r3 = w3.eval('nahidaReply');
+      const r3 = w3.eval('bojiReply');
       return r3('晚安').indexOf('晚安呀') >= 0 && r3('心情不好怎么办').indexOf('接住') >= 0;
     });
   }
-  // K7–K8 形象差异与评测联动
+  // K7 local Boji candidate is used by the companion surface
   {
     const w = boot(J({ profile: { weight: 70 } }));
-    check('K7 小蛛两版本主题确实不同（配色/纹样/胸标/身形比）', () => {
-      const T = w.eval('SPIDER_THEME');
-      return T.v1.red !== T.v2.red && T.v1.web !== T.v2.web && T.v1.emblem !== T.v2.emblem && T.v1.body !== T.v2.body;
-    });
+    check('K7 Boji candidate is the configured companion artwork', () => w.eval('BG_IMAGES.card') === 'assets/boji-companion-candidate.png' && w.eval('skinBy')('boji').asset === 'assets/boji-companion-candidate.png');
     const rep = fs.existsSync(path.join(PROJ, 'eval-set', 'last-simulate-report.txt'));
     check('K8 多场景模拟评测报告已落盘（准确率口径）', () => {
       if(!rep) return false;
@@ -909,41 +865,29 @@ function v81Checks() {
     check('M11 设置页含训练方案切换 UI（A/B 两个选项 + 适用场景）',
       () => phtml.indexOf('plan-pick') >= 0 && phtml.indexOf('data-plan="A"') >= 0
         && phtml.indexOf('data-plan="B"') >= 0 && phtml.indexOf('适用：') >= 0);
-    check('M12 点击 B 套后方案切换生效且页面不崩', () => {
+    check('M12 switching to profile B persists and keeps training renderable', async () => {
       const btn = w.document.querySelector('#plan-pick .plan-pick[data-plan="B"]');
       if (!btn) return false;
       w.__click(btn);
-      const ok = w.__S.planSet === 'B' && w.eval('PLANS') === w.eval('PLAN_SETS').B.days;
-      w.goModule('training');                              // 切换后仍要能正常渲染训练页
-      return ok && w.document.getElementById('mod-body').innerHTML.indexOf('居家 · 无卧推椅') >= 0;
+      const saved = await waitForTest(() => w.eval('STATE.planSet') === 'B');
+      const ok = saved && w.eval('PLANS') === w.eval('PLAN_SETS').B.days;
+      w.goModule('training');
+      return ok && !!w.document.querySelector('#start-workout');
     });
   }
 }
 
-// ===== v8.0 增量：按视频规格重制小蛛 / 7 项动作 / 助手与识别缺陷修复 / 存储稳定性 =====
+// ===== V2 增量：Boji 候选形象 / 动作 / 助手与识别缺陷修复 / 存储稳定性 =====
 function v80Checks() {
   const CSS = fs.readFileSync(path.join(PROJ, 'styles.css'), 'utf8');
-  // L1–L8 形象规格（对齐「小蛛桌宠·按视频款式重制规格书」3.1 / 3.2）
+  // L1-L8 V2 character, navigation, and accessibility basics
   {
     const w = boot(J({ profile: { weight: 70 } }));
-    const T = w.eval('SPIDER_THEME').v3;
-    check('L1 v3 配色 = 视频实测值（主红 #C92848 / 藏蓝 #344383 / 描边 #241018）',
-      () => /^#c92848$/i.test(T.red) && /^#344383$/i.test(T.blue) && /^#241018$/i.test(T.ink));
-    check('L2 v3 蛛网为中心放射 + 6 主干 + 不透明度提到 .45',
-      () => T.web === 'radial' && T.webRays === 6 && T.webOp === 0.45);
-    check('L3 v3 胸标为蜘蛛徽记（撤销 v2 的哑铃胸标）', () => T.emblem === 'spider');
-    check('L4 v3 身形比回到 1.00（撤销 v2 的 1.07）', () => T.body === 1.00);
-    const svg = w.eval('spiderSVG')('happy', 'v3');
-    check('L5 v3 眼罩为水滴形 + 粗描边 3.4', () => svg.indexOf('stroke-width="3.4"') >= 0);
-    check('L6 v3 无地面阴影（视频角色悬浮于桌面）', () => svg.indexOf('cy="146"') < 0);
-    check('L7 v3 不出现星星眼 / 爱心眼 / 泪眼装饰', () => {
-      const bad = ['#f3cd72', '#ff8fa6', '#7ec8f0'];   // 星 / 爱心 / 泪的填充色
-      return bad.every(c => svg.indexOf(c) < 0);
-    });
-    check('L8 主题缺字段补默认值（旧主题不会读到 undefined）', () => {
-      const t = w.eval('spTheme')('v1');
-      return !!(t.redHL && t.blueD && t.lens && t.webW && t.lw && t.eyeShape);
-    });
+    const ids = Array.from(w.document.querySelectorAll('#dock .dock-item')).map(x => x.dataset.go);
+    check('L1 V2 candidate artwork is present in the project', () => fs.existsSync(path.join(PROJ, 'assets', 'boji-companion-candidate.png')));
+    check('L2 primary navigation has five named destinations', () => ids.join(',') === 'today,training,boji,progress,profile');
+    check('L3 reduced-motion preference has a CSS rule', () => /prefers-reduced-motion:\s*reduce/.test(CSS));
+    check('L4 primary navigation targets retain accessible labels', () => Array.from(w.document.querySelectorAll('#dock .dock-item')).every(x => x.textContent.trim().length > 0));
   }
   // L9–L11 助手缺陷修复
   {
@@ -953,11 +897,7 @@ function v80Checks() {
       const out = md('先降重量。\n*[B] 证据：NSCA 建议肩胛稳定是卧推安全前提*');
       return out.indexOf('来源待核') >= 0 && out.indexOf('证据等级 B') < 0 && out.indexOf('NSCA 建议肩胛稳定是卧推安全前提') >= 0;
     });
-    check('L10 教练头像预设 SVG → data URI（旧版直接当 img src 会渲染成破图）', () => {
-      w.__S.settings.coachAvatar = 'dog1';
-      const src = String(w.eval('coachAvatarSrc')());
-      return src.indexOf('data:image/svg+xml') === 0 && src.indexOf('<svg') < 0 && src.indexOf('%3Csvg') > 0;
-    });
+    check('L10 coach avatar uses the local Boji candidate asset', () => w.eval('coachAvatarSrc')() === 'assets/boji-companion-candidate.png');
     check('L11 气泡文本为非字符串时不崩溃', () => w.eval('md')(undefined) === '' && w.eval('md')(null) === '');
   }
   // L12–L14 AI 识别：拒绝假识别
@@ -1013,6 +953,83 @@ check('L14 extractJSON 能剥离 markdown 代码块', () => {
 }
 
 // ===== v1.1 增量：桌宠动作增强 / 语音 / 照片桌宠 / 健身房方案 / 视频直链 =====
+function g5SurfaceChecks() {
+  const onboarding = boot(J({ isFirstLaunch: true, profile: null }));
+  check('G5 onboarding collects goal, experience, equipment, and duration', () =>
+    ['#ob-goal','#ob-experience','#ob-equipment','#ob-session-minutes'].every(q => !!onboarding.document.querySelector(q)));
+  check('G5 onboarding explains existing presets and has no generated-program control', () =>
+    onboarding.document.querySelector('#onboard').textContent.includes(String.fromCharCode(0x4e0d,0x4f1a,0x636e,0x6b64,0x81ea,0x52a8,0x751f,0x6210))
+      && !onboarding.document.querySelector('#onboard [data-generate-program]'));
+  check('G5 Today has one Boji note, three metrics, a main action, and its rationale', () => {
+    const w = boot(J({ profile: { weight: 70 } }));
+    w.goModule('today');
+    return w.document.querySelectorAll('#home-stats .hs-pill').length === 3
+      && w.document.querySelectorAll('#home-today .boji-note').length === 1
+      && !!w.document.querySelector('#hc-go') && !!w.document.querySelector('#home-today .today-why');
+  });
+  check('G5 Boji center exposes six distinct quick actions and opens Ask Boji', () => {
+    const w = boot(J({ profile: { weight: 70 } }));
+    w.goModule('boji');
+    const actions = new Set(Array.from(w.document.querySelectorAll('.boji-actions [data-boji-action]')).map(x => x.dataset.bojiAction));
+    const expected = ['food','barcode','run','weight','ask','photo'];
+    const ask = w.document.querySelector('.boji-actions [data-boji-action="ask"]');
+    w.__click(ask);
+    return expected.every(x => actions.has(x)) && actions.size === 6 && w.document.getElementById('assistant').classList.contains('open');
+  });
+  check('G5 Progress answers strength, consistency, and issues before drill-down', () => {
+    const w = boot(J({ profile: { weight: 70 } }));
+    w.goModule('progress');
+    const first = w.document.querySelector('#mod-body > .progress-first');
+    return !!first && first.querySelectorAll('.progress-answer').length === 3
+      && first.textContent.includes(String.fromCharCode(0x529b,0x91cf,0x53d8,0x5316)) && first.textContent.includes(String.fromCharCode(0x8bad,0x7ec3,0x89c4,0x5f8b)) && first.textContent.includes(String.fromCharCode(0x503c,0x5f97,0x7559,0x610f));
+  });
+  check('G5 Learning and Performance share one active workout record', () => {
+    const w = boot(J({ profile: { weight: 70 }, settings: { trainingMode: 'learning' } }));
+    const d = new Date(); d.setDate(d.getDate() + ((1 - d.getDay() + 7) % 7 || 7));
+    const key = dateKey(d), template = w.eval('trainingTemplate')('template:A:push');
+    if (!template || !template.exercises.length) return false;
+    const exerciseSessions = template.exercises.map((row,i) => ({ exerciseSessionId:'active-ex-'+i, exerciseId:row.exerciseId, nameSnapshot:w.eval('exerciseDefinition')(row.exerciseId).name }));
+    const sets = [];
+    template.exercises.forEach((row,i) => { for(let n=0;n<row.sets;n++) sets.push({setId:'active-set-'+i+'-'+n,exerciseSessionId:'active-ex-'+i,setIndex:n,targetReps:row.reps,weightKg:null,reps:null,rir:null,completed:false}); });
+    const current = { session:{sessionId:'active-session',status:'ACTIVE',localDateKey:key,templateId:'template:A:push',equipmentProfileId:'equipment:A',startedAt:Date.now(),currentSetId:sets[0].setId},exerciseSessions:exerciseSessions,sets:sets };
+    const ex = exerciseSessions[0];
+    w.eval('WORKOUT_HISTORY_RECORDS = '+JSON.stringify([{session:{sessionId:'prior-session',status:'COMPLETED',localDateKey:'2026-10-01',startedAt:Date.now()-86400000,endedAt:Date.now()-86399000},exerciseSessions:[{exerciseSessionId:'prior-ex',exerciseId:ex.exerciseId,nameSnapshot:ex.nameSnapshot}],sets:[{exerciseSessionId:'prior-ex',setIndex:0,completed:true,weightKg:12,reps:10}]}])+';');
+    w.eval('ACTIVE_WORKOUT = '+JSON.stringify(current)+'; STATE.selDate = '+JSON.stringify(key)+';');
+    w.goModule('training');
+    const learning = w.document.querySelector('#mod-body .learning-content');
+    if (!learning) return false;
+    w.__click(w.document.querySelector('#mod-body [data-training-mode="performance"]'));
+    const performance = w.document.querySelector('#mod-body .performance-context');
+    const sessionKept = w.eval('ACTIVE_WORKOUT.session.sessionId') === 'active-session';
+    return sessionKept && w.__S.settings.trainingMode === 'performance' && !!performance
+      && performance.textContent.includes('12 kg') && performance.textContent.includes('10')
+      && !!w.document.querySelector('#mod-body details.learning-details')
+      && !!w.document.querySelector('#mod-body [data-weight]')
+      && !!w.document.querySelector('#mod-body [data-reps]')
+      && !!w.document.querySelector('#mod-body [data-rir]');
+  });
+  check('G5 mobile safe areas, touch targets, reduced motion, and storage errors are explicit', () => {
+    const css = fs.readFileSync(path.join(PROJ,'styles.css'),'utf8');
+    const html = fs.readFileSync(path.join(PROJ,'index.html'),'utf8');
+    const w = boot(J({ profile: { weight: 70 } }));
+    w.eval("DATA_ERROR='storage failure fixture'; showStorageStatus();");
+    const notice = w.document.getElementById('critical-storage-error');
+    return css.includes('env(safe-area-inset-bottom') && css.includes('min-height:44px')
+      && /prefers-reduced-motion:\s*reduce/.test(css)
+      && html.includes('viewport-fit=cover')
+      && notice.getAttribute('role') === 'alert' && !notice.hidden && notice.textContent.includes('storage failure fixture');
+  });
+  check('G5 dismissing storage failure requires a successful later save', async () => {
+    const w = boot(J({ profile: { weight: 70 } }));
+    w.eval("DATA_ERROR='V2 ?????????fixture'; showStorageStatus();");
+    const visible = !w.document.getElementById('critical-storage-error').hidden;
+    w.BojiData.saveState = () => Promise.reject(new Error('still full'));
+    await w.eval('saveAsync')();
+    const remains = !w.document.getElementById('critical-storage-error').hidden;
+    return visible && remains;
+  });
+}
+
 function v110Checks() {
   // N1–N3 动作（Shimeji 式：沿边溜达 / 挣扎 / 落地）
   {
@@ -1287,21 +1304,16 @@ function v120Checks() {
   }
   // —— ④ 底部导航 ——
   {
-    const w = boot(J({ profile: { weight: 70 } }));
-    check('X1 底部 7 个入口，聊天固定正中（索引 3）', () => {
-      const items = Array.from(w.document.querySelectorAll('#dock .dock-item'));
-      return items.length === 7 && items[3] && items[3].id === 'pet-talk';
-    });
-    check('X2 动线顺序：训练/饮食/跑步 · 聊天 · 知识/数据/我的', () => {
-      const keys = Array.from(w.document.querySelectorAll('#dock .dock-item'))
-        .map(b => b.dataset.go || (b.id === 'pet-talk' ? 'chat' : ''));
-      return keys.join(',') === 'training,diet,run,chat,knowledge,data,profile';
-    });
-  }
-  // —— ⑤ 照片桌宠 ——
-  {
     const PH = 'data:image/png;base64,AAAA';
-    const w = boot(J({ profile: { weight: 70 }, settings: { petPhoto: PH, petPhotoFx: 'natura' } }));
+    const w = boot(J({ profile: { weight: 70 } }));
+    check('X1 five primary navigation destinations render', () => {
+      const items = Array.from(w.document.querySelectorAll('#dock .dock-item'));
+      return items.length === 5 && items.some(x => x.dataset.go === 'boji') && items.some(x => x.dataset.go === 'progress');
+    });
+    check('X2 primary navigation order is Today, Training, Boji, Progress, My', () => {
+      const keys = Array.from(w.document.querySelectorAll('#dock .dock-item')).map(b => b.dataset.go);
+      return keys.join(',') === 'today,training,boji,progress,profile';
+    });
     check('Y1 SVG 带显式 width/height（此前只有 viewBox，栅格化默认尺寸导致糊）', () => {
       const s = w.eval('photoPetSVG')('happy', PH);
       return /<svg[^>]*width="240"/.test(s) && /height="240"/.test(s);

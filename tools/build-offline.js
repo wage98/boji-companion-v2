@@ -1,5 +1,5 @@
 /* ============================================================
-   训练日记 · 离线单文件构建器（tools/build-offline.js）
+   Boji Companion V2 · offline single-file builder（tools/build-offline.js）
    目的：生成一个**完全不依赖任何服务器（包括 GitHub Pages）**的单文件 HTML，
    内联全部样式 / 脚本 / 图片，可直接：
      · 用手机浏览器打开后「保存到本地」离线使用；
@@ -19,10 +19,9 @@ const du = (p, mime) => 'data:' + mime + ';base64,' + read(p).toString('base64')
 
 const ASSET_MAP = {
   'assets/icon.svg':           du('assets/icon.svg', 'image/svg+xml'),
-  'assets/icon-192.png':       du('assets/icon-192.png', 'image/png'),
-  'assets/icon-512.png':       du('assets/icon-512.png', 'image/png'),
-  'assets/nahida-card.webp':   du('assets/nahida-card.webp', 'image/webp'),
-  'assets/nahida-icon.webp':   du('assets/nahida-icon.webp', 'image/webp'),
+  'assets/boji-icon-192.png':  du('assets/boji-icon-192.png', 'image/png'),
+  'assets/boji-icon-512.png':  du('assets/boji-icon-512.png', 'image/png'),
+  'assets/boji-companion-candidate.png': du('assets/boji-companion-candidate.png', 'image/png'),
 };
 
 let html = text('index.html');
@@ -49,17 +48,13 @@ html = html.replace(
   /if\('serviceWorker' in navigator[\s\S]*?navigator\.serviceWorker\.register\('sw\.js'\)\.catch\(\(\)=>\{\}\);\s*\}/,
   () => "/* 离线单文件版：不注册 Service Worker（无 sw.js 可缓存，全部资源已内联） */"
 );
-// 7) 标注构建信息
-html = html.replace(
-  '<!--\n  训练日记 · 居家哑铃训练记录 App（纯前端单页，数据只存本机）',
-  () => '<!--\n  训练日记 · 离线单文件构建版（由 tools/build-offline.js 生成，请勿手改）\n  在线正式版：https://wage98.github.io/boji-diary/\n  仓库：https://github.com/wage98/boji-diary\n  ——\n  原始：训练日记 · 居家哑铃训练记录 App（纯前端单页，数据只存本机）'
-);
-
+// 7) Add a local build note; no remote deployment URL is implied.
+html = html.replace('</head>', () => '<!-- Boji Companion V2 offline build -->\n</head>');
 fs.mkdirSync(path.dirname(OUT), { recursive: true });
 fs.writeFileSync(OUT, html, 'utf8');
 const kb = Math.round(fs.statSync(OUT).size / 1024);
 console.log('✔ 已生成 dist/offline.html（' + kb + ' KB）');
 // 自检：产物里不得再出现任何本地资源引用
-const bad = ['styles.css"', 'app.js"', 'assets/icon', 'assets/nahida'].filter(k => html.indexOf(k) >= 0);
+const bad = ['styles.css"', 'app.js"', 'assets/icon', 'assets/boji-icon-192.png', 'assets/boji-icon-512.png', 'assets/boji-companion-candidate.png'].filter(k => html.indexOf(k) >= 0);
 if (bad.length) { console.error('✘ 仍有未内联引用：', bad); process.exit(1); }
 console.log('✔ 自检通过：无外部资源引用，可完全离线打开');
