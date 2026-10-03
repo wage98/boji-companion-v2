@@ -1,0 +1,6 @@
+{
+  "channel": "rc",
+  "path": "/boji-companion-v2/rc/",
+  "output": "C:\\Users\\WaGe\\Documents\\Codex\\2026-10-03\\implement-boji-companion-v2-according-to\\outputs\\boji-companion-v2\\dist\\rc",
+  "manifest": "C:\\Users\\WaGe\\Documents\\Codex\\2026-10-03\\implement-boji-companion-v2-according-to\\outputs\\boji-companion-v2\\dist\\rc\\manifest.json"
+}

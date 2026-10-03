@@ -1,0 +1,94 @@
+{
+  "schemaVersion": 1,
+  "head": "7fec11c92a653775d5d88b028477cdb0b285e47b",
+  "channel": "rc",
+  "artifactPath": "dist/rc",
+  "artifactFileCount": 13,
+  "files": [
+    {
+      "path": "dist/rc/app.js",
+      "sizeBytes": 355503,
+      "sha256": "743ca5019465163ea057394c3d7142ae4ba5310e284585041a65023781f356a5"
+    },
+    {
+      "path": "dist/rc/assets/boji-companion-candidate.png",
+      "sizeBytes": 1798639,
+      "sha256": "e74eef409a0544272f02df2e90788c94a07da45cd5dca56d556c5d11708bdd83"
+    },
+    {
+      "path": "dist/rc/assets/boji-companion-icon-candidate.png",
+      "sizeBytes": 1805718,
+      "sha256": "93d9ee562330a093fa71334a2410b67c83d1e1cd1b0ed63702282c33fa33d873"
+    },
+    {
+      "path": "dist/rc/assets/boji-companion-pet-candidate.png",
+      "sizeBytes": 1831188,
+      "sha256": "c0016422458825bad46e6a8171d05da5777f1c4cbe0594bb3d7178789fb437ae"
+    },
+    {
+      "path": "dist/rc/assets/boji-icon-192.png",
+      "sizeBytes": 78531,
+      "sha256": "719a59f09b473e249f07e0d053da09b58b7927394cf4e0173ac99ae3e319d20a"
+    },
+    {
+      "path": "dist/rc/assets/boji-icon-512.png",
+      "sizeBytes": 503030,
+      "sha256": "690e95a320c1154761351cf3f832357b05781022a1b4731738a311a75ec12d41"
+    },
+    {
+      "path": "dist/rc/assets/icon.svg",
+      "sizeBytes": 570,
+      "sha256": "e3848d34d5c4f8e19817621559f469e79eadb61b11dd3e0cb55931c2f77a2dbb"
+    },
+    {
+      "path": "dist/rc/data-layer.js",
+      "sizeBytes": 85044,
+      "sha256": "2bea675b315747c89b34e8b8a3e348072f62dad67da56f66c7d0c5f6b3773796"
+    },
+    {
+      "path": "dist/rc/index.html",
+      "sizeBytes": 13886,
+      "sha256": "088a91f4ecc45fa56cdefc79f5dfe54d50db9415fa010405173881b1c5228c60"
+    },
+    {
+      "path": "dist/rc/manifest.json",
+      "sizeBytes": 873,
+      "sha256": "aba27e0646710496c872cd0ddac013cf1f19475c9df41440c9647182dad30948"
+    },
+    {
+      "path": "dist/rc/release-config.js",
+      "sizeBytes": 248,
+      "sha256": "ed7068779e8c08616846dfa5b09ce131d45d0088c451eb2e5349a30301e8bdde"
+    },
+    {
+      "path": "dist/rc/styles.css",
+      "sizeBytes": 56439,
+      "sha256": "bf1f7582a092b7750e626ad77232207b380587620e6067827f1b4320e4beb87a"
+    },
+    {
+      "path": "dist/rc/sw.js",
+      "sizeBytes": 3718,
+      "sha256": "9aed99a9e3a77885ef32758d3b6a878affdcae03f887d670375d1f40867eb289"
+    }
+  ],
+  "manifest": {
+    "id": "/boji-companion-v2/rc/",
+    "start_url": "/boji-companion-v2/rc/",
+    "scope": "/boji-companion-v2/rc/",
+    "name": "Boji Companion V2 RC",
+    "short_name": "Boji RC",
+    "display": "standalone"
+  },
+  "deployment": {
+    "status": "NOT_DEPLOYED",
+    "url": null,
+    "reason": "The gated workflow is manual and was not executed; no deployment URL was verified in this qualification run."
+  },
+  "qr": {
+    "status": "NOT_GENERATED",
+    "reason": "REL-012 requires an actual verified deployment URL."
+  },
+  "productionArtifact": {
+    "status": "NOT_BUILT"
+  }
+}

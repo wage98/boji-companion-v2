@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "head": "7fec11c92a653775d5d88b028477cdb0b285e47b",
+  "status": "PASS",
+  "scanScope": "All current V2 files including unreferenced assets, plus every file in dist.",
+  "sourceFilesScanned": 142,
+  "releaseFilesScanned": 13,
+  "forbiddenNameFindings": [],
+  "artifactErrors": [],
+  "releaseWorkflowChecks": {
+    "manual-dispatch-only": "PASS",
+    "requires-reviewed-g7": "PASS",
+    "locked-runtime-and-package-manager": "PASS",
+    "syntax-before-deploy": "PASS",
+    "regression-before-deploy": "PASS",
+    "scan-before-deploy": "PASS",
+    "scan-results-gate": "PASS",
+    "rc-only-build": "PASS",
+    "deploy-waits-for-qualification": "PASS"
+  },
+  "symlinksNotFollowed": [],
+  "reviewBoundary": "Filename checks do not establish copyright or originality. Review the G5 asset provenance record and retain AUTH-004 owner approval as pending."
+}

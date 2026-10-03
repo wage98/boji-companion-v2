@@ -1,0 +1,7 @@
+commit 7fec11c92a653775d5d88b028477cdb0b285e47b
+Author:     Wage35 <wage98@qq.com>
+AuthorDate: Sun Oct 4 01:30:35 2026 +0800
+Commit:     Wage35 <wage98@qq.com>
+CommitDate: Sun Oct 4 01:32:52 2026 +0800
+
+    G7-proxy-security-and-pages-gate

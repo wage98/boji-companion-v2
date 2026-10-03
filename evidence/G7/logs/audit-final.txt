@@ -1,0 +1,22 @@
+$ node tools/release-audit.js
+{
+  "head": "7fec11c92a653775d5d88b028477cdb0b285e47b",
+  "secretScan": {
+    "status": "PASS",
+    "files": 155,
+    "findings": 0
+  },
+  "assetScan": {
+    "status": "PASS",
+    "sourceFiles": 142,
+    "releaseFiles": 13,
+    "forbiddenNames": 0,
+    "artifactErrors": 0
+  },
+  "releaseArtifact": {
+    "path": "dist/rc",
+    "files": 13,
+    "deployment": "NOT_DEPLOYED",
+    "qr": "NOT_GENERATED"
+  }
+}
