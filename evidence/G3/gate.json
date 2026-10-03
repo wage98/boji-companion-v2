@@ -1,0 +1,79 @@
+{
+  "gate": "G3",
+  "status": "PASS",
+  "preHead": "d6c1bb85ec64c16e55f234fa3c07c1d58aac2e56",
+  "postHead": "ac1d1020fc0aca8f4dac5fe747079b26126fbe9f",
+  "preTree": "b77f49d8f3b22d18e3853b45beb0c73ccd024e33",
+  "postTree": "cf42ad471f23e027b305c96fde1cdf9e86af2f06",
+  "authorizedChanges": [
+    "Replace exercise-level training check-ins with canonical session, exercise-session, and set records.",
+    "Integrate built-in A/B/C equipment profiles and deterministic, user-confirmed time adjustments.",
+    "Add set-level persistence, wall-clock rest, active-session recovery, teaching linkage, conservative progression suggestions, and duplicate protection.",
+    "Preserve custom exercises as separate user-created records and keep their logs separate from planned workout completion.",
+    "Add gate-required regression coverage and qualify the resulting training behavior."
+  ],
+  "changedFiles": [
+    "app.js",
+    "data-layer.js",
+    "package.json",
+    "tools/data-layer-check.js",
+    "tools/selfcheck-attack.js",
+    "tools/selfcheck-functional.js",
+    "evidence/G3/logs/diff-check.txt",
+    "evidence/G3/logs/selfcheck.txt",
+    "evidence/G3/logs/syntax.txt",
+    "evidence/G3/summary.md",
+    "evidence/G3/gate.json",
+    "PROJECT_STATE.json"
+  ],
+  "checksRun": [
+    "pnpm run check:syntax",
+    "pnpm test",
+    "git show --check ac1d102",
+    "Real JSDOM V2 startup and training flow with IndexedDB persistence, delayed set commit, active-session reload, rest-timer restoration, and canonical custom-exercise hydration."
+  ],
+  "checkResults": [
+    { "check": "Syntax validation", "result": "PASS", "command": "pnpm run check:syntax" },
+    { "check": "Functional regression", "result": "PASS", "pass": 58, "fail": 0 },
+    { "check": "Attack regression", "result": "PASS", "pass": 197, "fail": 0 },
+    { "check": "Data-layer regression", "result": "PASS", "pass": 34, "fail": 0 },
+    { "check": "Application training integration", "result": "PASS", "timeAdjustmentConfirmed": true, "setCommitBeforeAcknowledgement": true, "activeSessionRecovered": true, "wallClockRestRecovered": true, "customExerciseCatalogHydrated": true },
+    { "check": "Committed patch whitespace validation", "result": "PASS", "command": "git show --check ac1d102" }
+  ],
+  "requirements": {
+    "DAT-020": "PASS",
+    "TRN-001": "PASS",
+    "TRN-002": "PASS",
+    "TRN-003": "PASS",
+    "TRN-004": "PASS",
+    "TRN-005": "PASS",
+    "TRN-006": "PASS",
+    "TRN-007": "PASS",
+    "TRN-008": "PASS",
+    "PRG-001": "PASS",
+    "PRG-002": "PASS",
+    "PRG-003": "PASS",
+    "PRG-004": "PASS"
+  },
+  "knownUnknowns": [
+    "G4 FoodDraft and MealRecord integration, food-operation ownership, nutrition intent, running truth, and event emission are not qualified.",
+    "G5 frozen information architecture, companion experience, accessibility, and final character asset approval are not qualified.",
+    "G6 PWA, offline/update behavior, concurrency, base-path handling, performance, and physical-device behavior are not qualified.",
+    "G7 release qualification, security scans, independent review, and RC artifact checks are not qualified.",
+    "Timezone context for meal, weight, water, and run events remains to be validated in G4; physical-device claims remain UNKNOWN pending post-Luna qualification."
+  ],
+  "blocker": null,
+  "nextAllowedGate": "G4",
+  "forbiddenNextActions": [
+    "Do not modify V1.",
+    "Do not begin G5 before G4 passes.",
+    "Do not deploy or claim RC readiness before G7 passes.",
+    "Do not claim physical-device behavior or production approval."
+  ],
+  "evidenceFiles": [
+    "evidence/G3/logs/syntax.txt",
+    "evidence/G3/logs/selfcheck.txt",
+    "evidence/G3/logs/diff-check.txt"
+  ],
+  "schemaValidatedAgainst": "contract/contracts/gate-evidence.schema.json"
+}
