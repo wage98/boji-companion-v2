@@ -444,8 +444,8 @@ check('H7 体重曲线：空数据有兜底文案、单点无 NaN、多点生成
 check('H8 Boji candidate renderer stays on the local approved-candidate asset', () => {
   const w = boot(J({ profile: { weight: 70 } }));
   return w.eval('coachAvatarSrc')() === 'assets/boji-companion-candidate.png'
-    && w.eval('skinBy')('boji').asset === 'assets/boji-companion-candidate.png'
-    && w.eval('petArtURI')('happy') === 'assets/boji-companion-candidate.png';
+    && w.eval('skinBy')('boji').asset === 'assets/boji-companion-pet-candidate.png'
+    && w.eval('petArtURI')('happy') === 'assets/boji-companion-pet-candidate.png';
 });
 check('H9 Photo Pet remains a separate renderer and selection', () => {
   const photo = 'data:image/png;base64,AAAA';
@@ -659,7 +659,7 @@ function v710Checks() {
     const w = boot(J({ profile: { weight: 70 } }));
     const keys = w.eval('PET_SKINS.map(x=>x.key)');
     check('J1 companion registry contains Boji and Photo Pet', () => JSON.stringify(keys) === JSON.stringify(['boji','photo']));
-    check('J2 default companion selection is Boji with the local candidate asset', () => w.__S.petSkin === 'boji' && w.eval('skinBy')('boji').asset === 'assets/boji-companion-candidate.png');
+    check('J2 default companion selection uses the local Boji pet candidate', () => w.__S.petSkin === 'boji' && w.eval('skinBy')('boji').asset === 'assets/boji-companion-pet-candidate.png');
     check('J3 unknown saved selection safely falls back to Boji', () => boot(J({ profile: { weight: 70 }, petSkin: '__dirty__' })).__S.petSkin === 'boji');
     const photo = 'data:image/png;base64,AAAA';
     const w2 = boot(J({ profile: { weight: 70 }, petSkin: 'photo', settings: { petPhoto: photo } }));
@@ -759,7 +759,7 @@ function v711Checks() {
   // K7 local Boji candidate is used by the companion surface
   {
     const w = boot(J({ profile: { weight: 70 } }));
-    check('K7 Boji candidate is the configured companion artwork', () => w.eval('BG_IMAGES.card') === 'assets/boji-companion-candidate.png' && w.eval('skinBy')('boji').asset === 'assets/boji-companion-candidate.png');
+    check('K7 portrait and pet candidates are configured as distinct companion artwork', () => w.eval('BG_IMAGES.card') === 'assets/boji-companion-candidate.png' && w.eval('skinBy')('boji').asset === 'assets/boji-companion-pet-candidate.png');
     const rep = fs.existsSync(path.join(PROJ, 'eval-set', 'last-simulate-report.txt'));
     check('K8 多场景模拟评测报告已落盘（准确率口径）', () => {
       if(!rep) return false;
@@ -884,7 +884,7 @@ function v80Checks() {
   {
     const w = boot(J({ profile: { weight: 70 } }));
     const ids = Array.from(w.document.querySelectorAll('#dock .dock-item')).map(x => x.dataset.go);
-    check('L1 V2 candidate artwork is present in the project', () => fs.existsSync(path.join(PROJ, 'assets', 'boji-companion-candidate.png')));
+    check('L1 V2 portrait and pet candidate artwork is present in the project', () => fs.existsSync(path.join(PROJ, 'assets', 'boji-companion-candidate.png')) && fs.existsSync(path.join(PROJ, 'assets', 'boji-companion-pet-candidate.png')));
     check('L2 primary navigation has five named destinations', () => ids.join(',') === 'today,training,boji,progress,profile');
     check('L3 reduced-motion preference has a CSS rule', () => /prefers-reduced-motion:\s*reduce/.test(CSS));
     check('L4 primary navigation targets retain accessible labels', () => Array.from(w.document.querySelectorAll('#dock .dock-item')).every(x => x.textContent.trim().length > 0));
@@ -966,6 +966,13 @@ function g5SurfaceChecks() {
     return w.document.querySelectorAll('#home-stats .hs-pill').length === 3
       && w.document.querySelectorAll('#home-today .boji-note').length === 1
       && !!w.document.querySelector('#hc-go') && !!w.document.querySelector('#home-today .today-why');
+  });
+  check('G5 Boji full-body dock and Photo Pet keep separate edge visibility', () => {
+    const w = boot(J({ profile: { weight: 70 } }));
+    w.document.getElementById('screen').getBoundingClientRect = () => ({ width:360, height:780, left:0, top:0, right:360, bottom:780, x:0, y:0 });
+    w.eval('applyDock')(); const bojiLeft = parseFloat(w.document.getElementById('pet').style.left);
+    w.eval("STATE.petSkin='photo'"); w.eval('applyDock')(); const photoLeft = parseFloat(w.document.getElementById('pet').style.left);
+    return Math.abs(bojiLeft-(360-126*0.78))<1 && Math.abs(photoLeft-(360-126*0.56))<1;
   });
   check('G5 Boji center exposes six distinct quick actions and opens Ask Boji', () => {
     const w = boot(J({ profile: { weight: 70 } }));

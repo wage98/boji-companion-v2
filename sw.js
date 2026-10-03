@@ -10,6 +10,7 @@ const ASSETS = [
   './assets/boji-icon-192.png',
   './assets/boji-icon-512.png',
   './assets/boji-companion-candidate.png',
+  './assets/boji-companion-pet-candidate.png',
 ];
 
 // 逐条写入：任一资源取不到也不让 install 整体失败

@@ -1153,6 +1153,7 @@ function pickLine(pool){ const arr = LINES[pool] || LINES.happy; if(arr.length==
   let i; do { i = Math.floor(Math.random()*arr.length); } while(i === _lastIdx[pool]); _lastIdx[pool] = i;
   return arr[i].replace('{c}', coachName()); }
 const BOJI_CANDIDATE = 'assets/boji-companion-candidate.png';
+const BOJI_PET_CANDIDATE = 'assets/boji-companion-pet-candidate.png';
 const PET_THEME = { eyeLine:'#332c29', eyeC:'#245d4b', gold:'#efb44e', blush:'#dc8390', trimB:'#397360', skinA:'#fff5e8' };
 const PET_FACE = {
   happy:{eye:'open',mouth:'smile',blush:1}, cheer:{eye:'smile',mouth:'grin',blush:1},
@@ -1173,22 +1174,22 @@ function petMouth(kind){
   if(kind==='wave') return '<path d="M55 78 Q58 75 60 78 Q62 81 65 78" stroke="#a9505b" stroke-width="1.8" fill="none" stroke-linecap="round"/>';
   return '<path d="M54 76 Q60 83 66 76" stroke="#a9505b" stroke-width="2" fill="none" stroke-linecap="round"/>';
 }const PET_SKINS = [
-  { key:'boji', name:'Boji', asset:BOJI_CANDIDATE, render:()=>'' },
+  { key:'boji', name:'Boji', asset:BOJI_PET_CANDIDATE, render:()=>'' },
   { key:'photo', name:'照片桌宠', render:m=>photoPetSVG(m, (STATE.settings && STATE.settings.petPhoto) || ''), photo:true }
 ];
 function skinBy(key){ return PET_SKINS.find(row=>row.key===key) || PET_SKINS[0]; }
 function petSVG(mood){
   if(STATE.petSkin==='photo') return photoPetSVG(mood, (STATE.settings && STATE.settings.petPhoto) || '');
-  return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 150" width="240" height="300"><image href="'+BOJI_CANDIDATE+'" width="120" height="150" preserveAspectRatio="xMidYMid slice"/></svg>';
+  return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 150" width="240" height="300"><image href="'+BOJI_PET_CANDIDATE+'" width="120" height="150" preserveAspectRatio="xMidYMid meet"/></svg>';
 }
 function petArtURI(mood){
   if(skinBy(STATE.petSkin).photo) return 'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(petSVG(mood));
-  return BOJI_CANDIDATE;
+  return BOJI_PET_CANDIDATE;
 }
 function applyPetArt(mood){
   const img=document.getElementById('pet-img');if(!img)return;
   const skin=skinBy(STATE.petSkin),pet=document.getElementById('pet');
-  if(pet){pet.classList.remove('pet-video');pet.classList.toggle('skin-photo',skin.key==='photo');}
+  if(pet){pet.classList.remove('pet-video');pet.classList.toggle('skin-photo',skin.key==='photo');pet.classList.toggle('skin-boji',skin.key==='boji');}
   img.src=skin.asset&&!skin.photo?skin.asset:petArtURI(mood||STATE.petMood||'happy');
 }
 let blinkTimer=null;
@@ -1264,7 +1265,7 @@ function petWake(){
   nudgeTimer = setTimeout(()=>{ if(Date.now()-STATE.lastPetTouch > 28000 && !$('#pet').classList.contains('mood-sleep')) say(pickLine('idleLong')); }, 28000);
 }
 // 顶边悬挂（视频同款）：拖到屏幕上缘松手 → 倒挂摆动；否则吸附左右缘
-const PEEK = 0.56;   // 探头比例：贴边时约 56% 身体在屏内、44% 被屏幕边缘裁切
+const PEEK = 0.56;   // Photo Pet 贴边时保留 56% 在屏内；Boji 全身候选使用更完整的可见比例
 function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
 function applyDock(){
   const pet = $('#pet'); if(!pet) return;
@@ -1280,7 +1281,8 @@ function applyDock(){
   }
   dock = (dock.edge==='left'||dock.edge==='right') ? dock : { edge:'right', off:0.62 };  // 旧的上/下停靠数据迁移为默认右缘
   const isRight = dock.edge==='right';
-  const left = isRight ? sr.width - pw*PEEK : -pw*(1-PEEK);
+  const peek = STATE.petSkin==='boji' ? 0.78 : PEEK;
+  const left = isRight ? sr.width - pw*peek : -pw*(1-peek);
   const top = clamp(dock.off*sr.height - ph/2, 56 - ph/2, sr.height - 104 - ph/2);
   pet.style.left = left+'px'; pet.style.top = top+'px'; pet.style.transform = 'none';
   pet.classList.remove('edge-l','edge-r','edge-t','peek-more');
@@ -3848,6 +3850,7 @@ function renderProfile(body){
     STATE.petSkin=key; save();                            // 先落盘，失败也不影响页面
     skinPick.querySelectorAll('.av-pick').forEach(x=>x.classList.toggle('on', x===b));
     applyPetArt(prevMood);                                // 切换保留当前情绪，不重置动画状态
+    applyDock();                                           // Boji 全身候选与照片桌宠使用各自的贴边可见比例
     toast('已切换：' + sk.name);
     if(prevSkin!==key) petHearts(4);                      // 切换给一点反馈（不打断拖拽/悬挂状态）
   };
