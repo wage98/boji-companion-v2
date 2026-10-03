@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "capture": {
+    "environment": "Codex in-app browser on localhost, single manual session",
+    "route": "http://localhost:4177/boji-companion-v2/rc/training/today?gate=g6",
+    "channel": "rc",
+    "sampleCount": 1,
+    "profileAndWorkoutData": "synthetic qualification data",
+    "physicalDevice": "UNKNOWN",
+    "persistentStorageGranted": false
+  },
+  "targets": {
+    "lcpMs": 2500,
+    "inpMs": 200,
+    "cls": 0.1,
+    "setUiAckMs": 100,
+    "teachingDrawerMs": 100,
+    "timerDriftMs": 1000,
+    "activeResumeMs": 500,
+    "localFoodSearchMs": 100,
+    "localPageTransitionMs": 150
+  },
+  "observed": {
+    "lcpMs": 1476,
+    "maxObservedInteractionEventDurationProxyMs": 168,
+    "officialInpMs": null,
+    "cls": 0.049,
+    "appReadyMs": 967.4,
+    "localPageTransitionMs": 31.6,
+    "teachingDrawerMs": 54.2,
+    "localFoodSearchMs": 0.3,
+    "postCommitUiAckMs": 7.3,
+    "activeWorkoutResumeAfterReloadMs": 41.6,
+    "backgroundTimerDriftMs": null
+  },
+  "interpretation": {
+    "measuredTargetsBelowLimit": [
+      "LCP",
+      "CLS",
+      "set UI acknowledgement",
+      "teaching drawer open",
+      "active workout resume after reload",
+      "local food search",
+      "local page transition"
+    ],
+    "inp": "The 168 ms value is the maximum observed Event Timing duration in one local session. It is not a reported INP metric; official INP remains UNKNOWN.",
+    "timer": "Background and locked-screen timer drift was not measured in this browser run; the implementation derives remaining time from a persisted wall-clock end timestamp.",
+    "scope": "Single-machine localhost observations are qualification fixtures, not a cross-device or physical-mobile performance claim."
+  }
+}

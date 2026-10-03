@@ -1,0 +1,2 @@
+$ node tools/platform-check.js
+PLATFORM RESULT: release namespaces, two-tab ownership, RC base path, update lifecycle, cache ownership and offline fallback passed
