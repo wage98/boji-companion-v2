@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "classificationVocabulary": ["VALID_REQUIREMENT", "LEGACY_BUG_EXPECTATION", "OBSOLETE_WITH_REASON"],
+  "items": [
+    {
+      "reference": "tools/selfcheck-attack.js food AI energy and macro checks",
+      "classification": "LEGACY_BUG_EXPECTATION",
+      "reason": "Replaced expectations that calories generate macros or inconsistent values are silently normalized. FOOD-004 requires preserving missing fields and reported disagreement."
+    },
+    {
+      "reference": "tools/selfcheck-attack.js water, profile, weight, and running checks",
+      "classification": "LEGACY_BUG_EXPECTATION",
+      "reason": "Scalar and optimistic UI expectations were replaced with date-keyed canonical records, explicit provenance, timezone context, and commit-before-acknowledgement checks."
+    },
+    {
+      "reference": "tools/selfcheck-attack.js history meal reuse check",
+      "classification": "LEGACY_BUG_EXPECTATION",
+      "reason": "Immediate copied-meal writes conflict with FoodDraft/MealRecord separation. The harness now requires explicit user confirmation before a MealRecord exists."
+    },
+    {
+      "reference": "tools/selfcheck-attack.js H2/H3/V9/L13 vision expectations",
+      "classification": "VALID_REQUIREMENT",
+      "reason": "Assertions now preserve AI model uncertainty, missing nutrient fields, and unmodified calorie/macro disagreement as required by FOOD-004 and FOOD-006."
+    },
+    {
+      "reference": "tools/selfcheck-attack.js D9 plus tools/selfcheck-functional.js G4 food interactions",
+      "classification": "VALID_REQUIREMENT",
+      "reason": "Added app-level latest-result-wins and close-cancellation coverage, then verified draft persistence, explicit confirmation, canonical export, field provenance, and photo exclusion."
+    },
+    {
+      "reference": "tools/selfcheck-functional.js JSDOM teardown",
+      "classification": "VALID_REQUIREMENT",
+      "reason": "The functional harness closes its JSDOM window after assertions so the app's recurring UI timer cannot block the aggregate regression runner. No production timing changed."
+    },
+    {
+      "reference": "tools/eval-vision.js and tools/eval-simulate.js sanitizer extraction",
+      "classification": "VALID_REQUIREMENT",
+      "reason": "Both offline evaluators now extract the production item sanitizer required by sanitizeVision. This repairs the harness boundary without changing app behavior."
+    },
+    {
+      "reference": "tools/selfcheck-attack.js Q3 historical service-worker cache literal",
+      "classification": "OBSOLETE_WITH_REASON",
+      "reason": "The old V1 cache name is not a valid V2 RC expectation. The replacement check verifies the V2 RC namespace and cleanup limited to managed V2 prefixes."
+    }
+  ]
+}
