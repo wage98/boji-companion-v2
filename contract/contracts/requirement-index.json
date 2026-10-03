@@ -1,0 +1,778 @@
+{
+  "schema_version": 1,
+  "status": "FINAL_FROZEN",
+  "contract_version": "1.0.2",
+  "requirement_count": 154,
+  "requirements": {
+    "AUTH-001": {
+      "file": "01-AUTHORITY.md",
+      "line": 3,
+      "definition": "## AUTH-001 — Authority hierarchy"
+    },
+    "AUTH-002": {
+      "file": "01-AUTHORITY.md",
+      "line": 16,
+      "definition": "## AUTH-002 — Freeze categories"
+    },
+    "AUTH-003": {
+      "file": "01-AUTHORITY.md",
+      "line": 33,
+      "definition": "## AUTH-003 — Historical report vs current verified baseline"
+    },
+    "AUTH-004": {
+      "file": "01-AUTHORITY.md",
+      "line": 56,
+      "definition": "## AUTH-004 — Remaining external qualification gaps"
+    },
+    "AUTH-005": {
+      "file": "01-AUTHORITY.md",
+      "line": 66,
+      "definition": "## AUTH-005 — Supersession"
+    },
+    "PROD-001": {
+      "file": "02-PRODUCT-FROZEN-SPEC.md",
+      "line": 3,
+      "definition": "## PROD-001 — Product definition"
+    },
+    "PROD-002": {
+      "file": "02-PRODUCT-FROZEN-SPEC.md",
+      "line": 20,
+      "definition": "## PROD-002 — Core loop"
+    },
+    "PROD-003": {
+      "file": "02-PRODUCT-FROZEN-SPEC.md",
+      "line": 32,
+      "definition": "## PROD-003 — Frozen primary IA"
+    },
+    "PROD-004": {
+      "file": "02-PRODUCT-FROZEN-SPEC.md",
+      "line": 40,
+      "definition": "## PROD-004 — Domain scope"
+    },
+    "PROD-005": {
+      "file": "02-PRODUCT-FROZEN-SPEC.md",
+      "line": 58,
+      "definition": "## PROD-005 — Technical direction"
+    },
+    "PROD-007": {
+      "file": "02-PRODUCT-FROZEN-SPEC.md",
+      "line": 75,
+      "definition": "## PROD-007 — Equipment profiles and explainable day adjustment"
+    },
+    "PROD-006": {
+      "file": "02-PRODUCT-FROZEN-SPEC.md",
+      "line": 92,
+      "definition": "## PROD-006 — Official character direction"
+    },
+    "LEG-TRN-001": {
+      "file": "03-FEATURE-PARITY.md",
+      "line": 15,
+      "definition": "**LEG-TRN-001 MUST** preserve built-in A/B/C training presets as built-in Equipment/Profile presets."
+    },
+    "LEG-TRN-002": {
+      "file": "03-FEATURE-PARITY.md",
+      "line": 17,
+      "definition": "**LEG-TRN-002 MUST** preserve the existing push/pull/legs/core plan capability and all legacy plan exercise entries unless a mapped correction is documented."
+    },
+    "LEG-TRN-003": {
+      "file": "03-FEATURE-PARITY.md",
+      "line": 19,
+      "definition": "**LEG-TRN-003 MUST** preserve custom exercises."
+    },
+    "LEG-TRN-004": {
+      "file": "03-FEATURE-PARITY.md",
+      "line": 21,
+      "definition": "**LEG-TRN-004 MUST** preserve switching between built-in plans without silently losing historical check-ins or weights."
+    },
+    "LEG-EXR-001": {
+      "file": "03-FEATURE-PARITY.md",
+      "line": 25,
+      "definition": "**LEG-EXR-001 MUST** preserve teaching access for the legacy plan actions."
+    },
+    "EXR-001": {
+      "file": "03-FEATURE-PARITY.md",
+      "line": 27,
+      "definition": "**EXR-001 MUST** preserve semantic legacy→canonical mapping, not only aggregate counts."
+    },
+    "EXR-002": {
+      "file": "03-FEATURE-PARITY.md",
+      "line": 29,
+      "definition": "**EXR-002 MUST** preserve, where present: exercise name, target muscles, sets/reps, tempo, breathing, rest, starting-weight information, standard form, common errors, safety guidance, and teaching media metadata."
+    },
+    "VID-001": {
+      "file": "03-FEATURE-PARITY.md",
+      "line": 31,
+      "definition": "**VID-001 MUST** treat media availability and semantic correctness as separate properties."
+    },
+    "VID-002": {
+      "file": "03-FEATURE-PARITY.md",
+      "line": 33,
+      "definition": "**VID-002 MUST** store teaching media provenance:"
+    },
+    "VID-003": {
+      "file": "03-FEATURE-PARITY.md",
+      "line": 47,
+      "definition": "**VID-003 MUST** keep text teaching usable when video is unavailable."
+    },
+    "VID-004": {
+      "file": "03-FEATURE-PARITY.md",
+      "line": 49,
+      "definition": "**VID-004 MUST** preserve fallback paths where feasible:"
+    },
+    "LEG-VOICE-001": {
+      "file": "03-FEATURE-PARITY.md",
+      "line": 57,
+      "definition": "**LEG-VOICE-001 MUST** preserve the legacy voice companion capability."
+    },
+    "VOI-001": {
+      "file": "03-FEATURE-PARITY.md",
+      "line": 59,
+      "definition": "**VOI-001 MUST** preserve voice companion capability."
+    },
+    "VOI-002": {
+      "file": "03-FEATURE-PARITY.md",
+      "line": 61,
+      "definition": "**VOI-002 MUST** preserve emotion-aware delivery rather than flattening all output to one prosody."
+    },
+    "VOI-003": {
+      "file": "03-FEATURE-PARITY.md",
+      "line": 63,
+      "definition": "**VOI-003 MUST** correctly stop/cancel speech on navigation, visibility/lifecycle changes, and explicit voice-off."
+    },
+    "VOI-004": {
+      "file": "03-FEATURE-PARITY.md",
+      "line": 65,
+      "definition": "**VOI-004 MUST** explicitly degrade when speech APIs are unavailable; text remains usable."
+    },
+    "VOI-005": {
+      "file": "03-FEATURE-PARITY.md",
+      "line": 67,
+      "definition": "**VOI-005 SHOULD** keep local speech as the reliable baseline. Cloud TTS may be optional only if secrets stay server-side and local fallback remains."
+    },
+    "LEG-BOJI-001": {
+      "file": "03-FEATURE-PARITY.md",
+      "line": 71,
+      "definition": "**LEG-BOJI-001 MUST** preserve the companion as a living interactive product feature, not reduce it to a static avatar."
+    },
+    "LEG-BOJI-002": {
+      "file": "03-FEATURE-PARITY.md",
+      "line": 73,
+      "definition": "**LEG-BOJI-002 MUST** preserve the verified interaction classes from V1 where present: skins/appearance choice, movement, emotions, animation, dragging, voice, click interaction, and Photo Pet personalization. Implementation may be redesigned, but capability must not silently disappear."
+    },
+    "BOJI-MOT-001": {
+      "file": "03-FEATURE-PARITY.md",
+      "line": 75,
+      "definition": "**BOJI-MOT-001 MUST** preserve ambient motion capability such as blink/idle/stretch/sleep/light movement."
+    },
+    "BOJI-MOT-002": {
+      "file": "03-FEATURE-PARITY.md",
+      "line": 77,
+      "definition": "**BOJI-MOT-002 MUST** drive event motion from verified product events such as set completion, rest end, workout completion, PR, and milestones."
+    },
+    "BOJI-MOT-003": {
+      "file": "03-FEATURE-PARITY.md",
+      "line": 79,
+      "definition": "**BOJI-MOT-003 MUST** pause or safely reduce noncritical animation when hidden/backgrounded or reduced-motion is requested."
+    },
+    "LEG-PHOTO-001": {
+      "file": "03-FEATURE-PARITY.md",
+      "line": 81,
+      "definition": "**LEG-PHOTO-001 MUST** preserve Photo Pet/local user image personalization."
+    },
+    "LEG-FOOD-001": {
+      "file": "03-FEATURE-PARITY.md",
+      "line": 85,
+      "definition": "**LEG-FOOD-001 MUST** preserve manual food entry."
+    },
+    "LEG-FOOD-002": {
+      "file": "03-FEATURE-PARITY.md",
+      "line": 87,
+      "definition": "**LEG-FOOD-002 MUST** preserve barcode/search/local-food pathways."
+    },
+    "LEG-FOOD-003": {
+      "file": "03-FEATURE-PARITY.md",
+      "line": 89,
+      "definition": "**LEG-FOOD-003 MUST** preserve photo-AI as an optional input path, governed by `04-DATA-TRUTH.md`."
+    },
+    "LEG-FOOD-004": {
+      "file": "03-FEATURE-PARITY.md",
+      "line": 91,
+      "definition": "**LEG-FOOD-004 MUST** preserve useful food-history convenience such as recent/history/high-frequency reuse when verified in the baseline."
+    },
+    "LEG-RUN-001": {
+      "file": "03-FEATURE-PARITY.md",
+      "line": 95,
+      "definition": "**LEG-RUN-001 MUST** preserve GPS distance/time/pace/route/history."
+    },
+    "LEG-RUN-002": {
+      "file": "03-FEATURE-PARITY.md",
+      "line": 97,
+      "definition": "**LEG-RUN-002 MUST** label calorie burn as estimated."
+    },
+    "LEG-RUN-003": {
+      "file": "03-FEATURE-PARITY.md",
+      "line": 99,
+      "definition": "**LEG-RUN-003 MUST** preserve a usable map/route experience with an honest offline/denied-GPS fallback; absence of live map tiles must not fabricate route data."
+    },
+    "LEG-KNW-001": {
+      "file": "03-FEATURE-PARITY.md",
+      "line": 103,
+      "definition": "**LEG-KNW-001 MUST** preserve the long-form knowledge capability and science/knowledge media capability."
+    },
+    "LEG-DAT-001": {
+      "file": "03-FEATURE-PARITY.md",
+      "line": 107,
+      "definition": "**LEG-DAT-001 MUST** preserve useful historical views such as streak/calendar/body-weight/progress visualizations, with V2 redesign allowed."
+    },
+    "LEG-DAT-002": {
+      "file": "03-FEATURE-PARITY.md",
+      "line": 109,
+      "definition": "**LEG-DAT-002 MUST** preserve export/import capability but rebuild it under V2 schema/security rules."
+    },
+    "DAT-001": {
+      "file": "04-DATA-TRUTH.md",
+      "line": 5,
+      "definition": "**DAT-001 MUST** use stable semantic IDs. Legacy array index is migration input only."
+    },
+    "TRN-001": {
+      "file": "04-DATA-TRUTH.md",
+      "line": 17,
+      "definition": "**TRN-001 MUST** separate:"
+    },
+    "TRN-002": {
+      "file": "04-DATA-TRUTH.md",
+      "line": 24,
+      "definition": "**TRN-002 MUST NOT** represent “complete this set” as only an exercise-level boolean."
+    },
+    "TRN-003": {
+      "file": "04-DATA-TRUTH.md",
+      "line": 26,
+      "definition": "**TRN-003 MUST** store real set-level values sufficient for progression, including where relevant:"
+    },
+    "TRN-004": {
+      "file": "04-DATA-TRUTH.md",
+      "line": 33,
+      "definition": "**TRN-004 MUST** prevent custom-exercise completion from satisfying planned-exercise completion."
+    },
+    "TRN-005": {
+      "file": "04-DATA-TRUTH.md",
+      "line": 35,
+      "definition": "**TRN-005 MUST** make critical set/workout persistence commit before success acknowledgement."
+    },
+    "PRG-001": {
+      "file": "04-DATA-TRUTH.md",
+      "line": 39,
+      "definition": "**PRG-001 MUST NOT** invent a recovery score from unavailable signals."
+    },
+    "PRG-002": {
+      "file": "04-DATA-TRUTH.md",
+      "line": 41,
+      "definition": "**PRG-002 MUST** keep progression suggestions explainable and user-confirmed."
+    },
+    "PRG-003": {
+      "file": "04-DATA-TRUTH.md",
+      "line": 43,
+      "definition": "**PRG-003 MUST** support progressive expertise:"
+    },
+    "PRG-004": {
+      "file": "04-DATA-TRUTH.md",
+      "line": 47,
+      "definition": "**PRG-004 MUST** use a conservative double-progression style as the default progression suggestion:"
+    },
+    "TRN-006": {
+      "file": "04-DATA-TRUTH.md",
+      "line": 54,
+      "definition": "**TRN-006 MUST** implement Equipment Profiles while preserving A/B/C as built-in presets."
+    },
+    "TRN-007": {
+      "file": "04-DATA-TRUTH.md",
+      "line": 56,
+      "definition": "**TRN-007 MUST** implement `调整今天` with deterministic substitution constraints based on movement pattern, muscles, equipment and goal. An LLM MUST NOT decide exercise equivalence."
+    },
+    "TRN-008": {
+      "file": "04-DATA-TRUTH.md",
+      "line": 58,
+      "definition": "**TRN-008 MUST** persist enough active-session recovery state to offer recovery after reload/process interruption, including at minimum session identity/status, current exercise/set, timestamps, last committed state and active rest end time."
+    },
+    "FOOD-001": {
+      "file": "04-DATA-TRUTH.md",
+      "line": 62,
+      "definition": "**FOOD-001 MUST** use field provenance:"
+    },
+    "FOOD-002": {
+      "file": "04-DATA-TRUTH.md",
+      "line": 69,
+      "definition": "**FOOD-002 MUST** route AI/photo output into `FoodDraft` before any committed `MealRecord`."
+    },
+    "FOOD-003": {
+      "file": "04-DATA-TRUTH.md",
+      "line": 71,
+      "definition": "**FOOD-003 MUST** require explicit user confirmation before AI-derived food identity/portion/nutrition becomes a committed meal fact."
+    },
+    "FOOD-004": {
+      "file": "04-DATA-TRUTH.md",
+      "line": 73,
+      "definition": "**FOOD-004 MUST NOT** fabricate macronutrients from calories or rescale macros merely to force calorie consistency."
+    },
+    "FOOD-005": {
+      "file": "04-DATA-TRUTH.md",
+      "line": 75,
+      "definition": "**FOOD-005 MUST** itemize mixed meals when multiple components are detected/entered."
+    },
+    "FOOD-006": {
+      "file": "04-DATA-TRUTH.md",
+      "line": 77,
+      "definition": "**FOOD-006 MUST** distinguish identity confidence, portion estimate, and nutrition source; one model confidence value must not masquerade as calibrated probability."
+    },
+    "FOOD-007": {
+      "file": "04-DATA-TRUTH.md",
+      "line": 79,
+      "definition": "**FOOD-007 MUST** use this logical photo pipeline:"
+    },
+    "FOOD-008": {
+      "file": "04-DATA-TRUTH.md",
+      "line": 82,
+      "definition": "**FOOD-008 MUST** preserve explicit user measurements (for example “chicken 150g”) as `USER_PROVIDED`; AI MUST NOT silently re-guess them."
+    },
+    "FOOD-009": {
+      "file": "04-DATA-TRUTH.md",
+      "line": 84,
+      "definition": "**FOOD-009 MUST** make asynchronous food/search/AI operations latest-result-wins using cancellation and request ownership (for example AbortController + generation/request id + owner view). Stale results MUST be discarded."
+    },
+    "FOOD-010": {
+      "file": "04-DATA-TRUTH.md",
+      "line": 86,
+      "definition": "**FOOD-010 SHOULD** debounce remote food search in the ~300–400ms range, cancel superseded requests, and keep local search responsive."
+    },
+    "FOOD-011": {
+      "file": "04-DATA-TRUTH.md",
+      "line": 88,
+      "definition": "**FOOD-011 MUST** avoid using full image base64 as an unbounded cache key/store. If AI result caching is used, use a fingerprint/hash with an explicit LRU/byte budget."
+    },
+    "KNW-001": {
+      "file": "04-DATA-TRUTH.md",
+      "line": 93,
+      "definition": "**KNW-001 MUST** maintain a claim/source registry for evidence-bearing knowledge content. A claim record SHOULD identify claimId, text/scope, sourceIds, evidence/confidence type, review date and safety class where applicable."
+    },
+    "KNW-002": {
+      "file": "04-DATA-TRUTH.md",
+      "line": 95,
+      "definition": "**KNW-002 MUST NOT** present legacy `[A]/[B]` style labels as formal evidence grades unless a real source registry supports those grades. Unverifiable claims must be downgraded or clearly marked, not backfilled with invented citations."
+    },
+    "KNW-003": {
+      "file": "04-DATA-TRUTH.md",
+      "line": 97,
+      "definition": "**KNW-003 MUST** label nutrition defaults/targets as estimates rather than precise prescriptions. Any inherited heuristics such as kcal/kg, protein/kg or ml/kg MUST show their assumption status and remain user-adjustable."
+    },
+    "KNW-004": {
+      "file": "04-DATA-TRUTH.md",
+      "line": 99,
+      "definition": "**KNW-004 MUST** support an onboarding nutrition intent that can be at least: log-only, maintain, gain, lose, or custom. The system target is an initial estimate, not a medical or immutable prescription."
+    },
+    "DAT-010": {
+      "file": "04-DATA-TRUTH.md",
+      "line": 103,
+      "definition": "**DAT-010 MUST** store absolute timestamps using epoch/UTC representation."
+    },
+    "DAT-011": {
+      "file": "04-DATA-TRUTH.md",
+      "line": 105,
+      "definition": "**DAT-011 MUST** use a unified `localDateKey()` for user calendar grouping."
+    },
+    "DAT-012": {
+      "file": "04-DATA-TRUTH.md",
+      "line": 107,
+      "definition": "**DAT-012 SHOULD** preserve timezone offset/context at event time when needed to prevent travel reinterpretation."
+    },
+    "DAT-020": {
+      "file": "04-DATA-TRUTH.md",
+      "line": 119,
+      "definition": "**DAT-020 MUST** derive rest/timers from wall-clock timestamps (`startedAt`, `endsAt`), not decrementing counters."
+    },
+    "DAT-030": {
+      "file": "04-DATA-TRUTH.md",
+      "line": 123,
+      "definition": "**DAT-030 MUST** treat legacy `boji_v7` as read-only for the entire V2 runtime."
+    },
+    "DAT-031": {
+      "file": "04-DATA-TRUTH.md",
+      "line": 125,
+      "definition": "**DAT-031 MUST** make V1→V2 import user-initiated after a preflight summary."
+    },
+    "DAT-032": {
+      "file": "04-DATA-TRUTH.md",
+      "line": 127,
+      "definition": "**DAT-032 MUST** use:"
+    },
+    "DAT-033": {
+      "file": "04-DATA-TRUTH.md",
+      "line": 130,
+      "definition": "**DAT-033 MUST** quarantine ambiguous mappings; never guess."
+    },
+    "DAT-034": {
+      "file": "04-DATA-TRUTH.md",
+      "line": 132,
+      "definition": "**DAT-034 MUST** make migration idempotent and test fixtures for:"
+    },
+    "DAT-040": {
+      "file": "04-DATA-TRUTH.md",
+      "line": 146,
+      "definition": "**DAT-040 MUST NOT** include credentials/secrets in ordinary backup/export."
+    },
+    "DAT-041": {
+      "file": "04-DATA-TRUTH.md",
+      "line": 148,
+      "definition": "**DAT-041 MUST** perform strict restore preflight:"
+    },
+    "DAT-042": {
+      "file": "04-DATA-TRUTH.md",
+      "line": 153,
+      "definition": "**DAT-042 MUST** protect CSV/spreadsheet exports from formula injection where applicable."
+    },
+    "DAT-050": {
+      "file": "04-DATA-TRUTH.md",
+      "line": 157,
+      "definition": "**DAT-050 MUST** keep media blobs separate from high-frequency structured state."
+    },
+    "DAT-051": {
+      "file": "04-DATA-TRUTH.md",
+      "line": 159,
+      "definition": "**DAT-051 MUST** revoke temporary Object URLs on close/replace/destroy."
+    },
+    "DAT-052": {
+      "file": "04-DATA-TRUTH.md",
+      "line": 161,
+      "definition": "**DAT-052 SHOULD** avoid retaining unlimited original food photos; retain only what the product explicitly needs."
+    },
+    "DAT-053": {
+      "file": "04-DATA-TRUTH.md",
+      "line": 163,
+      "definition": "**DAT-053 MUST** store durable user media as separate MediaAsset/blob records referenced by structured domain records rather than duplicating base64 through the entire app state."
+    },
+    "DAT-060": {
+      "file": "04-DATA-TRUTH.md",
+      "line": 167,
+      "definition": "**DAT-060 MUST** maintain explicit product/data version truth at least for:"
+    },
+    "DAT-061": {
+      "file": "04-DATA-TRUTH.md",
+      "line": 175,
+      "definition": "**DAT-061 MUST** detect and safely block/handle invalid version combinations instead of silently running incompatible schema/cache/content mixes."
+    },
+    "UX-001": {
+      "file": "05-UX-UI-CONTRACT.md",
+      "line": 5,
+      "definition": "**UX-001 MUST** follow `Soft Performance × Companion Fitness`."
+    },
+    "UX-010": {
+      "file": "05-UX-UI-CONTRACT.md",
+      "line": 18,
+      "definition": "**UX-010 MUST** use exactly:"
+    },
+    "UX-015": {
+      "file": "05-UX-UI-CONTRACT.md",
+      "line": 24,
+      "definition": "**UX-015 MUST** collect enough initial context to recommend an existing safe preset/profile without inventing an unverified AI program:"
+    },
+    "UX-020": {
+      "file": "05-UX-UI-CONTRACT.md",
+      "line": 34,
+      "definition": "**UX-020 MUST** make today's workout the dominant action."
+    },
+    "UX-021": {
+      "file": "05-UX-UI-CONTRACT.md",
+      "line": 36,
+      "definition": "**UX-021 MUST** expose:"
+    },
+    "UX-022": {
+      "file": "05-UX-UI-CONTRACT.md",
+      "line": 40,
+      "definition": "**UX-022 MUST** show at most a small number of meaningful metrics and one evidence-backed Boji note."
+    },
+    "UX-030": {
+      "file": "05-UX-UI-CONTRACT.md",
+      "line": 44,
+      "definition": "**UX-030 MUST** support two user modes without splitting the data model:"
+    },
+    "UX-040": {
+      "file": "05-UX-UI-CONTRACT.md",
+      "line": 65,
+      "definition": "**UX-040 MUST** answer first:"
+    },
+    "UX-050": {
+      "file": "05-UX-UI-CONTRACT.md",
+      "line": 74,
+      "definition": "**UX-050 MUST** expose quick access to:"
+    },
+    "UX-060": {
+      "file": "05-UX-UI-CONTRACT.md",
+      "line": 84,
+      "definition": "**UX-060 MUST** use the frozen character direction:"
+    },
+    "UX-061": {
+      "file": "05-UX-UI-CONTRACT.md",
+      "line": 89,
+      "definition": "**UX-061 MUST** preserve readability and small-size recognizability."
+    },
+    "UX-062": {
+      "file": "05-UX-UI-CONTRACT.md",
+      "line": 91,
+      "definition": "**UX-062 MUST NOT** over-sexualize the default character or drift into childlike/underage visual proportions."
+    },
+    "UX-070": {
+      "file": "05-UX-UI-CONTRACT.md",
+      "line": 95,
+      "definition": "**UX-070 MUST** be mobile portrait first."
+    },
+    "UX-071": {
+      "file": "05-UX-UI-CONTRACT.md",
+      "line": 102,
+      "definition": "**UX-071 MUST** account for safe-area insets."
+    },
+    "UX-072": {
+      "file": "05-UX-UI-CONTRACT.md",
+      "line": 104,
+      "definition": "**UX-072 MUST** support reduced motion."
+    },
+    "UX-073": {
+      "file": "05-UX-UI-CONTRACT.md",
+      "line": 106,
+      "definition": "**UX-073 SHOULD** keep major training touch targets around 44px minimum."
+    },
+    "UX-074": {
+      "file": "05-UX-UI-CONTRACT.md",
+      "line": 108,
+      "definition": "**UX-074 MUST** provide persistent, clear error UI for critical storage/migration failures."
+    },
+    "BOJI-CHAR-001": {
+      "file": "05A-CHARACTER-CONTRACT.md",
+      "line": 5,
+      "definition": "## BOJI-CHAR-001 — Identity"
+    },
+    "BOJI-CHAR-002": {
+      "file": "05A-CHARACTER-CONTRACT.md",
+      "line": 11,
+      "definition": "## BOJI-CHAR-002 — Adult visual identity"
+    },
+    "BOJI-CHAR-003": {
+      "file": "05A-CHARACTER-CONTRACT.md",
+      "line": 20,
+      "definition": "## BOJI-CHAR-003 — Personality"
+    },
+    "BOJI-CHAR-004": {
+      "file": "05A-CHARACTER-CONTRACT.md",
+      "line": 33,
+      "definition": "## BOJI-CHAR-004 — Visual language"
+    },
+    "BOJI-CHAR-005": {
+      "file": "05A-CHARACTER-CONTRACT.md",
+      "line": 45,
+      "definition": "## BOJI-CHAR-005 — Product adaptability"
+    },
+    "BOJI-CHAR-006": {
+      "file": "05A-CHARACTER-CONTRACT.md",
+      "line": 55,
+      "definition": "## BOJI-CHAR-006 — Required state family"
+    },
+    "BOJI-CHAR-007": {
+      "file": "05A-CHARACTER-CONTRACT.md",
+      "line": 78,
+      "definition": "## BOJI-CHAR-007 — Originality / provenance"
+    },
+    "BOJI-CHAR-008": {
+      "file": "05A-CHARACTER-CONTRACT.md",
+      "line": 88,
+      "definition": "## BOJI-CHAR-008 — Photo Pet coexistence"
+    },
+    "PWA-001": {
+      "file": "06-PLATFORM-DELIVERY.md",
+      "line": 5,
+      "definition": "**PWA-001 MUST** use GitHub Pages as the primary V2 static PWA delivery path for this scope unless PRE-LUNA evidence requires a documented alternative."
+    },
+    "PWA-010": {
+      "file": "06-PLATFORM-DELIVERY.md",
+      "line": 17,
+      "definition": "**PWA-010 MUST** isolate V2 RC and V2 Production namespaces for:"
+    },
+    "PWA-011": {
+      "file": "06-PLATFORM-DELIVERY.md",
+      "line": 24,
+      "definition": "**PWA-011 MUST NOT** delete caches outside the app's managed namespace."
+    },
+    "PWA-012": {
+      "file": "06-PLATFORM-DELIVERY.md",
+      "line": 26,
+      "definition": "**PWA-012 MUST** keep V1 data namespaces read-only."
+    },
+    "PWA-013": {
+      "file": "06-PLATFORM-DELIVERY.md",
+      "line": 28,
+      "definition": "**PWA-013 MUST** define distinct PWA identity for RC and Production, including manifest `id`, `start_url`, `scope`, `name/short_name`, standalone display and required 192/512 icons."
+    },
+    "PWA-014": {
+      "file": "06-PLATFORM-DELIVERY.md",
+      "line": 30,
+      "definition": "**PWA-014 SHOULD** request persistent browser storage (`navigator.storage.persist()` or equivalent) when supported. Denial MUST NOT break the app; Data Health should make the storage/backup state understandable."
+    },
+    "PWA-015": {
+      "file": "06-PLATFORM-DELIVERY.md",
+      "line": 32,
+      "definition": "**PWA-015 MAY** use Screen Wake Lock during an active workout as a best-effort convenience. Wake Lock MUST NOT be a correctness dependency."
+    },
+    "PWA-016": {
+      "file": "06-PLATFORM-DELIVERY.md",
+      "line": 34,
+      "definition": "**PWA-016 MUST** coordinate multiple tabs/windows so only one owner can mutate the active workout. A second tab is read-only unless the user explicitly takes over ownership."
+    },
+    "REL-001": {
+      "file": "06-PLATFORM-DELIVERY.md",
+      "line": 38,
+      "definition": "**REL-001 MUST** treat RC and Production as separate install identities/scopes."
+    },
+    "REL-002": {
+      "file": "06-PLATFORM-DELIVERY.md",
+      "line": 40,
+      "definition": "**REL-002 MUST** allow automated execution to produce only RC artifacts."
+    },
+    "REL-003": {
+      "file": "06-PLATFORM-DELIVERY.md",
+      "line": 42,
+      "definition": "**REL-003 MUST NOT** generate or claim final Production approval before independent qualification."
+    },
+    "PWA-020": {
+      "file": "06-PLATFORM-DELIVERY.md",
+      "line": 46,
+      "definition": "**PWA-020 MUST** support project-page subpaths and verify:"
+    },
+    "PWA-030": {
+      "file": "06-PLATFORM-DELIVERY.md",
+      "line": 57,
+      "definition": "**PWA-030 MUST** bind background cache refresh to service-worker lifetime where needed."
+    },
+    "PWA-031": {
+      "file": "06-PLATFORM-DELIVERY.md",
+      "line": 59,
+      "definition": "**PWA-031 MUST** avoid forcing disruptive update/reload during active workout, migration, or critical commit."
+    },
+    "PWA-032": {
+      "file": "06-PLATFORM-DELIVERY.md",
+      "line": 61,
+      "definition": "**PWA-032 MUST** scope cache cleanup to managed prefixes and use service-worker lifetime control (`event.waitUntil` or equivalent) for background update work that must complete reliably."
+    },
+    "PWA-033": {
+      "file": "06-PLATFORM-DELIVERY.md",
+      "line": 63,
+      "definition": "**PWA-033 MUST** pause noncritical animation/polling when hidden and recompute wall-clock-derived state on resume rather than replaying missed timer ticks."
+    },
+    "PWA-040": {
+      "file": "06-PLATFORM-DELIVERY.md",
+      "line": 69,
+      "definition": "**PWA-040 MUST** preserve core local functionality offline:"
+    },
+    "RUN-010": {
+      "file": "06-PLATFORM-DELIVERY.md",
+      "line": 81,
+      "definition": "**RUN-010 MUST** treat foreground GPS as the baseline claim."
+    },
+    "RUN-011": {
+      "file": "06-PLATFORM-DELIVERY.md",
+      "line": 83,
+      "definition": "**RUN-011 MUST NOT** claim reliable background/locked-screen GPS without physical-device evidence."
+    },
+    "RUN-012": {
+      "file": "06-PLATFORM-DELIVERY.md",
+      "line": 85,
+      "definition": "**RUN-012 MUST** preserve route first/last points during simplification."
+    },
+    "RUN-013": {
+      "file": "06-PLATFORM-DELIVERY.md",
+      "line": 87,
+      "definition": "**RUN-013 MUST** avoid full-page rerender on every running tick; update only live fields/path."
+    },
+    "RUN-014": {
+      "file": "06-PLATFORM-DELIVERY.md",
+      "line": 89,
+      "definition": "**RUN-014 MUST** show a gap/manual fallback when GPS continuity is unavailable; it MUST NOT invent/interpolate a route and present it as measured."
+    },
+    "PWA-050": {
+      "file": "06-PLATFORM-DELIVERY.md",
+      "line": 94,
+      "definition": "**PWA-050 MUST** give long-running async UI work explicit ownership and staleness control (cancellation and/or generation/request id). A response from an obsolete view/query MUST NOT overwrite newer state."
+    },
+    "SEC-001": {
+      "file": "06-PLATFORM-DELIVERY.md",
+      "line": 111,
+      "definition": "**SEC-001 MUST NOT** expose provider API keys in the static frontend."
+    },
+    "SEC-002": {
+      "file": "06-PLATFORM-DELIVERY.md",
+      "line": 115,
+      "definition": "**SEC-002 MUST** scan source, build, backup, evidence bundle, and release artifact for secrets."
+    },
+    "SEC-003": {
+      "file": "06-PLATFORM-DELIVERY.md",
+      "line": 117,
+      "definition": "**SEC-003 SHOULD** harden proxy policy with:"
+    },
+    "SEC-010": {
+      "file": "06-PLATFORM-DELIVERY.md",
+      "line": 129,
+      "definition": "**SEC-010 MUST NOT** ship known third-party official character assets as the official Boji brand."
+    },
+    "SEC-011": {
+      "file": "06-PLATFORM-DELIVERY.md",
+      "line": 133,
+      "definition": "**SEC-011 MUST NOT** invent a code/content license. Code license, original character/assets, third-party video/data terms, and any redistribution restrictions must be documented separately according to the owner's actual choice."
+    },
+    "REL-004": {
+      "file": "06-PLATFORM-DELIVERY.md",
+      "line": 137,
+      "definition": "**REL-004 MUST** prevent failed required tests/gates from deploying an RC or Production artifact."
+    },
+    "REL-005": {
+      "file": "06-PLATFORM-DELIVERY.md",
+      "line": 139,
+      "definition": "**REL-005 SHOULD** keep incomplete implementation work off the trusted release lineage/main branch; gate-qualified checkpoints may be committed, while HOLD work remains clearly unapproved."
+    },
+    "REL-006": {
+      "file": "06-PLATFORM-DELIVERY.md",
+      "line": 141,
+      "definition": "**REL-006 MUST** reserve Production tags/releases for post-Luna independent qualification. Automated execution may create only RC-qualified lineage/tags when allowed by the repository workflow."
+    },
+    "REL-012": {
+      "file": "06-PLATFORM-DELIVERY.md",
+      "line": 149,
+      "definition": "**REL-012 MUST** generate QR from the actual verified deployment URL rather than a separately hard-coded URL string."
+    },
+    "TST-001": {
+      "file": "07A-G1-PORTABLE-TEST-HARNESS.md",
+      "line": 15,
+      "definition": "**TST-001 MUST** add a repository-native Node dependency manifest and committed lockfile for the V2 test harness. Qualified baseline versions are `jsdom 28.1.0` and `qrcode 1.5.4`; other versions require equivalence evidence."
+    },
+    "TST-002": {
+      "file": "07A-G1-PORTABLE-TEST-HARNESS.md",
+      "line": 17,
+      "definition": "**TST-002 MUST** remove hardcoded WorkBuddy/local-machine `NODE_PATH` dependency and use standard project-local Node resolution."
+    },
+    "TST-003": {
+      "file": "07A-G1-PORTABLE-TEST-HARNESS.md",
+      "line": 19,
+      "definition": "**TST-003 MUST** make eval artifact generation deterministic in a clean clone. Generators MUST create required output directories idempotently. J15/K8 prerequisites MUST be generated explicitly or governed as explicit SKIPPED; a skipped prerequisite MUST NOT be counted as a full regression PASS."
+    },
+    "TST-004": {
+      "file": "07A-G1-PORTABLE-TEST-HARNESS.md",
+      "line": 21,
+      "definition": "**TST-004 MUST** remove the local-day-2 F1/F2 fixture bomb without changing production behavior. Prefer choosing the test target from an actually seeded check-in key or using one shared deterministic offset helper."
+    },
+    "TST-005": {
+      "file": "07A-G1-PORTABLE-TEST-HARNESS.md",
+      "line": 23,
+      "definition": "**TST-005 MUST** replace D1's fragile fixed-time assumption with deterministic polling/event-driven waiting where practical. If a timeout remains, it MUST have evidence-based headroom. Product timing MUST NOT be changed merely to satisfy the test."
+    },
+    "TST-006": {
+      "file": "07A-G1-PORTABLE-TEST-HARNESS.md",
+      "line": 25,
+      "definition": "**TST-006 MUST** demonstrate the repaired harness from a fresh disposable clone/workspace with no WorkBuddy-specific path. Acceptance requires dependency install from committed manifest/lockfile, syntax checks, deterministic prerequisite setup, full legacy regression, and repeated runs showing F1/F2/J15/K8/D1 no longer depend on date, prior artifacts, or timing luck."
+    }
+  }
+}

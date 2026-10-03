@@ -1,0 +1,37 @@
+﻿{
+  "gate": "G0",
+  "status": "PASS",
+  "preHead": null,
+  "postHead": null,
+  "preTree": null,
+  "postTree": null,
+  "authorizedChanges": [],
+  "changedFiles": [],
+  "checksRun": [
+    "Verified live V1 remote identity, main HEAD and tree",
+    "Verified historical anchor ancestry and docs-only intervening commits",
+    "Verified app.js, sw.js and tools/ byte identity against the anchor",
+    "Verified V2 remote identity, default branch, empty state and template flag",
+    "Verified contract package hashes, JSON parsing and requirement references",
+    "Recorded the task and inspection worktree state"
+  ],
+  "checkResults": [
+    {"check":"V1 authority","result":"PASS","remote":"https://github.com/wage98/boji-diary.git","branch":"main","head":"c0a8d55283765a0f7d7e4d773df0609ba1e4049d","tree":"ca4eb14a38f735f8302c238634f7c75352f66f50","historicalAnchor":"cbccea4c47995711d1ae0af2d7c76449febe2603","historicalTree":"8fd66a94acc2038e1df30c2ec16f932cc41f7bc2","anchorIsAncestor":true,"interveningCommitCount":2,"interveningCommits":["997d2b58e66ca63e75ce64beffc2bb2e4b0ea2a1","c0a8d55283765a0f7d7e4d773df0609ba1e4049d"],"interveningCommitsDocsOnly":true,"qualifiedProductPathsIdentical":["app.js","sw.js","tools/"]},
+    {"check":"V2 authority","result":"PASS","remote":"https://github.com/wage98/boji-companion-v2.git","ownerRepo":"wage98/boji-companion-v2","defaultBranch":"main","size":0,"isTemplate":false,"private":false,"gitRefs":0},
+    {"check":"Contract load","result":"PASS","packageVersion":"1.0.2","packageSha256":"F6E8376C2B6E35F236BB96DE964E596728DE3DF7B2D77A57C0511091880D29BD","canonicalContractZipSha256":"893984e66edec16af83022b4b1d90d83db50ff91f4b9d871d84a7677c05eb762","outerAndCanonicalSha256Sums":"PASS","contractJsonParsed":16,"requirementReferencesResolved":154}
+  ],
+  "requirements": {"AUTH-001":"PASS","AUTH-003":"PASS","AUTH-004":"PENDING","PROD-003":"PASS","PWA-001":"PASS","SEC-011":"PASS"},
+  "knownUnknowns": [
+    "Final production character asset approval remains pending.",
+    "Physical mobile/PWA behavior remains unknown until post-Luna device qualification.",
+    "Independent release qualification and production approval remain pending."
+  ],
+  "blocker": null,
+  "nextAllowedGate": "G1",
+  "forbiddenNextActions": [
+    "Do not alter V1 remote or repository.",
+    "Do not implement production behavior before G1 harness repair.",
+    "Do not claim physical-device qualification or production approval."
+  ],
+  "worktreeNote": "The task directory had no pre-existing Git worktree. V1 audit used a read-only --no-checkout inspection clone under work/prestate-v1; no V1 source worktree was altered."
+}

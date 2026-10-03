@@ -1,0 +1,12 @@
+{
+  "contract_version": "1.0.2",
+  "status": "PASS",
+  "requirement_count": 154,
+  "checks": {
+    "json_parse": "PASS",
+    "mandatory_read_order": "PASS",
+    "authority_freshness": "PASS",
+    "feature_manifest_resolution": "PASS"
+  },
+  "issues": []
+}

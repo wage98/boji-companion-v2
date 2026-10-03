@@ -1,0 +1,130 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Boji V2 Gate Evidence",
+  "type": "object",
+  "required": [
+    "gate",
+    "status",
+    "preHead",
+    "postHead",
+    "changedFiles",
+    "checksRun",
+    "requirements",
+    "knownUnknowns"
+  ],
+  "properties": {
+    "gate": {
+      "type": "string",
+      "enum": [
+        "CONTRACT_LOAD",
+        "G0",
+        "G1",
+        "G2",
+        "G3",
+        "G4",
+        "G5",
+        "G6",
+        "G7"
+      ]
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "PASS",
+        "PARTIAL",
+        "FAIL",
+        "HOLD",
+        "UNKNOWN"
+      ]
+    },
+    "preHead": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "postHead": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "preTree": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "postTree": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "authorizedChanges": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "changedFiles": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "checksRun": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "checkResults": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "requirements": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string",
+        "enum": [
+          "PASS",
+          "PARTIAL",
+          "FAIL",
+          "HOLD",
+          "UNKNOWN",
+          "PENDING",
+          "REPORTED",
+          "SUPERSEDED"
+        ]
+      }
+    },
+    "knownUnknowns": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "blocker": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "nextAllowedGate": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "forbiddenNextActions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "additionalProperties": true
+}

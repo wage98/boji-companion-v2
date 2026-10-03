@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "status": "DECISION_FROZEN",
+  "required_version_dimensions": [
+    "PRODUCT_VERSION",
+    "SCHEMA_VERSION",
+    "APP_CACHE_VERSION",
+    "FEATURE_MANIFEST_VERSION",
+    "EXERCISE_DATA_VERSION",
+    "KNOWLEDGE_VERSION"
+  ],
+  "rule": "Version dimensions are independent truth. Invalid combinations must be detected and safely blocked or migrated; they must not be silently treated as compatible."
+}

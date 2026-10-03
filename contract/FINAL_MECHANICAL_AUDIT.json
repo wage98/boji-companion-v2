@@ -1,0 +1,13 @@
+{
+  "contract_version": "1.0.0",
+  "contract_status": "FINAL_FROZEN",
+  "json_parse": "PASS",
+  "mandatory_read_order": "PASS",
+  "requirement_uniqueness": "PASS",
+  "requirement_index": "PASS",
+  "feature_manifest_resolution": "PASS",
+  "ledger_vocab": "PASS",
+  "pending_evidence_not_preverified": "PASS",
+  "frozen_concept_presence": "PASS",
+  "known_issues": []
+}

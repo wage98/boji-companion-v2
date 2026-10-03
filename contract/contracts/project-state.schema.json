@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Boji V2 Project State",
+  "type": "object",
+  "required": [
+    "current_gate",
+    "status",
+    "branch",
+    "head",
+    "requirements"
+  ],
+  "properties": {
+    "current_gate": {
+      "type": "string",
+      "enum": [
+        "CONTRACT_LOAD",
+        "G0",
+        "G1",
+        "G2",
+        "G3",
+        "G4",
+        "G5",
+        "G6",
+        "G7",
+        "POST_LUNA"
+      ]
+    },
+    "last_completed_gate": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "NOT_STARTED",
+        "IN_PROGRESS",
+        "PASS",
+        "PARTIAL",
+        "FAIL",
+        "HOLD",
+        "UNKNOWN",
+        "RC_READY_FOR_REVIEW"
+      ]
+    },
+    "branch": {
+      "type": "string"
+    },
+    "head": {
+      "type": "string"
+    },
+    "baseline_tree": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "known_unknowns": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "forbidden_next_actions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "requirements": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string",
+        "enum": [
+          "PASS",
+          "PARTIAL",
+          "FAIL",
+          "HOLD",
+          "UNKNOWN",
+          "PENDING",
+          "REPORTED",
+          "VERIFIED",
+          "SUPERSEDED"
+        ]
+      }
+    }
+  },
+  "additionalProperties": true
+}

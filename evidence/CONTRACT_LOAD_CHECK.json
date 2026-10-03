@@ -1,0 +1,35 @@
+﻿{
+    "package":  "Boji V2 Luna Execution Package",
+    "packageVersion":  "1.0.2",
+    "sourceZip":  "C:\\Users\\WaGe\\AppData\\Local\\Temp\\codex-file-preview-X2hqfR\\Boji_V2_Luna_Execution_Package_v1.0.2.zip",
+    "packageSha256":  "F6E8376C2B6E35F236BB96DE964E596728DE3DF7B2D77A57C0511091880D29BD",
+    "canonicalContractZipSha256":  "893984e66edec16af83022b4b1d90d83db50ff91f4b9d871d84a7677c05eb762",
+    "outerSha256SumsVerified":  true,
+    "canonicalSha256SumsVerified":  true,
+    "jsonFilesParsed":  16,
+    "requirementReferencesChecked":  154,
+    "requirementReferenceErrors":  0,
+    "filesRead":  [
+                      "00-READ-ME-FIRST.md",
+                      "01-AUTHORITY.md",
+                      "FROZEN_EVIDENCE_LEDGER.json",
+                      "02-PRODUCT-FROZEN-SPEC.md",
+                      "03-FEATURE-PARITY.md",
+                      "04-DATA-TRUTH.md",
+                      "05-UX-UI-CONTRACT.md",
+                      "05A-CHARACTER-CONTRACT.md",
+                      "06-PLATFORM-DELIVERY.md",
+                      "07-EXECUTION-GATES.md",
+                      "07A-G1-PORTABLE-TEST-HARNESS.md",
+                      "08-ATTACK-MATRIX.md",
+                      "09-FINAL-OUTPUT.md",
+                      "requirement-index.json",
+                      "remaining machine contracts",
+                      "PRE_LUNA_FAILURE_QUALIFICATION.md"
+                  ],
+    "currentGate":  "G0",
+    "mutationAllowed":  false,
+    "blockers":  [
+
+                 ]
+}

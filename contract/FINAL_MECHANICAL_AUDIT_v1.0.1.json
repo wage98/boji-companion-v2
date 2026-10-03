@@ -1,0 +1,12 @@
+{
+  "contract_version": "1.0.1",
+  "contract_status": "FINAL_FROZEN",
+  "normative_requirement_count": 154,
+  "issues": [],
+  "checks": {
+    "json_parse": "PASS",
+    "required_docs": "PASS",
+    "feature_manifest_resolution": "PASS",
+    "pre_luna_evidence_presence": "PASS"
+  }
+}

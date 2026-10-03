@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "status": "DECISION_FROZEN",
+  "legacy": {
+    "localStorage_key": "boji_v7",
+    "mode": "READ_ONLY"
+  },
+  "v2_rc": {
+    "indexeddb": "boji-companion-v2-rc",
+    "settings_prefix": "boji2.rc.",
+    "cache_prefix": "boji-v2-rc-",
+    "broadcast_prefix": "boji-v2-rc-",
+    "manifest_id": "/boji-companion-v2/rc/"
+  },
+  "v2_prod": {
+    "indexeddb": "boji-companion-v2-prod",
+    "settings_prefix": "boji2.prod.",
+    "cache_prefix": "boji-v2-prod-",
+    "broadcast_prefix": "boji-v2-prod-",
+    "manifest_id": "/boji-companion-v2/"
+  },
+  "rules": [
+    "Never clear or mutate namespaces outside the current app-managed prefix.",
+    "RC and Production must remain independently installable/testable.",
+    "V1 legacy namespace remains read-only for the entire V2 runtime."
+  ]
+}

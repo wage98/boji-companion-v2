@@ -1,0 +1,183 @@
+{
+  "schema_version": 2,
+  "status": "FINAL_FROZEN",
+  "items": [
+    {
+      "id": "REP-V1-001",
+      "type": "REPORT",
+      "statement": "V1.2 report identifies repository wage98/boji-diary, branch main, commit cbccea4, APP_VERSION 1.2.0 and SW cache boji-1-2-0.",
+      "source": "v1.2.0-六项审验修复报告.md",
+      "cannot_be_upgraded_without": "live Git verification",
+      "authority_state": "REPORTED",
+      "freeze_class": "NONE"
+    },
+    {
+      "id": "REP-V1-002",
+      "type": "REPORT",
+      "statement": "V1.2 report states 55 functional + 196 attack = 251 ALL PASSED.",
+      "source": "v1.2.0-六项审验修复报告.md",
+      "cannot_be_upgraded_without": "clean-environment reproduction",
+      "authority_state": "REPORTED",
+      "freeze_class": "NONE"
+    },
+    {
+      "id": "REP-VOICE-001",
+      "type": "REPORT",
+      "statement": "V1.2 report documents local Web Speech-based emotion/prosody behavior, lifecycle stop/sync behavior, and unsupported-browser fallback.",
+      "source": "v1.2.0-六项审验修复报告.md",
+      "authority_state": "REPORTED",
+      "freeze_class": "EVIDENCE_FROZEN"
+    },
+    {
+      "id": "REP-VID-001",
+      "type": "REPORT",
+      "statement": "V1.2 report documents 72 exercise video entries, 52 unique training videos and 10 knowledge videos, plus embedded/original-site/local-file fallback behavior.",
+      "source": "v1.2.0-六项审验修复报告.md",
+      "authority_state": "REPORTED",
+      "freeze_class": "EVIDENCE_FROZEN"
+    },
+    {
+      "id": "OBS-TRN-001",
+      "type": "SOURCE_AUDIT",
+      "statement": "Legacy training completion uses exercise-level boolean semantics; custom completion shares completion namespace and can contaminate planned completion/progression.",
+      "source": "handoff source audit",
+      "supersedes": [],
+      "authority_state": "VERIFIED",
+      "freeze_class": "EVIDENCE_FROZEN"
+    },
+    {
+      "id": "OBS-RUN-001",
+      "type": "SOURCE_AUDIT",
+      "statement": "Legacy running path contains correctness/performance risks including full rerender ticker, route sampling endpoint risk, and UTC/local-date inconsistency.",
+      "source": "handoff source audit",
+      "authority_state": "VERIFIED",
+      "freeze_class": "EVIDENCE_FROZEN"
+    },
+    {
+      "id": "OBS-DAT-001",
+      "type": "SOURCE_AUDIT",
+      "statement": "Legacy save call paths can acknowledge success despite persistence failure.",
+      "source": "handoff source audit",
+      "authority_state": "VERIFIED",
+      "freeze_class": "EVIDENCE_FROZEN"
+    },
+    {
+      "id": "OBS-FOOD-001",
+      "type": "SOURCE_AUDIT",
+      "statement": "Legacy Food AI semantics can expose uncalibrated model confidence and fabricate/rescale nutrition values.",
+      "source": "handoff source audit",
+      "authority_state": "VERIFIED",
+      "freeze_class": "EVIDENCE_FROZEN"
+    },
+    {
+      "id": "DEC-PROD-001",
+      "type": "PRODUCT_DECISION",
+      "statement": "Boji is a local-first personal training companion, strength-training first.",
+      "authority_state": "VERIFIED",
+      "freeze_class": "DECISION_FROZEN"
+    },
+    {
+      "id": "DEC-IA-001",
+      "type": "PRODUCT_DECISION",
+      "statement": "Primary IA is 今日 | 训练 | Boji | 进步 | 我的.",
+      "authority_state": "VERIFIED",
+      "freeze_class": "DECISION_FROZEN"
+    },
+    {
+      "id": "DEC-CHAR-001",
+      "type": "PRODUCT_DECISION",
+      "statement": "Official Boji direction is an original anime-style sweet adult female training companion.",
+      "supersedes": [
+        "DEC-CHAR-OLD-NEUTRAL",
+        "PREVIEW-CORGI"
+      ],
+      "authority_state": "VERIFIED",
+      "freeze_class": "DECISION_FROZEN"
+    },
+    {
+      "id": "PREVIEW-CORGI",
+      "type": "VISUAL_PREVIEW",
+      "statement": "Earlier corgi-based product preview is non-authoritative and must not be used as final asset.",
+      "authority_state": "SUPERSEDED",
+      "freeze_class": "NONE"
+    },
+    {
+      "id": "PEND-GIT-001",
+      "type": "EVIDENCE_GAP",
+      "statement": "Live V1 HEAD/tree has not yet been independently verified.",
+      "authority_state": "SUPERSEDED",
+      "freeze_class": "NONE"
+    },
+    {
+      "id": "PEND-TEST-001",
+      "type": "EVIDENCE_GAP",
+      "statement": "Reported 251 tests have not yet been reproduced in a clean environment.",
+      "authority_state": "SUPERSEDED",
+      "freeze_class": "NONE"
+    },
+    {
+      "id": "PEND-CHAR-001",
+      "type": "ASSET_GAP",
+      "statement": "Final production character asset has not yet been frozen.",
+      "authority_state": "PENDING",
+      "freeze_class": "NONE"
+    },
+    {
+      "id": "VER-GIT-001",
+      "type": "LIVE_GIT",
+      "authority_state": "VERIFIED",
+      "freeze_class": "EVIDENCE_FROZEN",
+      "statement": "Live V1 HEAD is c0a8d55283765a0f7d7e4d773df0609ba1e4049d; cbccea4c47995711d1ae0af2d7c76449febe2603 is the historical v1.2 anchor; the two intervening commits are docs-only and qualified app.js/sw.js/tools bytes are identical."
+    },
+    {
+      "id": "VER-TST-001",
+      "type": "TEST_QUALIFICATION",
+      "authority_state": "VERIFIED",
+      "freeze_class": "EVIDENCE_FROZEN",
+      "statement": "Historical 251 ALL PASSED is conditionally reproduced; the conditions are generated eval artifacts, no local-day-2 legacy fixture trigger, and no D1 timing flake."
+    },
+    {
+      "id": "VER-TST-002",
+      "type": "HARNESS_DEFECT",
+      "authority_state": "VERIFIED",
+      "freeze_class": "EVIDENCE_FROZEN",
+      "statement": "F1/F2 are fixture/date-environment defects, not product defects: seed threshold >=3 conflicts with test threshold >=2, causing local-day-2 failure."
+    },
+    {
+      "id": "VER-TST-003",
+      "type": "HARNESS_DEFECT",
+      "authority_state": "VERIFIED",
+      "freeze_class": "EVIDENCE_FROZEN",
+      "statement": "J15/K8 depend on ignored generated eval artifacts; selfcheck lacks deterministic setup and the generators assume eval-set already exists."
+    },
+    {
+      "id": "VER-TST-004",
+      "type": "HARNESS_DEFECT",
+      "authority_state": "VERIFIED",
+      "freeze_class": "EVIDENCE_FROZEN",
+      "statement": "D1 is a timing flake: isolated product behavior is correct but the fixed test budget is too tight under suite load."
+    },
+    {
+      "id": "VER-TST-005",
+      "type": "HARNESS_QUALIFICATION",
+      "authority_state": "VERIFIED",
+      "freeze_class": "EVIDENCE_FROZEN",
+      "statement": "Portable harness feasibility is verified with jsdom 28.1.0 and qrcode 1.5.4 using standard local Node resolution."
+    }
+  ],
+  "field_semantics": {
+    "authority_state": [
+      "VERIFIED",
+      "REPORTED",
+      "PENDING",
+      "SUPERSEDED"
+    ],
+    "freeze_class": [
+      "EVIDENCE_FROZEN",
+      "DECISION_FROZEN",
+      "NONE"
+    ]
+  },
+  "contract_version": "1.0.2",
+  "ledger_status": "FINAL_FROZEN"
+}

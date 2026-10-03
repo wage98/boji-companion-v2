@@ -1,0 +1,92 @@
+{
+  "schema_version": 1,
+  "status": "FINAL_FROZEN",
+  "capabilities": [
+    {
+      "id": "LEG-TRN-001",
+      "name": "A/B/C built-in training presets",
+      "disposition": "UPGRADE",
+      "required": true
+    },
+    {
+      "id": "LEG-TRN-002",
+      "name": "push/pull/legs/core training plan capability",
+      "disposition": "KEEP",
+      "required": true
+    },
+    {
+      "id": "LEG-TRN-003",
+      "name": "custom exercises",
+      "disposition": "KEEP",
+      "required": true
+    },
+    {
+      "id": "LEG-EXR-001",
+      "name": "exercise teaching access for legacy plan actions",
+      "disposition": "UPGRADE",
+      "required": true
+    },
+    {
+      "id": "LEG-VOICE-001",
+      "name": "emotion-aware voice companion",
+      "disposition": "UPGRADE",
+      "required": true
+    },
+    {
+      "id": "LEG-BOJI-001",
+      "name": "interactive companion motion",
+      "disposition": "UPGRADE",
+      "required": true
+    },
+    {
+      "id": "LEG-PHOTO-001",
+      "name": "Photo Pet",
+      "disposition": "KEEP",
+      "required": true
+    },
+    {
+      "id": "LEG-FOOD-001",
+      "name": "manual food entry",
+      "disposition": "KEEP",
+      "required": true
+    },
+    {
+      "id": "LEG-FOOD-002",
+      "name": "barcode/search/local food pathways",
+      "disposition": "KEEP",
+      "required": true
+    },
+    {
+      "id": "LEG-FOOD-003",
+      "name": "optional photo AI food input",
+      "disposition": "UPGRADE",
+      "required": true
+    },
+    {
+      "id": "LEG-RUN-001",
+      "name": "GPS distance/time/pace/route/history",
+      "disposition": "UPGRADE",
+      "required": true
+    },
+    {
+      "id": "LEG-KNW-001",
+      "name": "knowledge and science media",
+      "disposition": "KEEP",
+      "required": true
+    },
+    {
+      "id": "LEG-DAT-001",
+      "name": "streak/calendar/progress/body-weight views",
+      "disposition": "UPGRADE",
+      "required": true
+    },
+    {
+      "id": "LEG-DAT-002",
+      "name": "export/import and backup/restore",
+      "disposition": "UPGRADE",
+      "required": true
+    }
+  ],
+  "parity_rule": "Aggregate counts alone cannot prove parity; semantic mapping + interaction + fallback + regression evidence are required.",
+  "contract_version": "1.0.2"
+}

@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "status": "DECISION_FROZEN",
+  "provenance": [
+    "MEASURED",
+    "USER_PROVIDED",
+    "DATABASE",
+    "AI_ESTIMATED",
+    "DERIVED"
+  ],
+  "critical_rules": [
+    {
+      "id": "TRUTH-001",
+      "rule": "AI prediction is not committed fact."
+    },
+    {
+      "id": "TRUTH-002",
+      "rule": "Critical UI success acknowledgement requires committed persistence."
+    },
+    {
+      "id": "TRUTH-003",
+      "rule": "Ambiguous legacy mappings must be quarantined, not guessed."
+    },
+    {
+      "id": "TRUTH-004",
+      "rule": "Fallback PASS does not upgrade an untested capability to PASS."
+    },
+    {
+      "id": "TRUTH-005",
+      "rule": "UNKNOWN remains unearned evidence."
+    }
+  ]
+}

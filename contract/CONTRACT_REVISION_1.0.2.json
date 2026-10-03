@@ -1,0 +1,11 @@
+{
+  "contract_version": "1.0.2",
+  "status": "FINAL_FROZEN",
+  "supersedes": "1.0.1",
+  "scope": "consistency/read-order hotfix only; no product requirement added or removed",
+  "changes": [
+    "updated stale pre-PRE-LUNA authority wording",
+    "added 07A G1 harness contract to mandatory read order",
+    "normalized final-freeze metadata"
+  ]
+}

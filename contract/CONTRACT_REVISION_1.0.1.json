@@ -1,0 +1,44 @@
+{
+  "contract_name": "Boji Companion V2 Canonical Contract",
+  "contract_version": "1.0.1",
+  "contract_status": "FINAL_FROZEN",
+  "supersedes_contract_version": "1.0.0",
+  "revision_scope": "PRE-LUNA evidence closure + G1 test-harness hardening only; no product-scope change",
+  "source_evidence": "PRE_LUNA_FAILURE_QUALIFICATION.md",
+  "live_v1": {
+    "head": "c0a8d55283765a0f7d7e4d773df0609ba1e4049d",
+    "tree": "ca4eb14a38f735f8302c238634f7c75352f66f50",
+    "historical_anchor": "cbccea4c47995711d1ae0af2d7c76449febe2603",
+    "historical_anchor_tree": "8fd66a94acc2038e1df30c2ec16f932cc41f7bc2",
+    "relation": "historical anchor is ancestor; two intervening commits are docs-only; relevant app.js/sw.js/tools bytes identical"
+  },
+  "test_qualification": {
+    "historical_251_all_passed": {
+      "authority_state": "VERIFIED",
+      "result": "251 PASS / 0 FAIL",
+      "conditions": [
+        "eval-set artifacts generated",
+        "legacy F1/F2 fixture does not hit local day 2",
+        "D1 timing flake does not trigger"
+      ]
+    },
+    "portable_harness": {
+      "authority_state": "VERIFIED",
+      "result": "PASS",
+      "jsdom": "28.1.0",
+      "qrcode": "1.5.4"
+    },
+    "repository_native_harness": {
+      "authority_state": "VERIFIED",
+      "result": "FAIL",
+      "reasons": [
+        "no package.json/lockfile",
+        "hardcoded machine NODE_PATH",
+        "eval-set generator directory precondition",
+        "J15/K8 generated-artifact precondition",
+        "F1/F2 day-2 fixture bomb",
+        "D1 timing flake"
+      ]
+    }
+  }
+}

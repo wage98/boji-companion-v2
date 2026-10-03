@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "status": "FREEZE_CANDIDATE",
+  "forbidden_release_asset_classes": [
+    "known third-party official game/anime character art used as Boji branding",
+    "assets with unclear redistribution rights used as official brand assets",
+    "secrets/tokens/PATs",
+    "debug screenshots/logs containing credentials or private data"
+  ],
+  "known_examples_to_exclude_if_present": [
+    "nahida-card.webp",
+    "nahida-icon.webp",
+    "Spider-hero-inspired branded skin or similarly derivative official branding"
+  ],
+  "rule": "Release scan covers the entire V2 repository and release artifact, not only referenced files."
+}

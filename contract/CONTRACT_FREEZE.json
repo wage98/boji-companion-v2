@@ -1,0 +1,14 @@
+{
+  "contract_name": "Boji Companion V2 Canonical Contract",
+  "contract_version": "1.0.2",
+  "contract_status": "FINAL_FROZEN",
+  "meaning": "The normative contract bytes are frozen for PRE-LUNA and Luna execution. This does not upgrade pending/reported evidence to verified.",
+  "known_pending_evidence": [
+    "final production Boji character asset approval",
+    "physical mobile/PWA qualification",
+    "post-Luna independent release qualification",
+    "Production approval"
+  ],
+  "change_rule": "Any later normative change requires an explicit contract revision/version and supersession record; do not silently edit v1.0.2.",
+  "supersedes": "1.0.1"
+}

@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "status": "FINAL_FROZEN",
+  "v1": {
+    "owner": "wage98",
+    "repo": "boji-diary",
+    "reported_branch": "main",
+    "reported_commit": "cbccea4",
+    "reported_app_version": "1.2.0",
+    "reported_sw_cache": "boji-1-2-0",
+    "live_verification_status": "VERIFIED",
+    "clean_regression_status": "QUALIFIED_CONDITIONAL",
+    "reported_feature_counts": {
+      "plan_exercise_video_entries": {
+        "value": 72,
+        "status": "REPORTED"
+      },
+      "unique_training_videos": {
+        "value": 52,
+        "status": "REPORTED"
+      },
+      "knowledge_videos": {
+        "value": 10,
+        "status": "REPORTED"
+      },
+      "unique_bvid_total": {
+        "value": 62,
+        "status": "REPORTED"
+      }
+    },
+    "verified_live_head": "c0a8d55283765a0f7d7e4d773df0609ba1e4049d",
+    "verified_live_tree": "ca4eb14a38f735f8302c238634f7c75352f66f50",
+    "verified_historical_anchor": "cbccea4c47995711d1ae0af2d7c76449febe2603",
+    "verified_historical_anchor_tree": "8fd66a94acc2038e1df30c2ec16f932cc41f7bc2",
+    "product_bytes_relation": "IDENTICAL_FOR_APP_SW_TOOLS_RELEVANT_BYTES",
+    "historical_251_reproduction": {
+      "authority_state": "VERIFIED",
+      "result": "251_PASS_0_FAIL",
+      "conditions": [
+        "eval-set generated",
+        "legacy day-2 fixture not triggered",
+        "D1 flake not triggered"
+      ]
+    },
+    "portable_harness_feasibility": {
+      "authority_state": "VERIFIED",
+      "result": "PASS",
+      "jsdom": "28.1.0",
+      "qrcode": "1.5.4"
+    },
+    "repository_native_harness_portability": {
+      "authority_state": "VERIFIED",
+      "result": "FAIL"
+    }
+  },
+  "v2": {
+    "owner": "wage98",
+    "repo": "boji-companion-v2",
+    "live_repository_status": "VERIFIED_EMPTY",
+    "implementation_status": "NOT_STARTED",
+    "remote": "https://github.com/wage98/boji-companion-v2.git",
+    "template_repository": false
+  },
+  "contract_version": "1.0.2",
+  "manifest_status": "FINAL_FROZEN_AS_CONTRACT_INPUT"
+}
