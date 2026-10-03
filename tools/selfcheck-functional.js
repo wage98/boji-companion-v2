@@ -33,7 +33,9 @@ const seed = {
 };
 const dom = new JSDOM(html, { url: 'http://localhost/', runScripts: 'dangerously', pretendToBeVisual: true });
 const w = dom.window;
-w.BojiData = { localDateKey(date){ const d = date instanceof Date ? date : new Date(date == null ? Date.now() : date); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; } };
+w.BojiData = { localDateKey(date){ const d = date instanceof Date ? date : new Date(date == null ? Date.now() : date); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; },
+  async saveState(){return true;}, async putCustomExercise(){return true;}, async deleteCustomExercise(){return true;},
+  makeId(prefix){return prefix+'-test-'+Math.random().toString(36).slice(2,8);} };
 w.__TEST_V2_STATE__ = seed;
 // 以经典脚本方式注入 app.js（严格模式下 top-level 函数仍挂到 window，let/const 经 eval 导出）
 const sc = w.document.createElement('script');
@@ -41,6 +43,7 @@ sc.textContent = appForTests;
 w.document.body.appendChild(sc);
 w.document.dispatchEvent(new w.Event('DOMContentLoaded'));
 w.eval('window.__S = STATE; window.__PLANS = PLANS;');
+w.eval("TRAINING_CATALOG = {equipmentProfiles:['A','B','C'].map(code=>({code,profileId:'equipment:'+code,name:'Profile '+code,equipment:['dumbbells']})),programs:['A','B','C'].map(code=>({programId:'program:'+code,equipmentProfileId:'equipment:'+code,goal:'HYPERTROPHY',name:'Program '+code})),templates:['A','B','C'].map(code=>({templateId:'template:'+code+':push',programId:'program:'+code,dayKey:'push',name:'Push',exercises:[]})),exercises:[],customExercises:[]};");
 
 const doc = w.document;
 const $ = s => doc.querySelector(s);
@@ -66,7 +69,7 @@ ok($('#home-stats').textContent.includes('居家哑铃'), '主页出现「居家
   const monKey = dateKey(d);
   w.__S.selDate = monKey; w.renderProfile; // noop
   w.eval('renderTraining')(doc.querySelector('#mod-body'));
-  ok($('#mod-body').innerHTML.includes('居家哑铃'), '训练计划卡带「居家哑铃」标签');
+  ok($('#start-workout') !== null && $('#preview-adjustment') !== null, '训练页显示规范训练入口与「调整今天」');
 }
 
 // 5. 饮水：+250ml 按钮
@@ -175,19 +178,15 @@ const before = w.history.length;
 w.navUIClose('module');
 ok(!$('#module').classList.contains('open'), '回归：navUIClose 正常关闭面板');
 
-// 22. 回归：完成打卡 → 弹窗 → 评分提示 toast 存在（finishDay 路径不报错）
-w.__S.selDate = tk(); w.__S.checkins[tk()] = null; delete w.__S.checkins[tk()];
-w.goModule('training');
-$$('#mod-body .ex-do[data-ex]').forEach(b => click(b));
-// 全部动作勾选后逐一打卡
-const dType = w.eval('getDayType')(new Date().getDay());
-const plan = w.__PLANS[dType];
-if (plan) {
-  w.finishDay(tk(), dType);
-} else {
-  // 休息日不执行
+// 22. G3：组级训练入口与显式器械调整预览。
+{
+  const d = new Date(); d.setDate(d.getDate() + ((1 - d.getDay() + 7) % 7 || 7));
+  const selected = dateKey(d); w.__S.selDate = selected; w.goModule('training');
+  ok($('#start-workout') !== null && $$('#mod-body [data-ex]').length === 0, '计划训练使用会话入口，不提供动作布尔打卡');
+  $('#adjust-profile').value = 'B'; click($('#preview-adjustment'));
+  ok($('#adjustment-preview').textContent.includes('调整预览') && $('#accept-adjustment') !== null, '调整预览提供依据并等待用户确认');
+  ok(w.__S.planOverrides[selected] === undefined, '预览不会自动应用训练调整');
 }
-ok(true, 'finishDay 无异常（休息日跳过）');
 
 // 24. 自然语言处理层（NLP）：归一化 / 同义词 / 意图 / 模糊匹配 / 异常边界 / 可复现
 {

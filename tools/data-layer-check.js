@@ -32,15 +32,50 @@ const legacyFixture = () => ({
   settings: { petPhoto: 'data:image/png;base64,aGVsbG8=' },
   vision: { mode: 'off', token: 'v1-secret-must-not-export' }
 });
+const trainingCatalogFixture = () => ({
+  equipmentProfiles: [{ profileId: 'equipment:A', code: 'A', name: 'Home with bench', equipment: ['dumbbells', 'bench'] }],
+  programs: [{ programId: 'program:A', equipmentProfileId: 'equipment:A', goal: 'HYPERTROPHY', name: 'Home strength' }],
+  exercises: [{ exerciseId: 'exercise:press', name: 'Dumbbell press', origin: 'BUILT_IN', movementPattern: 'chest_push', targetMuscles: ['chest'], equipmentProfileIds: ['equipment:A'], teaching: { form: 'Controlled press' } }],
+  templates: [{ templateId: 'template:A:push', programId: 'program:A', dayKey: 'push', exercises: [{ exerciseId: 'exercise:press', sets: 2, reps: '8-10', restSeconds: 60, movementPattern: 'chest_push', targetMuscles: ['chest'] }] }]
+});
 
 async function main() {
   freshStore();
   await check('RC namespace and explicit version dimensions', async () => {
     assert.equal(Data.DB_NAME, 'boji-companion-v2-rc');
+    assert.equal(Data.DB_VERSION, 2);
     for (const key of ['PRODUCT_VERSION','SCHEMA_VERSION','APP_CACHE_VERSION','FEATURE_MANIFEST_VERSION','EXERCISE_DATA_VERSION','KNOWLEDGE_VERSION']) assert.ok(Object.hasOwn(Data.VERSION, key));
     assert.equal(Data.localDateKey(new Date(2026, 9, 3, 23, 59)), '2026-10-03');
     assert.equal(typeof Data.timezoneContext(Date.now()).timezoneOffsetMinutes, 'number');
   });
+  await check('schema 1 to 2 upgrade preserves imported custom exercises and advances version dimensions', async () => {
+    freshStore();
+    await new Promise((resolve, reject) => {
+      const request = indexedDB.open(Data.DB_NAME, 1);
+      request.onupgradeneeded = () => {
+        const db = request.result;
+        Object.entries(Data.STORE_KEYS).forEach(([name, keyPath]) => {
+          if (['customExercises', 'equipmentProfiles'].includes(name)) return;
+          const store = db.createObjectStore(name, { keyPath });
+          if (name === 'sessions' || name === 'mealRecords' || name === 'bodyWeights' || name === 'runs') store.createIndex('byLocalDateKey', 'localDateKey', { unique: false });
+          if (name === 'exerciseSessions') store.createIndex('bySessionId', 'sessionId', { unique: false });
+          if (name === 'setRecords') store.createIndex('byExerciseSessionId', 'exerciseSessionId', { unique: false });
+        });
+        request.transaction.objectStore('exercises').put({ exerciseId: 'exercise-custom-old', name: 'Old custom', origin: 'USER_CREATED' });
+        request.transaction.objectStore('metadata').put({ key: 'runtime-versions', versions: {
+          PRODUCT_VERSION: '2.0.0-pre.1', SCHEMA_VERSION: 1, APP_CACHE_VERSION: 'boji-v2-rc-1',
+          FEATURE_MANIFEST_VERSION: 1, EXERCISE_DATA_VERSION: 1, KNOWLEDGE_VERSION: 1
+        } });
+      };
+      request.onsuccess = () => { request.result.close(); resolve(); };
+      request.onerror = () => reject(request.error);
+    });
+    await Data.open();
+    assert.equal((await Data.counts()).exercises, 0, 'product catalog store is clear for V2 built-ins');
+    assert.equal((await Data.counts()).customExercises, 1, 'existing user-created exercise moved to the user store');
+    assert.equal(Data.VERSION.SCHEMA_VERSION, 2);
+  });
+  freshStore();
 
   await check('legacy reader only calls getItem and never changes V1 storage', async () => {
     const calls = [];
@@ -164,7 +199,7 @@ async function main() {
     const preview = Data.preflightLegacy(sourceData);
     assert.ok(preview.quarantine.some(row => row.type === 'custom-exercise'));
     await Data.migrateLegacy(sourceData, { confirmed: true });
-    assert.equal((await Data.counts()).exercises, 1);
+    assert.equal((await Data.counts()).customExercises, 1);
     assert.ok((await Data.counts()).quarantine > 0);
   });
   await check('large legacy history remains bounded and migrates by record', async () => {
@@ -194,7 +229,84 @@ async function main() {
     freshStore();
     await assert.rejects(Data.migrateLegacy(legacyFixture(), { confirmed: true, faultAt: 'before-commit-marker' }));
     const counts = await Data.counts();
-    for (const name of ['appState','profiles','exercises','bodyWeights','runs','quarantine','migrations','legacyArchives','mediaAssets']) assert.equal(counts[name], 0, `${name} rolled back`);
+    for (const name of ['appState','profiles','exercises','customExercises','bodyWeights','runs','quarantine','migrations','legacyArchives','mediaAssets']) assert.equal(counts[name], 0, `${name} rolled back`);
+  });
+
+  freshStore();
+  await check('training catalog enforces profile/program/template/exercise separation and starts one idempotent session', async () => {
+    await Data.seedTrainingCatalog(trainingCatalogFixture());
+    const catalog = await Data.loadTrainingCatalog();
+    assert.equal(catalog.programs.length, 1);
+    assert.equal(catalog.templates.length, 1);
+    assert.equal(catalog.exercises.length, 1);
+    const start = await Data.startWorkout({ templateId: 'template:A:push', localDateKey: '2026-10-03', idempotencyKey: 'tap-1' });
+    assert.equal(start.session.status, 'ACTIVE');
+    assert.equal(start.exerciseSessions.length, 1);
+    assert.equal(start.sets.length, 2);
+    const duplicate = await Data.startWorkout({ templateId: 'template:A:push', localDateKey: '2026-10-03', idempotencyKey: 'tap-1' });
+    assert.equal(duplicate.status, 'EXISTING_INTENT');
+    assert.equal(duplicate.sessionId, start.session.sessionId);
+    const secondStart = await Data.startWorkout({ templateId: 'template:A:push', localDateKey: '2026-10-03', idempotencyKey: 'tap-2' });
+    assert.equal(secondStart.status, 'ACTIVE_EXISTS');
+    assert.equal((await Data.counts()).sessions, 1);
+  });
+  await check('custom exercise catalog uses user-store persistence and explicit stable identity', async () => {
+    const row = { exerciseId: 'exercise-custom-ui-1', name: 'Band row', origin: 'USER_CREATED', targetMuscles: ['back'],
+      targetSets: 3, targetReps: '10-12', restSeconds: 60, note: 'Keep ribs down' };
+    await Data.putCustomExercise(row);
+    assert.deepEqual((await Data.loadTrainingCatalog()).customExercises.map(item => item.exerciseId), [row.exerciseId]);
+    assert.equal((await Data.counts()).customExercises, 1);
+    await assert.rejects(Data.putCustomExercise({ ...row, exerciseId: 'exercise-custom-bad', origin: 'BUILT_IN' }), /user-created origin/);
+    await Data.deleteCustomExercise(row.exerciseId);
+    assert.equal((await Data.counts()).customExercises, 0);
+  });
+  await check('set completion commits values before return, rejects out-of-order and duplicate completion, and recovers rest clock', async () => {
+    const [session] = await Data.listActiveWorkouts();
+    const [first, second] = session.sets;
+    const outOfOrder = await Data.completeWorkoutSet(session.session.sessionId, second.setId, { weightKg: 20, reps: 8, rir: 2 });
+    assert.equal(outOfOrder.status, 'OUT_OF_ORDER');
+    const saved = await Data.completeWorkoutSet(session.session.sessionId, first.setId, { weightKg: 20, reps: 10, rir: 2 });
+    assert.equal(saved.status, 'COMPLETED');
+    assert.equal(saved.workout.sets[0].completed, true);
+    assert.equal(saved.workout.sets[0].weightKg, 20);
+    assert.ok(saved.workout.session.activeRestEndAt >= saved.completedAt + 59000);
+    const duplicate = await Data.completeWorkoutSet(session.session.sessionId, first.setId, { weightKg: 25, reps: 1, rir: 0 });
+    assert.equal(duplicate.status, 'ALREADY_COMPLETED');
+    assert.equal(duplicate.workout.sets[0].weightKg, 20, 'duplicate tap cannot overwrite the committed set');
+    Data.close();
+    const recovered = (await Data.listActiveWorkouts())[0];
+    assert.equal(recovered.session.currentSetId, second.setId);
+    assert.equal(recovered.sets.filter(row => row.completed).length, 1);
+    assert.ok(recovered.session.activeRestEndAt, 'wall-clock rest end survives a database reopen');
+  });
+  await check('workout only completes when all planned sets commit and progression stays explainable', async () => {
+    const [active] = await Data.listActiveWorkouts();
+    assert.equal((await Data.finishWorkout(active.session.sessionId)).status, 'INCOMPLETE');
+    const second = active.sets.find(row => !row.completed);
+    const saved = await Data.completeWorkoutSet(active.session.sessionId, second.setId, { weightKg: 20, reps: 10, rir: 2 });
+    assert.equal(saved.status, 'COMPLETED');
+    const finished = await Data.finishWorkout(active.session.sessionId);
+    assert.equal(finished.status, 'COMPLETED');
+    const suggestion = await Data.suggestProgression('exercise:press', '8-10', 2.5);
+    assert.equal(suggestion.kind, 'INCREASE_LOAD');
+    assert.equal(suggestion.suggestedKg, 22.5);
+    assert.equal(suggestion.requiresConfirmation, true);
+    assert.match(suggestion.reason, /All 2 committed sets reached 10 reps/);
+  });
+  await check('partial workout requires explicit abandonment and remains recoverable in history', async () => {
+    const adjusted = await Data.startWorkout({ templateId: 'template:A:push', localDateKey: '2026-10-04', idempotencyKey: 'trimmed-template',
+      prescriptionOverrides: [{ exerciseId: 'exercise:press', sets: 1, reps: '8-10', restSeconds: 60 }] });
+    assert.equal(adjusted.session.planSnapshot[0].sets, 1, 'time adjustment is frozen into the session snapshot');
+    assert.equal(adjusted.sets.length, 1, 'reduced prescription creates exactly one planned set');
+    await assert.rejects(Data.startWorkout({ templateId: 'template:A:push', localDateKey: '2026-10-04', idempotencyKey: 'invalid-trim',
+      prescriptionOverrides: [{ exerciseId: 'exercise:press', sets: 3, reps: '8-10', restSeconds: 60 }] }), /only reduce set count/);
+    assert.equal((await Data.finishWorkout(adjusted.session.sessionId, { action: 'ABANDON' })).status, 'ABANDONED');
+    const started = await Data.startWorkout({ templateId: 'template:A:push', localDateKey: '2026-10-04', idempotencyKey: 'tap-3' });
+    assert.equal((await Data.finishWorkout(started.session.sessionId)).status, 'INCOMPLETE');
+    const abandoned = await Data.finishWorkout(started.session.sessionId, { action: 'ABANDON' });
+    assert.equal(abandoned.status, 'ABANDONED');
+    assert.equal(abandoned.workout.session.status, 'ABANDONED');
+    assert.equal((await Data.listActiveWorkouts()).length, 0);
   });
 
   freshStore();
@@ -304,8 +416,8 @@ async function main() {
     assert.equal((await Data.counts()).snapshots, beforeSnapshots);
   });
   await check('stable IDs and canonical unit validators reject malformed records', async () => {
-    assert.equal(Data.validateDomainRecord('setRecords', { setId: 'set-1', weightKg: 45, reps: 8 }).ok, true);
-    assert.equal(Data.validateDomainRecord('setRecords', { setId: 'set-2', weightKg: '100 lb', reps: 8 }).ok, false);
+    assert.equal(Data.validateDomainRecord('setRecords', { setId: 'set-1', exerciseSessionId: 'ex-1', setIndex: 0, weightKg: 45, reps: 8, completed: true, completedAt: 1 }).ok, true);
+    assert.equal(Data.validateDomainRecord('setRecords', { setId: 'set-2', exerciseSessionId: 'ex-1', setIndex: 0, weightKg: '100 lb', reps: 8, completed: true, completedAt: 1 }).ok, false);
     assert.equal(Data.validateDomainRecord('runs', { runId: 'run-1', distance: 5, duration: 600 }).ok, false);
     assert.equal(Data.validateDomainRecord('runs', { runId: 'run-2', distanceMeters: 5000, durationSeconds: 600 }).ok, true);
   });
@@ -321,7 +433,8 @@ async function main() {
     Object.defineProperty(w, 'crypto', { value: require('node:crypto').webcrypto, configurable: true });
     w.TextEncoder = TextEncoder;
     w.TextDecoder = TextDecoder;
-    const legacy = JSON.stringify({ profile: { name: 'V1-only', height: 170, weight: 99, dumbbell: 10 } });
+    const legacy = JSON.stringify({ profile: { name: 'V1-only', height: 170, weight: 99, dumbbell: 10 },
+      myEx: [{ id: 'custom-band-row', name: 'Band row', part: 'back', sets: 3, reps: '10-12', rest: 60 }] });
     w.localStorage.setItem('boji_v7', legacy);
     const dataScript = w.document.createElement('script');
     dataScript.textContent = dataSource;
@@ -331,8 +444,8 @@ async function main() {
     w.document.body.appendChild(appScript);
     w.document.dispatchEvent(new w.Event('DOMContentLoaded'));
     const deadline = Date.now() + 3000;
-    while (Date.now() < deadline && !w.eval('DATA_READY === true')) await new Promise(resolve => setTimeout(resolve, 5));
-    assert.equal(w.eval('DATA_READY'), true);
+    while (Date.now() < deadline && !w.eval('DATA_READY === true && window.__READY === true')) await new Promise(resolve => setTimeout(resolve, 5));
+    assert.equal(w.eval('DATA_READY === true && window.__READY === true'), true, 'database and first UI render both completed before interaction');
     assert.equal(w.eval('STATE.profile'), null, 'V1 profile did not silently hydrate into V2');
     assert.equal(w.localStorage.getItem('boji_v7'), legacy, 'V1 data stayed byte-for-byte unchanged');
     assert.equal(await w.BojiData.loadState(), null, 'startup did not create default user state or import the V1 profile');
@@ -356,6 +469,79 @@ async function main() {
     w.setTimeout = realSetTimeout;
     assert.equal(w.localStorage.getItem('boji_v7'), legacy, 'user-initiated import also leaves V1 bytes unchanged');
     assert.equal((await w.BojiData.loadState()).profile.weight, 99, 'confirmed V1 profile appears in the V2 projection');
+    const pushDate = new Date();
+    pushDate.setDate(pushDate.getDate() + ((1 - pushDate.getDay() + 7) % 7));
+    const pushDateKey = w.BojiData.localDateKey(pushDate);
+    const waitFor = async (predicate, timeout = 3000) => {
+      const until = Date.now() + timeout;
+      while (Date.now() < until) {
+        if (await predicate()) return true;
+        await new Promise(resolve => setTimeout(resolve, 10));
+      }
+      return false;
+    };
+    w.eval('STATE.selDate = ' + JSON.stringify(pushDateKey));
+    w.goModule('training');
+    assert.ok(w.document.querySelector('#start-workout'), 'training screen exposes canonical session start');
+    assert.equal(w.document.querySelectorAll('#mod-body [data-ex]').length, 0, 'training screen has no exercise completion boolean');
+    w.document.querySelector('#adjust-profile').value = 'B';
+    w.document.querySelector('#adjust-minutes').value = '25';
+    w.document.querySelector('#preview-adjustment').click();
+    assert.ok(w.document.querySelector('#adjustment-preview').textContent.includes('训练目标') && w.document.querySelector('#adjustment-preview').textContent.includes('组数从'),
+      'deterministic profile proposal explains equipment, goal and a time-driven set reduction');
+    assert.equal(w.eval('STATE.planOverrides[' + JSON.stringify(pushDateKey) + ']'), undefined, 'adjustment preview does not apply before confirmation');
+    w.document.querySelector('#accept-adjustment').click();
+    assert.ok(await waitFor(() => w.eval('STATE.planOverrides[' + JSON.stringify(pushDateKey) + '] && STATE.planOverrides[' + JSON.stringify(pushDateKey) + '].profileCode === "B"')),
+      'explicit confirmation persists the equipment profile before UI acknowledgement');
+    w.document.querySelector('#start-workout').click();
+    assert.ok(await waitFor(() => w.eval('!!ACTIVE_WORKOUT')), 'session appears only after database start completes');
+    assert.equal(w.eval('ACTIVE_WORKOUT.session.templateId'), 'template:B:push', 'started session fixes the confirmed template identity');
+    assert.equal(w.eval('ACTIVE_WORKOUT.session.equipmentProfileId'), 'equipment:B', 'started session fixes the confirmed equipment profile');
+    assert.ok(w.eval('ACTIVE_WORKOUT.session.planSnapshot.reduce((sum,row)=>sum+row.sets,0)') <
+      w.eval('TRAINING_CATALOG.templates.find(row=>row.templateId==="template:B:push").exercises.reduce((sum,row)=>sum+row.sets,0)'),
+      'accepted time constraint is committed into the session prescription snapshot');
+    const sessionId = w.eval('ACTIVE_WORKOUT.session.sessionId');
+    const firstSetId = w.eval('ACTIVE_WORKOUT.sets[0].setId');
+    const nextSetId = w.eval('ACTIVE_WORKOUT.sets[1].setId');
+    const originalCommit = w.BojiData.completeWorkoutSet.bind(w.BojiData);
+    w.BojiData = Object.assign({}, w.BojiData, { completeWorkoutSet: (...args) => new Promise((resolve, reject) => {
+      setTimeout(() => originalCommit(...args).then(resolve, reject), 70);
+    }) });
+    const toast = w.document.querySelector('#toast');
+    toast.textContent = '';
+    w.document.querySelector('[data-complete-set]').click();
+    await new Promise(resolve => setTimeout(resolve, 15));
+    assert.equal((await w.BojiData.loadWorkoutSession(sessionId)).sets[0].completed, false, 'set is not committed during delayed database operation');
+    assert.equal(toast.textContent.includes('本组已写入'), false, 'success acknowledgement waits for transaction completion');
+    assert.ok(await waitFor(async () => (await w.BojiData.loadWorkoutSession(sessionId)).sets[0].completed), 'first set eventually commits');
+    await waitFor(() => toast.textContent.includes('本组已写入'));
+    assert.equal(w.eval('ACTIVE_WORKOUT.session.currentSetId'), nextSetId, 'UI advances only after committed set result returns');
+    assert.ok(w.eval('ACTIVE_WORKOUT.session.activeRestEndAt') > Date.now(), 'rest timer stores a future wall-clock end');
+    w.BojiData.close();
+    w.close();
+
+    const resumedDom = new JSDOM(html, { url: 'https://boji.example.test/boji-companion-v2/rc/', runScripts: 'dangerously', pretendToBeVisual: true });
+    const resumed = resumedDom.window;
+    Object.defineProperty(resumed, 'indexedDB', { value: w.indexedDB, configurable: true });
+    Object.defineProperty(resumed, 'crypto', { value: require('node:crypto').webcrypto, configurable: true });
+    resumed.TextEncoder = TextEncoder;
+    resumed.TextDecoder = TextDecoder;
+    const resumedData = resumed.document.createElement('script');
+    resumedData.textContent = dataSource;
+    resumed.document.body.appendChild(resumedData);
+    const resumedApp = resumed.document.createElement('script');
+    resumedApp.textContent = appSource;
+    resumed.document.body.appendChild(resumedApp);
+    resumed.document.dispatchEvent(new resumed.Event('DOMContentLoaded'));
+    assert.ok(await waitFor(() => resumed.eval('DATA_READY === true && window.__READY === true')), 'app reload completes database startup and first UI render');
+    assert.equal(resumed.eval('ACTIVE_WORKOUT.session.sessionId'), sessionId, 'reload recovers the active session identity');
+    assert.equal(resumed.eval('ACTIVE_WORKOUT.session.currentSetId'), nextSetId, 'reload recovers the next uncommitted set');
+    assert.equal(resumed.eval('ACTIVE_WORKOUT.sets[0].completed'), true, 'reload preserves the previously committed set');
+    resumed.goModule('training');
+    assert.ok(!resumed.document.querySelector('#rest-timer').classList.contains('hidden'), 'reload restores the wall-clock rest timer');
+    assert.equal(resumed.eval('STATE.myEx.some(item => item.name === \"Band row\")'), true, 'custom exercise migration hydrates the canonical user catalog: '+JSON.stringify(resumed.eval('STATE.myEx')));
+    resumed.BojiData.close();
+    resumed.close();
     w.close();
     clearTimeout(closeWatchdog);
   });

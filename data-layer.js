@@ -4,26 +4,27 @@
   'use strict';
 
   const DB_NAME = 'boji-companion-v2-rc';
-  const DB_VERSION = 1;
+  const DB_VERSION = 2;
   const LEGACY_KEY = 'boji_v7';
   const MAX_BACKUP_BYTES = 32 * 1024 * 1024;
   const STORE_KEYS = Object.freeze({
     appState: 'stateId', profiles: 'profileId', exercises: 'exerciseId', programs: 'programId',
-    templates: 'templateId', sessions: 'sessionId',
+    templates: 'templateId', equipmentProfiles: 'profileId', sessions: 'sessionId',
     exerciseSessions: 'exerciseSessionId', setRecords: 'setId',
+    customExercises: 'exerciseId',
     foodDrafts: 'draftId', mealRecords: 'mealId', bodyWeights: 'weightId',
     waterEntries: 'entryId', runs: 'runId', knowledgeClaims: 'claimId',
     knowledgeSources: 'sourceId', mediaAssets: 'assetId', quarantine: 'quarantineId',
     migrations: 'migrationId', legacyArchives: 'snapshotId', snapshots: 'snapshotId', metadata: 'key'
   });
-  const PRODUCT_STORES = Object.freeze(['exercises', 'programs', 'templates', 'knowledgeClaims', 'knowledgeSources']);
+  const PRODUCT_STORES = Object.freeze(['exercises', 'programs', 'templates', 'equipmentProfiles', 'knowledgeClaims', 'knowledgeSources']);
   const USER_STORES = Object.keys(STORE_KEYS).filter(name => !['snapshots', 'metadata'].includes(name) && !PRODUCT_STORES.includes(name));
   const VERSION = Object.freeze({
-    PRODUCT_VERSION: '2.0.0-pre.1',
-    SCHEMA_VERSION: 1,
-    APP_CACHE_VERSION: 'boji-v2-rc-1',
-    FEATURE_MANIFEST_VERSION: 1,
-    EXERCISE_DATA_VERSION: 1,
+    PRODUCT_VERSION: '2.0.0-pre.2',
+    SCHEMA_VERSION: 2,
+    APP_CACHE_VERSION: 'boji-v2-rc-2',
+    FEATURE_MANIFEST_VERSION: 2,
+    EXERCISE_DATA_VERSION: 2,
     KNOWLEDGE_VERSION: 1
   });
   const PROVENANCE = Object.freeze(['MEASURED', 'USER_PROVIDED', 'DATABASE', 'AI_ESTIMATED', 'DERIVED']);
@@ -68,7 +69,7 @@
     if (!root.indexedDB) return Promise.reject(new Error('IndexedDB is unavailable; V2 data has not been loaded.'));
     dbPromise = new Promise((resolve, reject) => {
       const request = root.indexedDB.open(DB_NAME, DB_VERSION);
-      request.onupgradeneeded = () => {
+      request.onupgradeneeded = event => {
         const db = request.result;
         Object.entries(STORE_KEYS).forEach(([name, keyPath]) => {
           if (!db.objectStoreNames.contains(name)) {
@@ -81,6 +82,29 @@
             if (name === 'setRecords') store.createIndex('byExerciseSessionId', 'exerciseSessionId', { unique: false });
           }
         });
+        const tx = request.transaction;
+        const sessions = tx.objectStore('sessions');
+        if (!sessions.indexNames.contains('byIdempotencyKey')) sessions.createIndex('byIdempotencyKey', 'idempotencyKey', { unique: true });
+        if (event.oldVersion === 1) {
+          const metadata = tx.objectStore('metadata');
+          const priorRequest = metadata.get('runtime-versions');
+          priorRequest.onsuccess = () => {
+            const prior = priorRequest.result;
+            const expected = { PRODUCT_VERSION: '2.0.0-pre.1', SCHEMA_VERSION: 1, APP_CACHE_VERSION: 'boji-v2-rc-1', FEATURE_MANIFEST_VERSION: 1, EXERCISE_DATA_VERSION: 1, KNOWLEDGE_VERSION: 1 };
+            if (!prior || !isObject(prior.versions) || Object.keys(expected).some(key => prior.versions[key] !== expected[key])) {
+              try { tx.abort(); } catch (_) {}
+              return;
+            }
+            metadata.put({ key: 'runtime-versions', versions: VERSION, updatedAt: now() });
+          };
+          const oldExercises = tx.objectStore('exercises');
+          const customExercises = tx.objectStore('customExercises');
+          const legacyRows = oldExercises.getAll();
+          legacyRows.onsuccess = () => {
+            legacyRows.result.forEach(row => customExercises.put(row));
+            oldExercises.clear();
+          };
+        }
       };
       request.onerror = () => reject(request.error || new Error('Could not open V2 data store'));
       request.onblocked = () => reject(new Error('V2 data upgrade is blocked by another open tab. Close older V2 tabs and retry.'));
@@ -338,6 +362,10 @@
         name: item.name.trim(),
         origin: 'USER_CREATED',
         targetMuscles: Array.isArray(item.muscles) ? item.muscles.slice(0, 16) : item.part ? [String(item.part)] : [],
+        targetSets: validNumber(item.sets, 1, 10) ? Math.round(item.sets) : 3,
+        targetReps: item.reps == null ? '12' : String(item.reps).slice(0, 16),
+        restSeconds: validNumber(item.rest, 10, 600) ? Math.round(item.rest) : 60,
+        note: typeof item.note === 'string' ? item.note.slice(0, 240) : '',
         legacySource: { store: LEGACY_KEY, id: item.id == null ? null : String(item.id), indexForAuditOnly: index },
         teaching: { status: 'UNVERIFIED_LEGACY', text: typeof item.note === 'string' ? item.note : '' }
       });
@@ -437,8 +465,8 @@
       updatedAt: null,
       legacyTimeUnknown: true
     }] : [];
-    const storeRows = { appState: [{ stateId: 'main', payload, updatedAt: payload.updatedAt, mediaAssetIds: Array.from(media.keys()) }], profiles: profile, exercises, bodyWeights: weights, runs, quarantine: quarantineRows, migrations: [migration], legacyArchives: [legacyArchive] };
-    const stores = USER_STORES.concat(['exercises']);
+    const storeRows = { appState: [{ stateId: 'main', payload, updatedAt: payload.updatedAt, mediaAssetIds: Array.from(media.keys()) }], profiles: profile, customExercises: exercises, bodyWeights: weights, runs, quarantine: quarantineRows, migrations: [migration], legacyArchives: [legacyArchive] };
+    const stores = USER_STORES;
     let result = null;
     await transaction(stores, 'readwrite', tx => {
       const migrationStore = tx.objectStore('migrations');
@@ -645,8 +673,20 @@
     if (storeName === 'sessions') {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(record.localDateKey || '')) return { ok: false, reason: 'session needs a localDateKey' };
       if (record.startedAt != null && !validNumber(record.startedAt, 0, Number.MAX_SAFE_INTEGER)) return { ok: false, reason: 'startedAt must be epoch milliseconds' };
+      if (!['ACTIVE', 'COMPLETED', 'ABANDONED'].includes(record.status)) return { ok: false, reason: 'session status is invalid' };
+      if (typeof record.programId !== 'string' || typeof record.templateId !== 'string' || typeof record.equipmentProfileId !== 'string') return { ok: false, reason: 'session needs program, template and equipment profile IDs' };
+      if (record.activeRestEndAt != null && !validNumber(record.activeRestEndAt, 0, Number.MAX_SAFE_INTEGER)) return { ok: false, reason: 'active rest end must be epoch milliseconds' };
+      if (record.planSnapshot != null && (!Array.isArray(record.planSnapshot) || record.planSnapshot.length === 0 || record.planSnapshot.some(row => !isObject(row) || typeof row.exerciseId !== 'string' || !Number.isInteger(row.sets) || row.sets < 1 || typeof row.reps !== 'string'))) return { ok: false, reason: 'session plan snapshot is invalid' };
     }
-    if (storeName === 'exerciseSessions' && (typeof record.sessionId !== 'string' || typeof record.exerciseId !== 'string')) return { ok: false, reason: 'exercise session needs semantic parent and exercise IDs' };
+    if (storeName === 'exerciseSessions' && (typeof record.sessionId !== 'string' || typeof record.exerciseId !== 'string' || !Number.isInteger(record.order))) return { ok: false, reason: 'exercise session needs semantic parent, exercise IDs and order' };
+    if (storeName === 'customExercises') {
+      if (typeof record.name !== 'string' || !record.name.trim() || record.origin !== 'USER_CREATED') return { ok: false, reason: 'custom exercise needs a name and user-created origin' };
+    }
+    if (storeName === 'setRecords') {
+      if (typeof record.exerciseSessionId !== 'string' || !Number.isInteger(record.setIndex) || record.setIndex < 0) return { ok: false, reason: 'set needs a parent exercise session and set index' };
+      if (record.rir != null && (!Number.isInteger(record.rir) || record.rir < 0 || record.rir > 10)) return { ok: false, reason: 'RIR must be null or an integer from 0 to 10' };
+      if (record.completed === true && (!Number.isInteger(record.reps) || record.reps < 1 || !validNumber(record.completedAt, 0, Number.MAX_SAFE_INTEGER))) return { ok: false, reason: 'completed set needs reps and completion timestamp' };
+    }
     if (storeName === 'mealRecords') {
       if (!Array.isArray(record.items) || !record.confirmation || record.confirmation.confirmedByUser !== true || !validNumber(record.confirmation.confirmedAt, 0, Number.MAX_SAFE_INTEGER)) return { ok: false, reason: 'MealRecord must contain itemized food and explicit user confirmation' };
       for (const item of record.items) {
@@ -656,6 +696,244 @@
       }
     }
     return { ok: true };
+  }
+  function seedTrainingCatalog(catalog) {
+    const data = isObject(catalog) ? catalog : {};
+    const rows = {
+      equipmentProfiles: Array.isArray(data.equipmentProfiles) ? data.equipmentProfiles : [],
+      programs: Array.isArray(data.programs) ? data.programs : [],
+      templates: Array.isArray(data.templates) ? data.templates : [],
+      exercises: Array.isArray(data.exercises) ? data.exercises : []
+    };
+    for (const [storeName, list] of Object.entries(rows)) {
+      if (!list.length) throw new TypeError(`Training catalog ${storeName} is empty.`);
+      const ids = new Set();
+      for (const row of list) {
+        const checked = validateDomainRecord(storeName, row);
+        if (!checked.ok) throw new TypeError(`${storeName}: ${checked.reason}`);
+        if (ids.has(row[STORE_KEYS[storeName]])) throw new TypeError(`${storeName} contains duplicate IDs.`);
+        ids.add(row[STORE_KEYS[storeName]]);
+      }
+    }
+    const profiles = new Set(rows.equipmentProfiles.map(row => row.profileId));
+    const programs = new Set(rows.programs.map(row => row.programId));
+    const exercises = new Set(rows.exercises.map(row => row.exerciseId));
+    rows.programs.forEach(row => { if (!profiles.has(row.equipmentProfileId)) throw new TypeError(`Program ${row.programId} references a missing equipment profile.`); });
+    rows.templates.forEach(row => {
+      if (!programs.has(row.programId) || !Array.isArray(row.exercises) || !row.exercises.length) throw new TypeError(`Template ${row.templateId} has invalid program or exercise entries.`);
+      row.exercises.forEach(entry => {
+        if (!exercises.has(entry.exerciseId) || !Number.isInteger(entry.sets) || entry.sets < 1 || typeof entry.reps !== 'string') throw new TypeError(`Template ${row.templateId} contains an invalid exercise prescription.`);
+      });
+    });
+    return transaction(Object.keys(rows), 'readwrite', tx => {
+      Object.entries(rows).forEach(([name, list]) => list.forEach(row => tx.objectStore(name).put(clone(row))));
+      return Object.values(rows).reduce((sum, list) => sum + list.length, 0);
+    });
+  }
+  async function loadTrainingCatalog() {
+    const db = await open();
+    const names = ['equipmentProfiles', 'programs', 'templates', 'exercises', 'customExercises'];
+    const values = await Promise.all(names.map(name => readAll(db, name)));
+    return Object.fromEntries(names.map((name, index) => [name, values[index]]));
+  }
+  async function putCustomExercise(record) {
+    const value = clone(record || {});
+    const checked = validateDomainRecord('customExercises', value);
+    if (!checked.ok) throw new TypeError(checked.reason);
+    await transaction('customExercises', 'readwrite', tx => tx.objectStore('customExercises').put(value));
+    return value;
+  }
+  async function deleteCustomExercise(exerciseId) {
+    if (typeof exerciseId !== 'string' || !exerciseId) throw new TypeError('Custom exercise needs a stable exerciseId.');
+    await transaction('customExercises', 'readwrite', tx => tx.objectStore('customExercises').delete(exerciseId));
+    return true;
+  }
+  async function loadWorkoutSession(sessionId) {
+    const db = await open();
+    const session = await requestResult(db.transaction('sessions').objectStore('sessions').get(sessionId));
+    if (!session) return null;
+    const exerciseSessions = await requestResult(db.transaction('exerciseSessions').objectStore('exerciseSessions').index('bySessionId').getAll(sessionId));
+    const exerciseIds = new Set(exerciseSessions.map(row => row.exerciseSessionId));
+    const allSets = await readAll(db, 'setRecords');
+    return { session, exerciseSessions: exerciseSessions.sort((a,b)=>a.order-b.order), sets: allSets.filter(row => exerciseIds.has(row.exerciseSessionId)).sort((a,b)=>a.exerciseOrder-b.exerciseOrder || a.setIndex-b.setIndex) };
+  }
+  async function listActiveWorkouts() {
+    const db = await open();
+    const sessions = await readAll(db, 'sessions');
+    const active = sessions.filter(row => row.status === 'ACTIVE').sort((a,b)=>b.startedAt-a.startedAt);
+    return Promise.all(active.map(row => loadWorkoutSession(row.sessionId)));
+  }
+  async function listWorkoutHistory() {
+    const db = await open();
+    const sessions = await readAll(db, 'sessions');
+    return Promise.all(sessions.sort((a,b)=>(b.startedAt||0)-(a.startedAt||0)).map(row => loadWorkoutSession(row.sessionId)));
+  }
+  async function startWorkout(input) {
+    const spec = clone(input || {});
+    if (!isObject(spec) || typeof spec.templateId !== 'string' || typeof spec.idempotencyKey !== 'string' || !spec.idempotencyKey) throw new TypeError('Workout start needs a templateId and idempotency key.');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(spec.localDateKey || '')) throw new TypeError('Workout start needs a canonical localDateKey.');
+    const catalog = await loadTrainingCatalog();
+    const template = catalog.templates.find(row => row.templateId === spec.templateId);
+    if (!template) throw new Error('Workout template is missing or incompatible.');
+    const program = catalog.programs.find(row => row.programId === template.programId);
+    const equipmentProfile = catalog.equipmentProfiles.find(row => row.profileId === (spec.equipmentProfileId || (program && program.equipmentProfileId)));
+    if (!program || !equipmentProfile || !Array.isArray(template.exercises) || !template.exercises.length) throw new Error('Workout catalog references are incomplete.');
+    const exerciseMap = new Map(catalog.exercises.map(row => [row.exerciseId, row]));
+    for (const entry of template.exercises) if (!exerciseMap.has(entry.exerciseId)) throw new Error(`Workout template references missing exercise ${entry.exerciseId}.`);
+    const requested = Array.isArray(spec.prescriptionOverrides) ? spec.prescriptionOverrides : null;
+    if (requested && requested.length !== template.exercises.length) throw new TypeError('Adjusted workout must retain every template exercise.');
+    const prescriptions = template.exercises.map((entry, index) => {
+      const override = requested && requested[index];
+      if (!requested) return clone(entry);
+      if (!isObject(override)) throw new TypeError('Adjusted workout contains an invalid prescription entry.');
+      if (override.exerciseId !== entry.exerciseId || !Number.isInteger(override.sets) || override.sets < 1 || override.sets > entry.sets ||
+          (override.reps != null && override.reps !== entry.reps) || (override.restSeconds != null && override.restSeconds !== entry.restSeconds)) {
+        throw new TypeError('Adjusted workout may only reduce set count while preserving each template exercise and prescription.');
+      }
+      return Object.assign({}, clone(entry), { sets: override.sets });
+    });
+    const db = await open();
+    const sessionId = makeId('session');
+    const createdAt = now();
+    const exerciseSessions = prescriptions.map((entry, order) => ({
+      exerciseSessionId: `${sessionId}:exercise:${order}`, sessionId, exerciseId: entry.exerciseId,
+      nameSnapshot: exerciseMap.get(entry.exerciseId).name, order, targetSets: entry.sets,
+      targetReps: entry.reps, movementPattern: entry.movementPattern, status: 'PLANNED'
+    }));
+    const sets = exerciseSessions.flatMap((exerciseSession, exerciseOrder) => {
+      const entry = prescriptions[exerciseOrder];
+      return Array.from({ length: entry.sets }, (_, setIndex) => ({
+        setId: `${sessionId}:set:${exerciseOrder}:${setIndex}`, sessionId, exerciseSessionId: exerciseSession.exerciseSessionId,
+        exerciseId: exerciseSession.exerciseId, exerciseOrder, setIndex, targetReps: entry.reps,
+        weightKg: null, reps: null, rir: null, setType: 'WORKING', completed: false, completedAt: null,
+        restSeconds: entry.restSeconds, createdAt
+      }));
+    });
+    const session = {
+      sessionId, idempotencyKey: spec.idempotencyKey, programId: program.programId,
+      templateId: template.templateId, equipmentProfileId: equipmentProfile.profileId,
+      goal: spec.goal || program.goal || 'HYPERTROPHY', localDateKey: spec.localDateKey,
+      planSnapshot: prescriptions.map(row => ({ exerciseId: row.exerciseId, sets: row.sets, reps: row.reps, restSeconds: row.restSeconds })),
+      timezoneContext: timezoneContext(createdAt), status: 'ACTIVE', startedAt: createdAt,
+      updatedAt: createdAt, currentExerciseSessionId: exerciseSessions[0].exerciseSessionId,
+      currentSetId: sets[0].setId, activeRestStartedAt: null, activeRestEndAt: null,
+      lastCommittedAt: null, lastCommittedSetId: null
+    };
+    const outcome = { status: 'CREATED', sessionId };
+    await transaction(['sessions', 'exerciseSessions', 'setRecords'], 'readwrite', tx => {
+      const sessionStore = tx.objectStore('sessions');
+      const setsStore = tx.objectStore('setRecords');
+      const keyed = sessionStore.index('byIdempotencyKey').get(spec.idempotencyKey);
+      const activeRows = sessionStore.getAll();
+      let pending = 2;
+      const proceed = () => {
+        pending -= 1;
+        if (pending) return;
+        if (keyed.result) { outcome.status = 'EXISTING_INTENT'; outcome.sessionId = keyed.result.sessionId; return; }
+        const active = activeRows.result.find(row => row.status === 'ACTIVE');
+        if (active) { outcome.status = 'ACTIVE_EXISTS'; outcome.sessionId = active.sessionId; return; }
+        sessionStore.add(session);
+        exerciseSessions.forEach(row => tx.objectStore('exerciseSessions').add(row));
+        sets.forEach(row => setsStore.add(row));
+      };
+      keyed.onsuccess = proceed;
+      activeRows.onsuccess = proceed;
+      keyed.onerror = () => { try { tx.abort(); } catch (_) {} };
+      activeRows.onerror = () => { try { tx.abort(); } catch (_) {} };
+    });
+    if (outcome.status === 'CREATED') return loadWorkoutSession(sessionId);
+    return Object.assign(outcome, { workout: await loadWorkoutSession(outcome.sessionId) });
+  }
+  async function completeWorkoutSet(sessionId, setId, input) {
+    const values = isObject(input) ? input : {};
+    const reps = Number(values.reps);
+    const weightKg = values.weightKg == null || values.weightKg === '' ? null : Number(values.weightKg);
+    const rir = values.rir == null || values.rir === '' ? null : Number(values.rir);
+    if (!Number.isInteger(reps) || reps < 1 || reps > 1000) throw new TypeError('Completed set reps must be an integer from 1 to 1000.');
+    if (weightKg != null && !validNumber(weightKg, 0, 2000)) throw new TypeError('Completed set weight must be canonical kilograms.');
+    if (rir != null && (!Number.isInteger(rir) || rir < 0 || rir > 10)) throw new TypeError('RIR must be empty or an integer from 0 to 10.');
+    const completedAt = now();
+    const db = await open();
+    const result = { status: 'COMPLETED', setId, completedAt };
+    await transaction(['sessions', 'setRecords'], 'readwrite', tx => {
+      const sessions = tx.objectStore('sessions'), sets = tx.objectStore('setRecords');
+      const sessionReq = sessions.get(sessionId), setReq = sets.get(setId), allReq = sets.getAll();
+      let pending = 3;
+      const proceed = () => {
+        pending -= 1;
+        if (pending) return;
+        const session = sessionReq.result, set = setReq.result;
+        if (!session || !set || set.sessionId !== sessionId) { result.status = 'NOT_FOUND'; return; }
+        if (session.status !== 'ACTIVE') { result.status = 'SESSION_NOT_ACTIVE'; return; }
+        if (set.completed) { result.status = 'ALREADY_COMPLETED'; result.completedAt = set.completedAt; return; }
+        if (session.currentSetId && session.currentSetId !== setId) { result.status = 'OUT_OF_ORDER'; return; }
+        set.weightKg = weightKg; set.reps = reps; set.rir = rir;
+        set.completed = true; set.completedAt = completedAt;
+        session.lastCommittedAt = completedAt; session.lastCommittedSetId = setId;
+        const ordered = allReq.result.filter(row => row.sessionId === sessionId).sort((a,b)=>a.exerciseOrder-b.exerciseOrder || a.setIndex-b.setIndex);
+        const next = ordered.find(row => row.setId !== setId && !row.completed) || null;
+        session.currentSetId = next ? next.setId : null;
+        session.currentExerciseSessionId = next ? next.exerciseSessionId : null;
+        const rest = next ? (Number.isInteger(values.restSeconds) ? Math.max(0, Math.min(1800, values.restSeconds)) : Math.max(0, Number(set.restSeconds) || 0)) : 0;
+        session.activeRestStartedAt = rest ? completedAt : null;
+        session.activeRestEndAt = rest ? completedAt + rest * 1000 : null;
+        session.updatedAt = completedAt;
+        sets.put(set); sessions.put(session);
+      };
+      [sessionReq, setReq, allReq].forEach(request => { request.onsuccess = proceed; request.onerror = () => { try { tx.abort(); } catch (_) {} }; });
+    });
+    return Object.assign(result, { workout: await loadWorkoutSession(sessionId) });
+  }
+  async function finishWorkout(sessionId, options) {
+    const opts = options || {};
+    const result = { status: 'PENDING' };
+    await transaction(['sessions', 'setRecords'], 'readwrite', tx => {
+      const sessions = tx.objectStore('sessions');
+      const sessionReq = sessions.get(sessionId), allReq = tx.objectStore('setRecords').getAll();
+      let pending = 2;
+      const proceed = () => {
+        pending -= 1;
+        if (pending) return;
+        const session = sessionReq.result;
+        if (!session) { result.status = 'NOT_FOUND'; return; }
+        if (session.status !== 'ACTIVE') { result.status = 'ALREADY_FINISHED'; return; }
+        const ownSets = allReq.result.filter(row => row.sessionId === sessionId);
+        const complete = ownSets.length > 0 && ownSets.every(row => row.completed === true);
+        if (!complete && opts.action !== 'ABANDON') { result.status = 'INCOMPLETE'; result.incompleteSetCount = ownSets.filter(row => !row.completed).length; return; }
+        result.status = complete ? 'COMPLETED' : 'ABANDONED';
+        const finishedAt = now();
+        sessions.put(Object.assign({}, session, { status: result.status, finishedAt, updatedAt: finishedAt, activeRestStartedAt: null, activeRestEndAt: null }));
+      };
+      sessionReq.onsuccess = proceed; allReq.onsuccess = proceed;
+      sessionReq.onerror = () => { try { tx.abort(); } catch (_) {} };
+      allReq.onerror = () => { try { tx.abort(); } catch (_) {} };
+    });
+    if (['COMPLETED', 'ABANDONED', 'ALREADY_FINISHED'].includes(result.status)) result.workout = await loadWorkoutSession(sessionId);
+    return result;
+  }
+  async function clearWorkoutRest(sessionId) {
+    const updatedAt=now();
+    await transaction('sessions','readwrite',tx=>{
+      const store=tx.objectStore('sessions'),request=store.get(sessionId);
+      request.onsuccess=()=>{ const row=request.result; if(row&&row.status==='ACTIVE') store.put(Object.assign({},row,{activeRestStartedAt:null,activeRestEndAt:null,updatedAt})); };
+      request.onerror=()=>{ try{ tx.abort(); }catch(_){} };
+    });
+    return loadWorkoutSession(sessionId);
+  }
+  async function suggestProgression(exerciseId, targetReps, equipmentIncrementKg) {
+    const allSets = await readAll(await open(), 'setRecords');
+    const completed = allSets.filter(row => row.exerciseId === exerciseId && row.completed === true && Number.isFinite(row.weightKg)).sort((a,b)=>b.completedAt-a.completedAt);
+    if (!completed.length) return { ready: false, reason: 'No committed set history exists for this exercise.' };
+    const latestSession = completed[0].sessionId;
+    const latest = completed.filter(row => row.sessionId === latestSession).sort((a,b)=>a.setIndex-b.setIndex);
+    const match = String(targetReps || '').match(/(\d+)\s*[-–]\s*(\d+)/);
+    const targetMax = match ? Number(match[2]) : Number(String(targetReps || '').match(/\d+/)?.[0] || 0);
+    const increment = validNumber(equipmentIncrementKg, 0.1, 100) ? equipmentIncrementKg : 2.5;
+    const qualifies = targetMax > 0 && latest.length > 0 && latest.every(row => row.reps >= targetMax && (row.rir == null || row.rir >= 2));
+    const currentKg = Math.max(...latest.map(row => Number(row.weightKg) || 0));
+    return qualifies
+      ? { ready: true, kind: 'INCREASE_LOAD', currentKg, suggestedKg: Math.round((currentKg + increment) / increment) * increment, reason: `All ${latest.length} committed sets reached ${targetMax} reps; recorded RIR is empty or at least 2.`, evidenceSetIds: latest.map(row => row.setId), requiresConfirmation: true }
+      : { ready: true, kind: 'ADD_REPS', currentKg, suggestedKg: currentKg, reason: `Keep the load and add reps until every working set reaches ${targetMax || 'the target'}; the latest committed session did not meet the increase rule.`, evidenceSetIds: latest.map(row => row.setId), requiresConfirmation: true };
   }
   function validateFoodDraft(draft) {
     if (!isObject(draft) || typeof draft.draftId !== 'string' || !draft.draftId || !Array.isArray(draft.items) || draft.items.length === 0) return { ok: false, reason: 'FoodDraft needs a stable draftId and at least one item.' };
@@ -769,6 +1047,8 @@
     localDateKey, timezoneContext, makeId, canonical, sha256, open, saveState, loadState,
     readLegacySnapshot, parseLegacyValue, preflightLegacy, migrateLegacy, hasCompletedMigration,
     exportBackup, validateBackup, restoreBackup, counts, clearV2Data, validateDomainRecord,
+    seedTrainingCatalog, loadTrainingCatalog, putCustomExercise, deleteCustomExercise, loadWorkoutSession, listActiveWorkouts,
+    listWorkoutHistory, startWorkout, completeWorkoutSet, finishWorkout, clearWorkoutRest, suggestProgression,
     createFoodDraft, confirmFoodDraft, validateFoodDraft, createRequestOwner, putKnowledgeSource, putKnowledgeClaim, seedKnowledgeRegistry,
     close() { if (dbPromise) dbPromise.then(db => db.close()).catch(() => {}); dbPromise = null; }
   });

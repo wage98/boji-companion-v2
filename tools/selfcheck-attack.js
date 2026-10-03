@@ -9,15 +9,28 @@ const APP_FOR_TESTS = APP.replace("document.addEventListener('DOMContentLoaded',
 
 let pass = 0, fail = 0;
 const results = [];
+const pendingChecks = [];
 function check(name, fn) {
-  try { const r = fn(); if (r === false) throw new Error('断言失败'); pass++; results.push('PASS ' + name); }
+  try {
+    const r = fn();
+    if(r&&typeof r.then==='function'){
+      pendingChecks.push(r.then(value=>{if(value===false){fail++;results.push('FAIL '+name+'  →  断言失败');}
+        else{pass++;results.push('PASS '+name);}},error=>{
+          fail++;results.push('FAIL '+name+'  →  '+(error&&error.message?error.message.split('\n')[0]:error));
+      }));
+      return;
+    }
+    if (r === false) throw new Error('断言失败'); pass++; results.push('PASS ' + name);
+  }
   catch (e) { fail++; results.push('FAIL ' + name + '  →  ' + (e && e.message ? e.message.split('\n')[0] : e)); }
 }
 // 每个用例一个干净实例；seed 可以是原始字符串（模拟脏 localStorage）
 function boot(raw) {
   const dom = new JSDOM(HTML, { url: 'http://localhost/', runScripts: 'dangerously', pretendToBeVisual: true });
   const w = dom.window;
-  w.BojiData = { localDateKey(date){ const d = date instanceof Date ? date : new Date(date == null ? Date.now() : date); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; } };
+  w.BojiData = { localDateKey(date){ const d = date instanceof Date ? date : new Date(date == null ? Date.now() : date); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; },
+    makeId(prefix){return prefix+'-attack-'+Math.random().toString(36).slice(2,8);},
+    saveState(){return Promise.resolve(true);}, putCustomExercise(){return Promise.resolve(true);}, deleteCustomExercise(){return Promise.resolve(true);} };
   if (raw !== null) {
     try { w.__TEST_V2_STATE__ = JSON.parse(raw); }
     catch (_) { w.localStorage.setItem('boji_v7', raw); }
@@ -26,6 +39,24 @@ function boot(raw) {
   sc.textContent = APP_FOR_TESTS;
   w.document.body.appendChild(sc);
   w.document.dispatchEvent(new w.Event('DOMContentLoaded'));
+  const catalog = w.eval(String.raw`(() => {
+    const profiles=Object.entries(EQUIPMENT_PROFILE_DEFS).map(([code,row])=>Object.assign({code},row));
+    const programs=Object.entries(PLAN_SETS).map(([code,row])=>({programId:'program:'+code,equipmentProfileId:EQUIPMENT_PROFILE_DEFS[code].profileId,goal:'HYPERTROPHY',name:row.name}));
+    const byName=new Map();
+    for(const [code,program] of Object.entries(PLAN_SETS))for(const [day,plan] of Object.entries(program.days))for(const item of plan.ex){
+      const key=item.name.normalize('NFKC').trim().toLowerCase();let row=byName.get(key);
+      if(!row){row={exerciseId:'exercise-test-'+byName.size,name:item.name,origin:'BUILT_IN',goal:'HYPERTROPHY',movementPattern:movementPatternFor(item.name,day),
+        targetMuscles:targetMuscleList(item.muscle),equipmentProfileIds:[],teaching:{form:item.standard,commonErrors:item.note,breathing:item.breath,tempo:item.tempo,
+          video:{sourceUrl:item.video.url,title:item.video.label,matchLevel:'UNVERIFIED',availability:'UNKNOWN'}}};byName.set(key,row);}
+      row.equipmentProfileIds.push(EQUIPMENT_PROFILE_DEFS[code].profileId);
+    }
+    const exercises=[...byName.values()],byKey=new Map(exercises.map(x=>[x.name.normalize('NFKC').trim().toLowerCase(),x])),templates=[];
+    for(const [code,program] of Object.entries(PLAN_SETS))for(const [day,plan] of Object.entries(program.days))templates.push({templateId:'template:'+code+':'+day,
+      programId:'program:'+code,dayKey:day,name:plan.name,exercises:plan.ex.map(item=>{const row=byKey.get(item.name.normalize('NFKC').trim().toLowerCase());
+        return{exerciseId:row.exerciseId,sets:item.sets,reps:item.reps,restSeconds:item.rest,movementPattern:row.movementPattern,targetMuscles:row.targetMuscles,teaching:row.teaching};})});
+    return{equipmentProfiles:profiles,programs:programs,templates:templates,exercises:exercises,customExercises:[]};
+  })()`);
+  w.eval('TRAINING_CATALOG = ' + JSON.stringify(catalog));
   w.eval('window.__S = STATE; window.__KB = KB; window.__CTX = CTX;');
   w.__click = n => n && n.dispatchEvent(new w.Event('click', { bubbles: true }));
   w.__input = n => n && n.dispatchEvent(new w.Event('input', { bubbles: true }));
@@ -234,10 +265,17 @@ check('F2 月历打卡标记：完成打卡（含 at）才显示 ✓，部分勾
   const partialNotDone = w2.document.querySelectorAll('#mod-body .cal-day.done').length === 0;
   return fullDone && partialNotDone; });
 check('F3 饮水 ml 计量仍在', () => { const w = boot(J({ waterMl: 300, profile: { weight: 70 } })); w.goModule('diet'); w.__click(w.document.querySelector('#water-250')); return w.__S.waterMl === 550; });
-check('F4 组间休息计时器可启动与跳过', () => { const w = boot(J({ profile: { weight: 70 } })); w.startRest(45);
+check('F4 休息计时按 wall-clock end timestamp 渲染且支持持久化跳过入口', () => {
+  const w = boot(J({ profile: { weight: 70 } })), end = Date.now() + 45000;
+  w.eval('ACTIVE_WORKOUT = { session: { sessionId: "test-session", activeRestEndAt: '+end+' } }');
+  w.showWorkoutRest(end);
   const shown = !w.document.querySelector('#rest-timer').classList.contains('hidden');
-  w.stopRest(); return shown && w.document.querySelector('#rest-timer').classList.contains('hidden'); });
-check('F5 时间戳出处说明已接上', () => { const w = boot(J({ profile: { weight:70 } })); w.goModule('training'); return w.document.querySelector('#mod-body').textContent.indexOf('时间戳取自') >= 0 || new Date().getDay() === 0; });
+  const remaining = +w.document.querySelector('#rt-sec').textContent;
+  w.stopRestUI();
+  return shown && remaining > 0 && remaining <= 45 && typeof w.skipWorkoutRest === 'function' && w.document.querySelector('#rest-timer').classList.contains('hidden');
+});
+check('F5 动作教学媒体来源与匹配状态明确标为未核验', () => { const w = boot(J({ profile: { weight:70 } }));
+  return w.eval('TRAINING_CATALOG.exercises.some(row => row.teaching.video && row.teaching.video.matchLevel === "UNVERIFIED" && row.teaching.video.availability === "UNKNOWN")'); });
 check('F6 打卡口径：仅完成全部动作并打卡（at）才计成功；部分勾选不计入连续/累计', () => { const d = new Date(); const k = dateKey(d);
   const w = boot(J({ profile: { weight: 70 }, checkins: { [k]: { ex: { 0: true } } } }));
   return w.eval('isDayComplete')(k) === false && w.eval('dayCompleteCount')() === 0 && w.eval('streak')() === 0; });
@@ -370,27 +408,31 @@ check('H9 皮肤切换：自绘 SVG 皮肤均输出 dataURI（无外链素材）
   return okURI(a) && okURI(b);
 });
 check('H10 自定义动作：超名截断 / 组数夹取 / XSS 不执行', () => {
-  const w = boot(J({ profile: { weight: 70 } })); w.goModule('training');
+  return (async()=>{const w = boot(J({ profile: { weight: 70 } })); w.goModule('training');
   w.__click(w.document.querySelector('#mx-add'));
   w.document.querySelector('#mx-name').value = '<img src=x onerror=alert(1)>超长动作名测试测试测试';
   w.document.querySelector('#mx-sets').value = '99';
   w.document.querySelector('#mx-rest').value = '9999';
   w.__click(w.document.querySelector('#mx-save'));
+  await new Promise(resolve=>setTimeout(resolve,0));
   const x = w.__S.myEx[0];
-  return w.__S.myEx.length === 1 && x.name.length <= 16 && x.sets === 10 && x.rest === 300
-      && w.document.querySelectorAll('[onerror]').length === 0 && w.document.querySelectorAll('img[src="x"]').length === 0;
+  return w.__S.myEx.length === 1 && x.name.length <= 80 && x.sets === 10 && x.rest === 600
+      && w.document.querySelectorAll('[onerror]').length === 0 && w.document.querySelectorAll('img[src="x"]').length === 0;})();
 });
 check('H11 自定义动作：完成勾选落库、删除生效（且不产生 NaN 键）', () => {
-  const w = boot(J({ profile: { weight: 70 } })); w.confirm = () => true; w.goModule('training');
+  return (async()=>{const w = boot(J({ profile: { weight: 70 } })); w.confirm = () => true; w.goModule('training');
   w.__click(w.document.querySelector('#mx-add'));
   w.document.querySelector('#mx-name').value = '侧平举';
-  w.__click(w.document.querySelector('#mx-save'));
-  const btn = w.document.querySelector('#mod-body [data-mex]');
-  w.__click(btn);
-  const k = Object.keys(w.__S.checkins[w.eval('selKey()')].ex);
-  const okDone = k.some(x => x.indexOf('c') === 0) && k.every(x => x !== 'NaN');
-  w.__click(w.document.querySelector('#mod-body [data-mdel]'));
-  return okDone && w.__S.myEx.length === 0;
+  await w.document.querySelector('#mx-save').onclick();
+  const btn = w.document.querySelector('#mod-body [data-custom-log]');
+  await btn.onclick();
+  const key=w.eval('selKey()'),customId=btn.dataset.customLog;
+  w.__expectedCustomKey=key;w.__expectedCustomId=customId;
+  const isolated=!!w.eval('STATE.customLogs[window.__expectedCustomKey]&&STATE.customLogs[window.__expectedCustomKey][window.__expectedCustomId]')
+    &&w.eval('isDayComplete(window.__expectedCustomKey)')===false;
+  await w.document.querySelector('#mod-body [data-delete-custom]').onclick();
+  if(!isolated||w.eval('STATE.myEx.length')!==0)throw new Error('isolated='+isolated+' remaining='+w.eval('STATE.myEx.length')+' logs='+JSON.stringify(w.eval('STATE.customLogs[window.__expectedCustomKey]')));
+  return !Object.values(w.eval('STATE.checkins[window.__expectedCustomKey]&&STATE.checkins[window.__expectedCustomKey].ex||{}')).some(v=>v==='NaN');})();
 });
 check('H12 自定义动作上限 20 个（超出不写入）', () => {
   const list = []; for (let i = 0; i < 20; i++) list.push({ id: 'm' + i, name: '动作' + i, part: '肩', sets: 3, reps: '12', rest: 60, note: '' });
@@ -506,7 +548,8 @@ async function aiChecks() {
   }
 }
 
-asyncChecks().then(() => aiChecks()).then(() => v79Checks()).then(() => v710Checks()).then(() => v711Checks()).then(() => v80Checks()).then(() => v81Checks()).then(() => v110Checks()).then(() => v110bChecks()).then(() => v120Checks()).then(() => {
+asyncChecks().then(() => aiChecks()).then(() => v79Checks()).then(() => v710Checks()).then(() => v711Checks()).then(() => v80Checks()).then(() => v81Checks()).then(() => v110Checks()).then(() => v110bChecks()).then(() => v120Checks()).then(async () => {
+  await Promise.all(pendingChecks);
   console.log(results.join('\n'));
   console.log(`\n==== 攻击式自检：${pass} PASS / ${fail} FAIL ====`);
   process.exit(fail ? 1 : 0);
@@ -798,17 +841,12 @@ function v81Checks() {
   // M10–M11 渲染级冒烟：训练页与设置页能正常渲染，切换后内容跟着变
   {
     const w = boot(J({ profile: { weight: 70, height: 170, dumbbell: 10 }, planSet: 'A' }));
+    const monday = new Date(); monday.setDate(monday.getDate()+((1-monday.getDay()+7)%7||7));
+    w.__S.selDate=dateKey(monday);
     w.goModule('training');
     const htmlA = w.document.getElementById('mod-body').innerHTML;
-    check('M10 训练页渲染：含动作名 / 目标肌群 / 节奏 / 呼吸 / 方案标签', () => {
-      const first = w.eval('PLAN_SETS').A.days[w.eval('getDayType')(new Date().getDay())];
-      const t = w.eval('getDayType')(new Date().getDay());
-      if (t === 'rest') return true;                       // 周日休息日不渲染动作，跳过
-      return htmlA.indexOf(first.ex[0].name) >= 0
-        && htmlA.indexOf(first.ex[0].muscle) >= 0
-        && htmlA.indexOf('节奏') >= 0 && htmlA.indexOf('呼吸') >= 0
-        && htmlA.indexOf('A 套') >= 0;
-    });
+    check('M10 训练页渲染：规范模板入口、器械档案与时间调整控件', () =>
+      htmlA.indexOf('开始今天训练')>=0&&htmlA.indexOf('调整今天')>=0&&htmlA.indexOf('器械档案')>=0&&htmlA.indexOf('可用时间')>=0);
     w.goModule('profile');
     const phtml = w.document.getElementById('mod-body').innerHTML;
     check('M11 设置页含训练方案切换 UI（A/B 两个选项 + 适用场景）',
@@ -820,7 +858,7 @@ function v81Checks() {
       w.__click(btn);
       const ok = w.__S.planSet === 'B' && w.eval('PLANS') === w.eval('PLAN_SETS').B.days;
       w.goModule('training');                              // 切换后仍要能正常渲染训练页
-      return ok && w.document.getElementById('mod-body').innerHTML.indexOf('B 套') >= 0;
+      return ok && w.document.getElementById('mod-body').innerHTML.indexOf('居家 · 无卧推椅') >= 0;
     });
   }
 }

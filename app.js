@@ -12,7 +12,7 @@
    历史版本流水见 docs/轮次总结.md，此处不再罗列。
    ============================================================ */
 'use strict';
-const APP_VERSION = '2.0.0-pre.1';
+const APP_VERSION = '2.0.0-pre.2';
 const $ = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
 const el = html => { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstChild; };
@@ -798,9 +798,9 @@ const DEFAULT_STATE = {
   checkins:{}, weights:{}, meals:{}, water:0, waterMl:null,
   scores:{},                                 // 每日训练评分 { feel, energy, sat, at }
   petPos:null, petDock:null, petMood:'happy', lastPetTouch:Date.now(),
-  planEdits:{}, exLast:{}, editPlan:false,   // 计划可编辑 + 渐进超负荷记忆
+  planEdits:{}, planOverrides:{}, exLast:{}, customLogs:{}, editPlan:false,
   petSkin:'spiderV3',                        // 桌宠皮肤 nahida / spiderV1 / spiderV2 / spiderV3（统一切换）
-  myEx:[],                                   // 自定义动作 [{id,name,part,sets,reps,rest,note}]
+  myEx:[], customExerciseCatalogInitialized:false, // 自定义动作的 canonical IDB projection
   bodyWeights:[],                            // 体重曲线 [{d:'Y-M-D', w:70.5}]
   vision:{ mode:'off', endpoint:'', token:'', model:'glm-4v-flash' },  // AI 图像识别
   planSet:'A',                               // 训练方案 A=有卧推椅 / B=无卧推椅 / C=健身房器械
@@ -814,14 +814,17 @@ let DATA_ERROR = null;
 let _saveWarned = false;
 let _saveQueue = Promise.resolve(true);
 let APP_INITIALIZING = false;
+let COMPLETED_TRAINING_DAYS = new Set();
+let COMPLETED_SETS_BY_DATE = new Map();
 function normalizeState(){
   if(!STATE || typeof STATE !== 'object' || Array.isArray(STATE)) STATE = {};
   STATE = Object.assign({}, DEFAULT_STATE, STATE);
   if(!STATE.profile || typeof STATE.profile !== 'object' || Array.isArray(STATE.profile)) STATE.profile = null;
-  ['checkins','weights','meals','scores','planEdits','exLast','knowledge'].forEach(key=>{
+  ['checkins','weights','meals','scores','planEdits','planOverrides','exLast','customLogs','knowledge'].forEach(key=>{
     if(!STATE[key] || typeof STATE[key] !== 'object' || Array.isArray(STATE[key])) STATE[key] = key === 'knowledge' ? { read:{} } : {};
   });
   if(!Array.isArray(STATE.myEx)) STATE.myEx = [];
+  if(typeof STATE.customExerciseCatalogInitialized!=='boolean') STATE.customExerciseCatalogInitialized=false;
   if(!Array.isArray(STATE.bodyWeights)) STATE.bodyWeights = [];
   if(!Array.isArray(STATE.runs)) STATE.runs = [];
   if(!STATE.vision || typeof STATE.vision !== 'object' || Array.isArray(STATE.vision)) STATE.vision = { mode:'off', endpoint:'', token:'', model:'glm-4v-flash' };
@@ -918,11 +921,108 @@ if(STATE.exLast.pump && !STATE.exLast.core){ STATE.exLast.core = STATE.exLast.pu
 /* 方案调度：切换只替换训练日数据源，打卡 / 重量 / 自定义动作等既有数据完全不动 */
 function planSetMeta(){ return PLAN_SETS[STATE.planSet] || PLAN_SETS.A; }
 function applyPlanSet(){ PLANS = planSetMeta().days; }
+const EQUIPMENT_PROFILE_DEFS = {
+  A:{ profileId:'equipment:A', name:'居家·有卧推椅', equipment:['dumbbells','adjustable_bench','stable_chair'], location:'HOME' },
+  B:{ profileId:'equipment:B', name:'居家·无卧推椅', equipment:['dumbbells','floor','wall','stable_chair'], location:'HOME' },
+  C:{ profileId:'equipment:C', name:'健身房·器械齐全', equipment:['barbell','dumbbells','bench','cable_machine','leg_press','leg_extension','leg_curl','pullup_bar','machines'], location:'GYM' }
+};
+let TRAINING_CATALOG = null;
+let ACTIVE_WORKOUT = null;
+let START_INTENT_KEY = null;
+function movementPatternFor(name, day){
+  const n=String(name||'');
+  const rules=[
+    [/卧推|推胸|飞鸟|夹胸/,'chest_push'],
+    [/肩推|推举/,'vertical_push'],
+    [/侧平举/,'lateral_raise'],
+    [/臂屈伸|绳索下压|三头下压/,'triceps_extension'],
+    [/面拉|后束/,'rear_delt'],
+    [/耸肩/,'scapular_elevation'],
+    [/高位下拉|直臂下压/,'vertical_pull'],
+    [/划船/,'horizontal_pull'],
+    [/弯举/,'elbow_flexion'],
+    [/分腿蹲|箭步蹲|保加利亚/,'unilateral_knee_dominant'],
+    [/深蹲|腿举/,'knee_dominant'],
+    [/硬拉/,'hip_hinge'],
+    [/腿屈伸/,'knee_extension'],
+    [/腿弯举/,'knee_flexion'],
+    [/提踵/,'calf_raise'],
+    [/臀桥/,'hip_extension'],
+    [/侧平板/,'lateral_stability'],
+    [/卷腹/,'trunk_flexion'],
+    [/死虫|登山者|平板支撑/,'anti_extension'],
+    [/俄罗斯转体/,'trunk_rotation'],
+    [/悬垂举腿/,'hip_flexion']
+  ];
+  const hit=rules.find(([pattern])=>pattern.test(n));
+  return hit ? hit[1] : `unclassified:${day}:${n}`;
+}
+const targetMuscleList = value => String(value||'').split(/[·•]/).map(s=>s.replace(/[（(].*?[）)]/g,'').trim()).filter(Boolean);
+async function buildTrainingCatalog(){
+  const profileRows=Object.entries(EQUIPMENT_PROFILE_DEFS).map(([code,profile])=>Object.assign({ code },profile));
+  const programs=Object.entries(PLAN_SETS).map(([code,plan])=>({
+    programId:`program:${code}`, equipmentProfileId:EQUIPMENT_PROFILE_DEFS[code].profileId,
+    goal:'HYPERTROPHY', name:plan.name, version:BojiData.VERSION.EXERCISE_DATA_VERSION,
+    weekPattern:['push','pull','legs','core','push','pull','rest']
+  }));
+  const byName=new Map();
+  for(const [code,plan] of Object.entries(PLAN_SETS)) for(const [day,workout] of Object.entries(plan.days)) for(const e of workout.ex){
+    const normalized=String(e.name).normalize('NFKC').trim().toLocaleLowerCase();
+    let exercise=byName.get(normalized);
+    if(!exercise){
+      const exerciseId=`exercise-${(await BojiData.sha256(`builtin|${normalized}`)).slice(0,24)}`;
+      const bvid=String(e.video&&e.video.url||'').match(/(BV[0-9A-Za-z]{10})/);
+      exercise={
+        exerciseId,name:e.name,origin:'BUILT_IN',movementPattern:movementPatternFor(e.name,day),
+        targetMuscles:targetMuscleList(e.muscle),equipmentProfileIds:[],goal:'HYPERTROPHY',
+        teaching:{form:e.standard||'',breathing:e.breath||'',tempo:e.tempo||'',commonErrors:e.note||'',safety:e.safety||'',
+          video:e.video?{provider:'BILIBILI',externalId:bvid?bvid[1]:null,title:e.video.label||'',variant:'DEMO',matchLevel:'UNVERIFIED',sourceUrl:e.video.url||'',verifiedAt:null,availability:'UNKNOWN',manualReviewed:false}:null}
+      };
+      byName.set(normalized,exercise);
+    }
+    if(!exercise.equipmentProfileIds.includes(EQUIPMENT_PROFILE_DEFS[code].profileId)) exercise.equipmentProfileIds.push(EQUIPMENT_PROFILE_DEFS[code].profileId);
+  }
+  const exercises=Array.from(byName.values());
+  const exerciseByName=new Map(exercises.map(row=>[row.name.normalize('NFKC').trim().toLocaleLowerCase(),row]));
+  const templates=[];
+  for(const [code,plan] of Object.entries(PLAN_SETS)) for(const [day,workout] of Object.entries(plan.days)){
+    templates.push({
+      templateId:`template:${code}:${day}`,programId:`program:${code}`,dayKey:day,name:workout.name,
+      exercises:workout.ex.map(e=>{
+        const exercise=exerciseByName.get(e.name.normalize('NFKC').trim().toLocaleLowerCase());
+        return {exerciseId:exercise.exerciseId,sets:Math.max(1,Math.round(+e.sets||3)),reps:String(e.reps||'10-12'),
+          restSeconds:Math.max(0,Math.round(+e.rest||60)),tempo:e.tempo||'',breathing:e.breath||'',
+          movementPattern:exercise.movementPattern,targetMuscles:exercise.targetMuscles,
+          startingLoad:{base:e.base==null?null:+e.base,unit:'kg',kgBase:e.kgBase||null},
+          teaching:exercise.teaching}
+      })
+    });
+  }
+  return {equipmentProfiles:profileRows,programs,templates,exercises};
+}
 
 /* ---------- 工具 ---------- */
 const todayKey = () => BojiData.localDateKey();
 const wd = () => new Date().getDay();
 const selKey = () => STATE.selDate || todayKey();
+function planProfileForDate(dateKey){
+  const code=STATE.planOverrides?.[dateKey]?.profileCode;
+  return PLAN_SETS[code] ? code : (PLAN_SETS[STATE.planSet] ? STATE.planSet : 'A');
+}
+function workoutPlanFor(dateKey, dayKey){
+  const code=planProfileForDate(dateKey);
+  const source=PLAN_SETS[code].days[dayKey];
+  const template=TRAINING_CATALOG&&TRAINING_CATALOG.templates.find(row=>row.templateId===`template:${code}:${dayKey}`);
+  const ex=source.ex.map((item,index)=>{
+    const prescription=template&&template.exercises[index];
+    return Object.assign({},item,prescription?{exerciseId:prescription.exerciseId,movementPattern:prescription.movementPattern,targetMuscles:prescription.targetMuscles,restSeconds:prescription.restSeconds}:{});
+  });
+  return {code,source,plan:Object.assign({},source,{ex}),templateId:template&&template.templateId};
+}
+function repsDefault(target){
+  const m=String(target||'').match(/\d+/);
+  return m ? Math.max(1,Number(m[0])) : 10;
+}
 const estMin = plan => plan.ex.reduce((s,e)=>s + e.sets*((e.rest||60)/60) + e.sets*1.2, 0) | 0;
 const suggKg = e => {
   if(!STATE.profile) return null;
@@ -931,10 +1031,22 @@ const suggKg = e => {
   if(e.kgBase === 'bw') return Math.max(5, Math.round(bw * (e.base||0.3) / 2.5) * 2.5);
   return Math.max(1, Math.round(d * (e.base||0.4)));
 }
-// 打卡“完成”判定：必须走完 finishDay（写入 at 时间戳）才算当日打卡成功；
-// 仅勾选部分动作（STATE.checkins[k].ex 有 true 但无 at）不算完成，不计入连续/累计打卡。
-const isDayComplete = k => !!(STATE.checkins[k] && STATE.checkins[k].at);
-const dayCompleteCount = () => Object.keys(STATE.checkins).filter(isDayComplete).length;
+function indexWorkoutHistory(history){
+  COMPLETED_TRAINING_DAYS = new Set();
+  COMPLETED_SETS_BY_DATE = new Map();
+  (Array.isArray(history)?history:[]).forEach(workout=>{
+    if(!workout || !workout.session) return;
+    const date=workout.session.localDateKey;
+    const completedSets=(workout.sets||[]).filter(set=>set.completed===true);
+    if(completedSets.length) COMPLETED_SETS_BY_DATE.set(date,(COMPLETED_SETS_BY_DATE.get(date)||0)+completedSets.length);
+    if(workout.session.status==='COMPLETED') COMPLETED_TRAINING_DAYS.add(date);
+  });
+}
+const legacyExerciseCount = k => Object.values(STATE.checkins[k]?.ex||{}).filter(Boolean).length;
+const dayExerciseCount = k => COMPLETED_SETS_BY_DATE.has(k) ? COMPLETED_SETS_BY_DATE.get(k) : legacyExerciseCount(k);
+// Legacy imported completions remain visible as historical logs; new completions come only from committed WorkoutSessions.
+const isDayComplete = k => COMPLETED_TRAINING_DAYS.has(k) || !!(STATE.checkins[k] && STATE.checkins[k].at);
+const dayCompleteCount = () => new Set([...COMPLETED_TRAINING_DAYS,...Object.keys(STATE.checkins).filter(k=>STATE.checkins[k]&&STATE.checkins[k].at)]).size;
 const streak = () => { let n=0; const d=new Date(); for(;;){ const k=BojiData.localDateKey(d); if(isDayComplete(k)){n++; d.setDate(d.getDate()-1);} else break; } return n; };
 // 渐进超负荷：重量按 0.5kg 取整（哑铃片最小刻度）
 const roundHalf = x => Math.round((+x) * 2) / 2;
@@ -2364,155 +2476,260 @@ function renderModule(name){
   if(name==='data') return renderData(body);
   if(name==='profile') return renderProfile(body);
 }
+const PROGRESSION_SUGGESTIONS = new Map();
+let PENDING_ADJUSTMENT = null;
+function trainingTemplate(id){return TRAINING_CATALOG&&TRAINING_CATALOG.templates.find(row=>row.templateId===id)||null;}
+function exerciseDefinition(id){return TRAINING_CATALOG&&TRAINING_CATALOG.exercises.find(row=>row.exerciseId===id)||null;}
+function templateMinutes(template){return Math.ceil((template&&template.exercises||[]).reduce((sum,row)=>sum+row.sets*((row.restSeconds||60)/60)+row.sets*1.2,0));}
+function adjustmentProposal(date,day,code,minutes){
+  if(!PLAN_SETS[code]||!PLAN_SETS[code].days[day])return{ok:false,reason:'所选方案没有适用于今天的训练模板。'};
+  const template=trainingTemplate('template:'+code+':'+day),profile=TRAINING_CATALOG.equipmentProfiles.find(row=>row.code===code);
+  const program=TRAINING_CATALOG.programs.find(row=>row.programId===(template&&template.programId));
+  if(!template||!profile||!program||program.goal!=='HYPERTROPHY')return{ok:false,reason:'模板、器械档案或训练目标不完整。'};
+  const allowed=template.exercises.every(row=>{const ex=exerciseDefinition(row.exerciseId);return ex&&ex.goal==='HYPERTROPHY'&&ex.equipmentProfileIds.includes(profile.profileId);});
+  if(!allowed)return{ok:false,reason:'所选器械档案无法满足模板中的动作要求。'};
+  const base=trainingTemplate('template:'+planProfileForDate(date)+':'+day),changes=[];
+  template.exercises.forEach((row,i)=>{const old=base&&base.exercises[i];if(!old||old.exerciseId===row.exerciseId)return;
+    const a=exerciseDefinition(old.exerciseId),b=exerciseDefinition(row.exerciseId),muscles=new Set((a&&a.targetMuscles||[]).map(x=>String(x).toLowerCase()));
+    const shared=(b&&b.targetMuscles||[]).some(x=>muscles.has(String(x).toLowerCase()));
+    changes.push({from:a&&a.name||'原动作',to:b&&b.name||'替代动作',valid:old.movementPattern===row.movementPattern||shared});});
+  if(changes.some(row=>!row.valid))return{ok:false,reason:'未找到保留动作模式或目标肌群的确定性替代方案。'};
+  const originalEstimate=templateMinutes(template),budget=Math.max(10,Math.min(180,Math.round(+minutes||45)));
+  const prescriptionOverrides=template.exercises.map(row=>({exerciseId:row.exerciseId,sets:row.sets,reps:row.reps,restSeconds:row.restSeconds}));
+  const estimateWithOverrides=()=>Math.ceil(prescriptionOverrides.reduce((sum,row)=>sum+row.sets*((row.restSeconds||60)/60)+row.sets*1.2,0));
+  let estimate=estimateWithOverrides();
+  while(estimate>budget){
+    const choices=prescriptionOverrides.map((row,index)=>({row:row,index:index,saving:(row.restSeconds||60)/60+1.2}))
+      .filter(item=>item.row.sets>1).sort((a,b)=>b.saving-a.saving||b.index-a.index);
+    if(!choices.length)return{ok:false,reason:'即使每个动作保留 1 组，预计仍超过 '+budget+' 分钟；请增加可用时间。'};
+    choices[0].row.sets-=1;estimate=estimateWithOverrides();
+  }
+  const originalSets=template.exercises.reduce((sum,row)=>sum+row.sets,0);
+  const adjustedSets=prescriptionOverrides.reduce((sum,row)=>sum+row.sets,0),setChanges=originalSets-adjustedSets;
+  return{ok:true,date:date,day:day,code:code,minutes:budget,template:template,estimate:estimate,originalEstimate:originalEstimate,
+    prescriptionOverrides:prescriptionOverrides,setChanges:setChanges,changes:changes,profile:profile,
+    reasons:['器械：'+profile.name+'（'+profile.equipment.join('、')+'）','训练目标：'+program.goal+'；模板动作均适配所选器械档案',
+      '预计 '+estimate+' 分钟，不超过 '+budget+' 分钟',setChanges?'为适配时间限制，训练组数从 '+originalSets+' 组调整为 '+adjustedSets+' 组，保留所有动作':'无需减少训练组数',
+      changes.length?'替换 '+changes.length+' 个动作，保留相同动作模式或目标肌群':'所选档案中的动作均适配训练目标']};
+}
+function customExerciseRecord(item){return{exerciseId:item.id,name:item.name,origin:'USER_CREATED',targetMuscles:item.part?[item.part]:[],
+  targetSets:item.sets,targetReps:item.reps,restSeconds:item.rest,note:item.note||'',teaching:{status:'USER_PROVIDED',text:item.note||''}};}
+async function hydrateCustomExercises(){
+  if(!TRAINING_CATALOG)return;const rows=TRAINING_CATALOG.customExercises.slice(),used=new Set(rows.map(row=>row.exerciseId));
+  if(!STATE.customExerciseCatalogInitialized&&!STATE.myEx.length&&!rows.length)return;
+  for(const item of(STATE.customExerciseCatalogInitialized?[]:(Array.isArray(STATE.myEx)?STATE.myEx:[]))){
+    if(!item||typeof item.name!=='string'||!item.name.trim())continue;
+    const old=rows.find(row=>row.legacySource&&row.legacySource.id!=null&&String(row.legacySource.id)===String(item.id))
+      ||rows.find(row=>row.name.trim().toLowerCase()===item.name.trim().toLowerCase()&&!used.has(row.exerciseId));
+    if(old){used.add(old.exerciseId);continue;}
+    const hash=await BojiData.sha256(String(item.id||'custom|'+item.name)),id='exercise-custom-'+hash.slice(0,24);if(used.has(id))continue;
+    const value={id:id,name:item.name.trim().slice(0,80),part:String(item.part||'').slice(0,32),sets:Math.max(1,Math.min(10,Math.round(+item.sets||3))),
+      reps:String(item.reps||'12').slice(0,16),rest:Math.max(10,Math.min(600,Math.round(+item.rest||60))),note:String(item.note||'').slice(0,240)};
+    const row=customExerciseRecord(value);if(item.id!=null)row.legacySource={store:'legacy-app-state',id:String(item.id)};
+    await BojiData.putCustomExercise(row);rows.push(row);used.add(id);
+  }
+  TRAINING_CATALOG.customExercises=rows;STATE.myEx=rows.map(row=>({id:row.exerciseId,name:row.name,part:row.targetMuscles&&row.targetMuscles[0]||'',
+    sets:row.targetSets||3,reps:row.targetReps||'12',rest:row.restSeconds||60,note:row.note||''}));
+  const snapshot=JSON.parse(JSON.stringify(STATE));snapshot.customExerciseCatalogInitialized=true;
+  if(await saveAsync(snapshot))STATE.customExerciseCatalogInitialized=true;
+}
 function renderTraining(body){
-  const sel=selKey(); const [Y,M,D]=sel.split('-').map(Number);
-  const d=new Date(Y,M-1,D); const w=d.getDay(); const t=getDayType(w);
-  const planSafe = PLANS[t] ? t : 'rest';
-  const isToday = sel===todayKey();
-  const done = isDayComplete(sel);
-  let html = `<div class="card"><h4>本周安排 <span class="tag">${isToday?'今天':WEEKDAY[w]}</span></h4><div class="week">`;
-  for(let i=0;i<7;i++){ const dd=new Date(); dd.setDate(dd.getDate()-dd.getDay()+i);
-    const k=BojiData.localDateKey(dd); const tw=dd.getDay(); const tt=getDayType(tw);
-    const cls=['wday']; if(tw===wd())cls.push('today'); if(k===sel)cls.push('sel'); if(STATE.checkins[k])cls.push('done');
-    html+=`<button class="${cls.join(' ')}" data-day="${k}"><span>${WEEKDAY[tw][1]}</span><span class="wd-d">${dd.getDate()}</span><span>${tt==='rest'?'休':tt[0].toUpperCase()}</span></button>`;
-  }
-  html+=`</div></div>`;
-  if(planSafe==='rest'){
-    html+=`<div class="card"><h4>休息日 ♡</h4><p style="font-size:13px;color:var(--ink2);line-height:1.7">${PLANS?'今天让肌肉悄悄生长。睡眠 7.5h+、蛋白吃够，也可以快走 30 分钟。':''}休息也是训练的一部分。</p>
-    <div class="dash"></div><p style="font-size:12px;color:var(--faint)">想看动作？点上方其他训练日 →</p></div>`;
-  } else {
-    const plan=PLANS[t]; const exDone=STATE.checkins[sel]?.ex||{};
-    const _ps=planSetMeta();
-    html+=`<div class="card"><h4>${plan.name} <span class="tag">${_ps.key} 套 · ${esc(_ps.name.replace('居家 · ',''))}</span><span class="tag">居家哑铃</span><span class="tag">约 ${estMin(plan)} 分钟</span></h4><p style="font-size:12px;color:var(--ink2)">${plan.greeting}</p>
-      <button class="plan-edit-btn" id="plan-edit">${STATE.editPlan?'完成编辑 ✓':'✎ 编辑计划'}</button></div>`;
-    plan.ex.forEach((e,i)=>{
-      const finished=exDone[i];
-      const eff=(STATE.planEdits[t] && STATE.planEdits[t][i]) ? Object.assign({}, e, STATE.planEdits[t][i]) : e;
-      const ov=overloadSuggestion(t,i);
-      const editRow = STATE.editPlan
-        ? `<div class="ex-edit">组数 <input type="number" inputmode="numeric" min="1" max="10" value="${eff.sets}" data-ps="${i}"> 次数 <input type="text" value="${eff.reps}" data-pr="${i}"></div>`
-        : '';
-      const overRow = ov.next ? `<div class="ex-over">上次 <b>${ov.cur}</b>kg · 建议 <b>${ov.next}</b>kg${ov.ready?` <button data-apply="${i}">应用 +2.5</button>`:'（达标后解锁）'}</div>` : '';
-      html+=`<div class="ex"><div class="ex-top"><span class="ex-no">${i+1}</span><span class="ex-name">${e.name}</span><span class="ex-sets">${eff.sets}×${eff.reps} · 休${e.rest}s</span></div>
-        <div class="ex-muscle">${esc(e.muscle||'')}</div>
-        <div class="ex-meta"><span>节奏 ${esc(e.tempo||'-')}</span><span>呼吸 ${esc(e.breath||'-')}</span></div>
-        <div class="ex-kv"><span class="k">动作标准</span><span class="v ok">${e.standard}</span><span class="k">注意事项</span><span class="v warn">${e.note}</span></div>
-        <div class="ex-weight">起始重量 <input type="number" inputmode="decimal" value="${STATE.weights[sel]?.[i] ?? (suggKg(e)||'')}" placeholder="kg" data-w="${i}"> kg</div>
-        ${editRow}${overRow}
-        <div class="ex-video" data-v="${e.video.url}">▶ ${e.video.label}</div>
-        <button class="ex-do ${finished?'done':''}" data-ex="${i}">${finished?'已完成 ✓':'完成这组'}</button></div>`;
+  if(!TRAINING_CATALOG){body.innerHTML='<div class="card"><h4>训练数据暂不可用</h4><p>本机训练数据库未就绪，当前无法开始或修改训练。</p></div>';return;}
+  const key=selKey(),parts=key.split('-').map(Number),weekday=new Date(parts[0],parts[1]-1,parts[2]).getDay(),day=getDayType(weekday),code=planProfileForDate(key);
+  const template=day==='rest'?null:trainingTemplate('template:'+code+':'+day),active=ACTIVE_WORKOUT&&ACTIVE_WORKOUT.session.status==='ACTIVE'?ACTIVE_WORKOUT:null;
+  const workout=active&&active.session.localDateKey===key?active:null;
+  let html='<div class="card"><h4>本周安排</h4><div class="week">';
+  for(let i=0;i<7;i++){const d=new Date();d.setDate(d.getDate()-d.getDay()+i);const k=BojiData.localDateKey(d),cls=['wday'];
+    if(d.getDay()===wd())cls.push('today');if(k===key)cls.push('sel');if(isDayComplete(k))cls.push('done');
+    html+='<button class="'+cls.join(' ')+'" data-day="'+k+'"><span>'+WEEKDAY[d.getDay()][1]+'</span><span class="wd-d">'+d.getDate()+'</span><span>'+
+      (getDayType(d.getDay())==='rest'?'休':getDayType(d.getDay())[0].toUpperCase())+'</span></button>';}
+  html+='</div></div>';
+  if(active&&!workout)html+='<div class="card"><h4>有一节训练尚未结束</h4><p>'+esc(active.session.localDateKey)+' · '+active.sets.filter(x=>x.completed).length+'/'+
+    active.sets.length+' 组已保存</p><button class="btn-grad" id="resume-workout">继续这节训练</button></div>';
+  if(workout){
+    const s=workout.session,t=trainingTemplate(s.templateId),profile=TRAINING_CATALOG.equipmentProfiles.find(x=>x.profileId===s.equipmentProfileId);
+    const complete=workout.sets.length>0&&workout.sets.every(x=>x.completed);
+    html+='<div class="card"><h4>'+esc(t&&t.name||'训练进行中')+' <span class="tag">'+esc(profile&&profile.name||'器械档案')+'</span></h4><p>'+
+      esc(s.localDateKey)+' · 已保存 '+workout.sets.filter(x=>x.completed).length+'/'+workout.sets.length+' 组</p>'+
+      (s.lastCommittedAt?'<p>最近一组保存于 '+new Date(s.lastCommittedAt).toLocaleTimeString()+(s.activeRestEndAt?' · 休息计时已恢复':'')+'</p>':'')+'</div>';
+    workout.exerciseSessions.forEach((ex,i)=>{
+      const p=t&&t.exercises[i]||{},def=exerciseDefinition(ex.exerciseId),sets=workout.sets.filter(x=>x.exerciseSessionId===ex.exerciseSessionId);
+      const current=sets.some(x=>x.setId===s.currentSetId),teaching=def&&def.teaching||p.teaching||{},video=teaching.video;
+      html+='<div class="ex"><div class="ex-top"><span class="ex-no">'+(i+1)+'</span><span class="ex-name">'+esc(ex.nameSnapshot)+
+        '</span><span class="ex-sets">'+ex.targetSets+'×'+esc(ex.targetReps)+' · 休'+(p.restSeconds||60)+'s</span></div>'+
+        (def&&def.targetMuscles&&def.targetMuscles.length?'<div class="ex-muscle">'+esc(def.targetMuscles.join(' · '))+'</div>':'')+
+        '<div class="ex-kv"><span class="k">动作标准</span><span class="v ok">'+esc(teaching.form||'按舒适范围控制动作')+
+        '</span><span class="k">注意事项</span><span class="v warn">'+esc(teaching.commonErrors||teaching.safety||'如有疼痛请停止')+'</span></div>'+
+        (video&&video.sourceUrl?'<button class="ex-video" data-video-url="'+esc(video.sourceUrl)+'" data-video-label="'+esc(video.title||def.name)+'">▶ '+
+          esc(video.title||'打开动作教学')+'</button><span class="tag">'+esc(video.matchLevel||'UNVERIFIED')+' · '+esc(video.availability||'UNKNOWN')+'</span>':'')+'<div class="workout-sets">';
+      sets.forEach(set=>{
+        const enabled=!set.completed&&set.setId===s.currentSetId,weight=STATE.weights[key]&&STATE.weights[key][String(i)]||'';
+        const rirOptions=Array.from({length:11},(_,n)=>'<option value="'+n+'" '+(set.rir===n?'selected':'')+'>'+n+'</option>').join('');
+        const action=set.completed?'<span>已保存：'+(set.weightKg==null?'重量未填':set.weightKg+' kg')+' · '+set.reps+' 次</span>':
+          enabled?'<button class="ex-do" data-complete-set="'+esc(set.setId)+'">保存并完成本组</button>':'<small>按顺序完成上一组后解锁</small>';
+        html+='<div class="workout-set '+(set.completed?'set-complete':'')+'" data-set-row="'+esc(set.setId)+'"><b>第 '+(set.setIndex+1)+' 组'+(set.completed?' ✓':'')+'</b>'+
+          '<label>重量 kg <input type="number" min="0" max="2000" step="0.5" value="'+(set.weightKg==null?esc(weight):set.weightKg)+'" data-weight '+(set.completed||!enabled?'disabled':'')+'></label>'+
+          '<label>次数 <input type="number" min="1" max="1000" value="'+(set.reps==null?repsDefault(set.targetReps):set.reps)+'" data-reps '+(set.completed||!enabled?'disabled':'')+'></label>'+
+          '<details><summary>进阶记录（选填）</summary><label>RIR <select data-rir '+(set.completed||!enabled?'disabled':'')+'><option value="">未记录</option>'+rirOptions+'</select></label></details>'+action+'</div>';
+      });
+      html+='</div>';
+      if(current)html+='<button class="ex-do ghost-btn" data-progression="'+esc(ex.exerciseId)+'" data-target-reps="'+esc(ex.targetReps)+'">查看进阶建议</button>';
+      const suggestion=PROGRESSION_SUGGESTIONS.get(ex.exerciseId);
+      if(suggestion&&current)html+='<div class="ex-over">'+esc(suggestion.reason)+(suggestion.ready?' 建议重量 '+suggestion.suggestedKg+' kg。 <button data-accept-progression="'+
+        esc(ex.exerciseId)+'" data-load="'+suggestion.suggestedKg+'">采用建议</button>':'')+'</div>';
+      html+='</div>';
     });
-    html+=`<button class="btn-grad" id="day-finish" style="margin-top:4px">${done?'今日已打卡 ✓':'完成今日训练并打卡'}</button>`;
-    // P2：已有记录的“删”——可撤销当天打卡（数据仍在列表内，只是去掉打卡标记）
-    if(done) html+=`<button class="ex-do" id="day-undo" style="background:var(--glass);color:var(--faint);margin-top:8px">撤销今日打卡</button>`;
-    html+=`<p style="font-size:10.5px;color:var(--faint);margin-top:10px;line-height:1.6">${TIMESTAMP_NOTE}</p>`;
+    html+='<button class="btn-grad" id="finish-workout" '+(complete?'':'disabled')+'>'+(complete?'完成训练':'完成所有组后可结束训练')+
+      '</button><button class="ex-do ghost-btn" id="abandon-workout">放弃本次训练</button>';
+  }else if(day==='rest')html+='<div class="card"><h4>休息日 ♡</h4><p>休息也是训练的一部分。点上方其他训练日查看计划。</p></div>';
+  else{
+    const plan=PLAN_SETS[code].days[day],estimate=templateMinutes(template),override=STATE.planOverrides[key];
+    html+='<div class="card"><h4>'+esc(plan.name)+' <span class="tag">'+esc(PLAN_SETS[code].name)+'</span><span class="tag">约 '+estimate+' 分钟</span></h4>'+
+      '<p>'+esc(plan.greeting)+'</p>'+(override?'<p>已采用今日调整：'+esc(override.reason||'器械与时间限制')+'</p>':'')+
+      '<button class="btn-grad" id="start-workout" '+(active?'disabled':'')+'>'+(active?'请先完成当前训练':'开始今天训练')+'</button><div class="dash"></div><h4>调整今天</h4>'+
+      '<p>选择可用器械和时间，预览动作与依据；确认后才会应用。</p><div class="mx-grid"><label>器械档案<select id="adjust-profile">'+
+      ['A','B','C'].map(k=>'<option value="'+k+'" '+(k===code?'selected':'')+'>'+esc(PLAN_SETS[k].name)+'</option>').join('')+
+      '</select></label><label>可用时间<select id="adjust-minutes">'+[15,25,35,45,60,90].map(n=>'<option value="'+n+'" '+(n===45?'selected':'')+'>'+n+' 分钟</option>').join('')+
+      '</select></label></div><button class="ex-do" id="preview-adjustment">预览调整</button><div id="adjustment-preview"></div></div>';
   }
-  // —— 自定义动作：任何日期都能练（含休息日），组数/次数/休息/部位随你定 ——
-  const myEx=(Array.isArray(STATE.myEx) ? STATE.myEx : []).filter(x=>x && typeof x.id==='string');
-  const myDone=STATE.checkins[sel]?.ex || {};
-  let myHtml=`<div class="card"><h4>我的动作 <span class="tag">${myEx.length} 个</span><span class="tag" style="background:rgba(126,177,232,.18);color:#4a7fae">自定义</span></h4>`;
-  if(!myEx.length) myHtml+=`<p style="font-size:12px;color:var(--faint)">还没有自定义动作。把想练的动作加进来，组数、次数、休息时间都由你定。</p>`;
-  myEx.forEach(x=>{
-    const fin=!!myDone['c'+x.id];
-    myHtml+=`<div class="ex myex"><div class="ex-top"><span class="ex-no">✦</span><span class="ex-name">${esc(x.name)}</span>
-      <span class="ex-sets">${x.sets}×${esc(x.reps)} · 休${x.rest}s</span></div>
-      ${x.part?`<div class="ex-kv"><span class="k">部位</span><span class="v ok">${esc(x.part)}</span></div>`:''}
-      ${x.note?`<div class="ex-kv"><span class="k">要点</span><span class="v warn">${esc(x.note)}</span></div>`:''}
-      <div class="ex-weight">重量 <input type="number" inputmode="decimal" value="${STATE.weights[sel]?.['c'+x.id] ?? ''}" placeholder="kg" data-mw="${esc(x.id)}"> kg</div>
-      <div class="row-btns"><button class="ex-do myex-do ${fin?'done':''}" data-mex="${esc(x.id)}">${fin?'已完成 ✓':'完成这组'}</button>
-      <button class="ex-do myex-del ghost-btn" data-mdel="${esc(x.id)}">删除</button></div></div>`;
+  const customs=Array.isArray(STATE.myEx)?STATE.myEx.filter(item=>item&&typeof item.id==='string'&&typeof item.name==='string'&&item.name.trim()):[];
+  html+='<div class="card"><h4>我的动作 <span class="tag">'+customs.length+' 个</span><span class="tag">独立记录</span></h4>';
+  if(!customs.length)html+='<p>自定义动作记录与计划训练分开保存。</p>';
+  customs.forEach(item=>{
+    const done=!!(STATE.customLogs[key]&&STATE.customLogs[key][item.id]);
+    html+='<div class="ex myex"><div class="ex-top"><span class="ex-no">✦</span><span class="ex-name">'+esc(item.name)+'</span><span class="ex-sets">'+
+      item.sets+'×'+esc(item.reps)+' · 休'+item.rest+'s</span></div>'+(item.part?'<div class="ex-muscle">'+esc(item.part)+'</div>':'')+
+      (item.note?'<div class="ex-kv">'+esc(item.note)+'</div>':'')+'<button class="ex-do '+(done?'done':'')+'" data-custom-log="'+esc(item.id)+'">'+
+      (done?'已记录 ✓':'记录自定义动作')+'</button> <button class="ex-do ghost-btn" data-delete-custom="'+esc(item.id)+'">删除</button></div>';
   });
-  if(STATE.showExForm){
-    myHtml+=`<div class="myex-form">
-      <label>动作名<input id="mx-name" type="text" maxlength="16" placeholder="如：哑铃侧平举"></label>
-      <div class="mx-grid">
-        <label>部位<select id="mx-part">${['肩','胸','背','腿','臀','手臂','核心','全身'].map(p=>`<option>${p}</option>`).join('')}</select></label>
-        <label>组数<input id="mx-sets" type="number" min="1" max="10" value="3"></label>
-        <label>次数<input id="mx-reps" type="text" maxlength="8" value="12" placeholder="12 或 8-12"></label>
-        <label>休息秒<input id="mx-rest" type="number" min="10" max="300" value="60"></label>
-      </div>
-      <label>要点备注（选填）<input id="mx-note" type="text" maxlength="40" placeholder="如：肘微屈、顶峰停顿 1 秒"></label>
-      <div class="row-btns"><button class="btn-grad" id="mx-save">保存动作</button><button class="ex-do ghost-btn" id="mx-cancel">取消</button></div></div>`;
-  } else {
-    myHtml+=`<button class="btn-grad ghost-btn" id="mx-add" style="margin-top:8px">＋ 添加自定义动作</button>`;
-  }
-  myHtml+=`</div>`;
-  html+=myHtml;
-  body.innerHTML=html;
-  // 绑定
-  $$('#mod-body .wday').forEach(b=>b.onclick=()=>{ STATE.selDate=b.dataset.day; save(); renderTraining(body); });
-  // v1.2：App 内直接播放（B 站官方嵌入播放器），不再跳转外部网页
-  $$('#mod-body .ex-video').forEach(v=>v.onclick=()=>openVideo(v.dataset.v, String(v.textContent||'').replace(/^▶\s*/,'')));
-  $$('#mod-body .ex-do:not(.myex-do):not(.myex-del)').forEach(b=>b.onclick=()=>{ const i=+b.dataset.ex; STATE.checkins[sel]=STATE.checkins[sel]||{ex:{}}; const now=!STATE.checkins[sel].ex[i]; STATE.checkins[sel].ex[i]=now; save(); renderTraining(body);
-    if(now){ setMood('cheer',1500); toast('动作完成 +1 (｡･ω･｡)'); startRest((PLANS[t] && PLANS[t].ex[i] && PLANS[t].ex[i].rest) || 60); } else stopRest(); });
-  $$('#mod-body .ex-weight input[data-w]').forEach(inp=>inp.onchange=()=>{ const i=+inp.dataset.w; STATE.weights[sel]=STATE.weights[sel]||{}; STATE.weights[sel][i]=inp.value; save(); });
-  // —— 自定义动作绑定（新增 / 完成 / 删除 / 重量）——
-  const mxAdd=$('#mx-add'); if(mxAdd) mxAdd.onclick=()=>{ STATE.showExForm=true; renderTraining(body); };
-  const mxCancel=$('#mx-cancel'); if(mxCancel) mxCancel.onclick=()=>{ STATE.showExForm=false; renderTraining(body); };
-  const mxSave=$('#mx-save'); if(mxSave) mxSave.onclick=()=>{
-    const name=($('#mx-name').value||'').trim().slice(0,16);
-    if(!name){ toast('先给动作起个名字吧'); return; }
-    const sets=Math.max(1, Math.min(10, Math.round(+$('#mx-sets').value||3)));
-    const rest=Math.max(10, Math.min(300, Math.round(+$('#mx-rest').value||60)));
-    const reps=($('#mx-reps').value||'').trim().slice(0,8) || '12';
-    const part=($('#mx-part').value||'').slice(0,6);
-    const note=($('#mx-note').value||'').trim().slice(0,40);
-    if(!Array.isArray(STATE.myEx)) STATE.myEx=[];
-    if(STATE.myEx.length>=20){ toast('最多 20 个自定义动作哦'); return; }
-    STATE.myEx.push({ id:'m'+Date.now().toString(36)+Math.random().toString(36).slice(2,5), name, part, sets, reps, rest, note });
-    STATE.showExForm=false; save(); renderTraining(body); setMood('happy',1500); toast(`已添加「${name}」`);
+  if(STATE.showExForm)html+='<div class="myex-form"><label>动作名<input id="mx-name" maxlength="80"></label><label>部位<select id="mx-part">'+
+    ['肩','胸','背','腿','臀','手臂','核心','全身'].map(x=>'<option>'+x+'</option>').join('')+'</select></label><label>组数<input id="mx-sets" type="number" min="1" max="10" value="3"></label>'+
+    '<label>次数<input id="mx-reps" value="12"></label><label>休息秒<input id="mx-rest" type="number" min="10" max="600" value="60"></label>'+
+    '<label>要点备注<input id="mx-note" maxlength="240"></label><button class="btn-grad" id="mx-save">保存动作</button><button class="ex-do" id="mx-cancel">取消</button></div>';
+  else html+='<button class="btn-grad ghost-btn" id="mx-add">＋ 添加自定义动作</button>';
+  html+='</div>';body.innerHTML=html;
+  $$('#mod-body .wday').forEach(b=>b.onclick=()=>{STATE.selDate=b.dataset.day;save();PROGRESSION_SUGGESTIONS.clear();renderTraining(body);});
+  const resume=$('#resume-workout');if(resume)resume.onclick=()=>{STATE.selDate=active.session.localDateKey;save();renderTraining(body);};
+  const start=$('#start-workout');if(start)start.onclick=()=>beginWorkout(key,day,body);
+  const preview=$('#preview-adjustment');if(preview)preview.onclick=()=>{
+    PENDING_ADJUSTMENT=adjustmentProposal(key,day,$('#adjust-profile').value,+$('#adjust-minutes').value);const p=PENDING_ADJUSTMENT,out=$('#adjustment-preview');
+    let changes='';if(p.ok)p.changes.forEach(x=>changes+='<div>'+esc(x.from)+' → '+esc(x.to)+'</div>');
+    let setChanges='';if(p.ok)p.prescriptionOverrides.forEach((row,index)=>{
+      const original=p.template.exercises[index];if(row.sets<original.sets){const def=exerciseDefinition(row.exerciseId);setChanges+='<div>'+esc(def&&def.name||'动作')+
+        '：'+original.sets+' 组 → '+row.sets+' 组</div>';}
+    });
+    out.innerHTML=p.ok?'<div class="ex-over"><b>调整预览</b><ul>'+p.reasons.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul>'+
+      (changes||'<div>今天无需替换动作。</div>')+setChanges+'<button class="btn-grad" id="accept-adjustment">确认应用到今天</button></div>':'<div class="ex-over">'+esc(p.reason)+'</div>';
+    const accept=$('#accept-adjustment');if(accept)accept.onclick=async()=>{
+      if(!PENDING_ADJUSTMENT||!PENDING_ADJUSTMENT.ok||PENDING_ADJUSTMENT.date!==key||ACTIVE_WORKOUT)return;
+      const a=PENDING_ADJUSTMENT,accepted={profileCode:a.code,templateId:a.template.templateId,requestedMinutes:a.minutes,
+        prescriptionOverrides:a.prescriptionOverrides,reason:a.reasons.join('；'),acceptedAt:Date.now()};
+      const next=Object.assign({},STATE.planOverrides,{[key]:accepted});
+      const snapshot=JSON.parse(JSON.stringify(STATE));snapshot.planOverrides=next;
+      if(await saveAsync(snapshot)){STATE.planOverrides=next;PENDING_ADJUSTMENT=null;renderTraining(body);toast('今日调整已保存；训练开始后会固定在本次训练中');}
+      else toast('调整未保存，请检查本机存储后重试');
+    };
   };
-  $$('#mod-body [data-mex]').forEach(b=>b.onclick=()=>{ const id=b.dataset.mex;
-    STATE.checkins[sel]=STATE.checkins[sel]||{ex:{}};
-    const now=!STATE.checkins[sel].ex['c'+id];
-    STATE.checkins[sel].ex['c'+id]=now; save(); renderTraining(body);
-    if(now){ setMood('cheer',1500); toast('自定义动作完成 +1 (｡･ω･｡)'); } });
-  $$('#mod-body [data-mdel]').forEach(b=>b.onclick=()=>{ const id=b.dataset.mdel;
-    if(!confirm('删除这个自定义动作？')) return;
-    STATE.myEx=STATE.myEx.filter(x=>x.id!==id); save(); renderTraining(body); toast('已删除动作'); });
-  $$('#mod-body [data-mw]').forEach(inp=>inp.onchange=()=>{ const id=inp.dataset.mw;
-    STATE.weights[sel]=STATE.weights[sel]||{}; STATE.weights[sel]['c'+id]=inp.value; save(); });
-  const fin=$('#day-finish'); if(fin) fin.onclick=()=>finishDay(sel,t);
-  const und=$('#day-undo'); if(und) und.onclick=()=>{ if(!confirm('撤销今天的打卡记录？动作勾选会保留。')) return;
-    delete STATE.checkins[sel]; save(); renderTraining(body); renderHome(); toast('已撤销今日打卡'); };
-  const pe=$('#plan-edit'); if(pe) pe.onclick=()=>{ STATE.editPlan=!STATE.editPlan; save(); renderTraining(body); };
-  $$('#mod-body [data-ps]').forEach(inp=>inp.onchange=()=>{ const i=+inp.dataset.ps; STATE.planEdits[t]=STATE.planEdits[t]||{}; STATE.planEdits[t][i]=Object.assign({}, STATE.planEdits[t][i], { sets:+inp.value||3 }); save(); });
-  $$('#mod-body [data-pr]').forEach(inp=>inp.onchange=()=>{ const i=+inp.dataset.pr; STATE.planEdits[t]=STATE.planEdits[t]||{}; STATE.planEdits[t][i]=Object.assign({}, STATE.planEdits[t][i], { reps:inp.value }); save(); });
-  $$('#mod-body [data-apply]').forEach(b=>b.onclick=()=>{ const i=+b.dataset.apply; const w=STATE.exLast?.[t]?.[i]; if(w==null) return; const inp=body.querySelector(`.ex-weight input[data-w="${i}"]`); if(inp){ inp.value=roundHalf((+w)+2.5); STATE.weights[sel]=STATE.weights[sel]||{}; STATE.weights[sel][i]=inp.value; save(); toast('已应用渐进超负荷建议 +2.5kg'); } });
-  // 治理：把原本写好却没接线的组间休息计时器接上（点“完成这组”后自动倒计时）
-  $('#rt-skip') && ($('#rt-skip').onclick=stopRest);
+  $$('#mod-body [data-complete-set]').forEach(b=>b.onclick=()=>commitWorkoutSet(b,body));
+  $$('#mod-body [data-video-url]').forEach(b=>b.onclick=()=>openVideo(b.dataset.videoUrl,b.dataset.videoLabel||'动作教学'));
+  $$('#mod-body [data-progression]').forEach(b=>b.onclick=async()=>{b.disabled=true;try{
+    const result=await BojiData.suggestProgression(b.dataset.progression,b.dataset.targetReps,2.5);PROGRESSION_SUGGESTIONS.set(b.dataset.progression,result);renderTraining(body);
+  }catch(error){toast('进阶建议读取失败：'+(error.message||'本机存储不可用'));b.disabled=false;}});
+  $$('#mod-body [data-accept-progression]').forEach(b=>b.onclick=()=>{
+    const set=ACTIVE_WORKOUT&&ACTIVE_WORKOUT.sets.find(x=>x.setId===ACTIVE_WORKOUT.session.currentSetId);
+    const input=set&&body.querySelector('[data-set-row="'+set.setId+'"] [data-weight]');if(input){input.value=b.dataset.load;toast('已填入建议重量；保存本组时一并写入');}
+  });
+  const finish=$('#finish-workout');if(finish)finish.onclick=()=>completeWorkout(body);
+  const abandon=$('#abandon-workout');if(abandon)abandon.onclick=()=>abandonWorkout(body);
+  const add=$('#mx-add');if(add)add.onclick=()=>{STATE.showExForm=true;renderTraining(body);};
+  const cancel=$('#mx-cancel');if(cancel)cancel.onclick=()=>{STATE.showExForm=false;renderTraining(body);};
+  const saveCustom=$('#mx-save');if(saveCustom)saveCustom.onclick=()=>createCustomExercise(body);
+  $$('#mod-body [data-custom-log]').forEach(b=>b.onclick=async()=>{
+    STATE.customLogs[key]=STATE.customLogs[key]||{};STATE.customLogs[key][b.dataset.customLog]=!STATE.customLogs[key][b.dataset.customLog];
+    if(await saveAsync()){renderTraining(body);toast('自定义动作已单独保存');}
+  });
+  $$('#mod-body [data-delete-custom]').forEach(b=>b.onclick=async()=>{
+    const id=b.dataset.deleteCustom;if(!confirm('删除这个自定义动作？'))return;
+    try{await BojiData.deleteCustomExercise(id);STATE.myEx=STATE.myEx.filter(x=>x.id!==id);
+      TRAINING_CATALOG.customExercises=TRAINING_CATALOG.customExercises.filter(x=>x.exerciseId!==id);delete STATE.customLogs[key][id];
+      await saveAsync();renderTraining(body);toast('已删除动作');
+    }catch(error){toast('删除未保存：'+(error.message||'本机存储不可用'));}
+  });
+  const skip=$('#rt-skip');if(skip)skip.onclick=skipWorkoutRest;
+  if(workout&&workout.session.activeRestEndAt)showWorkoutRest(workout.session.activeRestEndAt);
+}
+async function beginWorkout(date,day,body){
+  if(START_INTENT_KEY||ACTIVE_WORKOUT)return;const code=planProfileForDate(date);
+  const override=STATE.planOverrides[date],templateId=override&&override.templateId||'template:'+code+':'+day;
+  const intent=BojiData.makeId('workout-intent');START_INTENT_KEY=intent;const button=$('#start-workout');if(button)button.disabled=true;
+  try{const result=await BojiData.startWorkout({templateId:templateId,idempotencyKey:intent,localDateKey:date,equipmentProfileId:'equipment:'+code,goal:'HYPERTROPHY',
+    prescriptionOverrides:override&&override.prescriptionOverrides});
+    const loaded=result.workout||result;if(!loaded||!loaded.session)throw new Error(result.status==='ACTIVE_EXISTS'?'已有一节未结束的训练':'训练没有写入本机数据库');
+    ACTIVE_WORKOUT=loaded;indexWorkoutHistory(await BojiData.listWorkoutHistory());renderTraining(body);toast('训练已保存，可以开始第一组');setMood('expect',1400);
+  }catch(error){if(button)button.disabled=false;toast('训练未开始：'+(error.message||'保存失败'));}finally{START_INTENT_KEY=null;}
+}
+async function commitWorkoutSet(button,body){
+  const id=button.dataset.completeSet,row=button.closest('[data-set-row]');if(!ACTIVE_WORKOUT||!row||ACTIVE_WORKOUT.session.currentSetId!==id)return;
+  const weight=row.querySelector('[data-weight]').value,reps=+row.querySelector('[data-reps]').value,rir=row.querySelector('[data-rir]').value;button.disabled=true;
+  try{const result=await BojiData.completeWorkoutSet(ACTIVE_WORKOUT.session.sessionId,id,{weightKg:weight,reps:reps,rir:rir===''?null:+rir});
+    if(result.status!=='COMPLETED')throw new Error(result.status);ACTIVE_WORKOUT=result.workout;indexWorkoutHistory(await BojiData.listWorkoutHistory());
+    renderTraining(body);setMood('cheer',1300);toast('本组已写入本机训练记录');
+  }catch(error){button.disabled=false;toast('本组未保存：'+(error.message||'请重试'));}
+}
+async function completeWorkout(body){
+  if(!ACTIVE_WORKOUT)return;try{const result=await BojiData.finishWorkout(ACTIVE_WORKOUT.session.sessionId);
+    if(result.status!=='COMPLETED'){toast('仍有未完成组；训练保持可恢复');return;}
+    indexWorkoutHistory(await BojiData.listWorkoutHistory());ACTIVE_WORKOUT=null;stopRestUI();setMood('cheer',3500);setTimeout(()=>setMood('proud',3000),3600);
+    $('#done-emoji').textContent='🎉';$('#done-title').textContent='今日训练完成！';$('#done-sub').textContent=result.workout.session.localDateKey+' · 所有训练组已保存';
+    $('#done-stats').innerHTML='<div class="ds"><b>'+result.workout.sets.length+'</b><span>组</span></div><div class="ds"><b>'+
+      Math.floor((result.workout.session.finishedAt-result.workout.session.startedAt)/60000)+'</b><span>分钟</span></div><div class="ds"><b>'+streak()+'</b><span>连续天</span></div>';
+    $('#done-modal').classList.add('show');navOpen('done-modal');renderTraining(body);renderHome();toast('训练已完成并保存');
+  }catch(error){toast('结束训练失败：'+(error.message||'本机存储不可用'));}
+}
+async function abandonWorkout(body){
+  if(!ACTIVE_WORKOUT||!confirm('放弃这次训练？已完成组会保留，未完成组不会算作完成。'))return;
+  try{const result=await BojiData.finishWorkout(ACTIVE_WORKOUT.session.sessionId,{action:'ABANDON'});if(result.status!=='ABANDONED')throw new Error(result.status);
+    ACTIVE_WORKOUT=null;indexWorkoutHistory(await BojiData.listWorkoutHistory());stopRestUI();renderTraining(body);toast('训练已标记为放弃；已保存组仍保留');
+  }catch(error){toast('未能保存放弃状态：'+(error.message||'本机存储不可用'));}
+}
+async function createCustomExercise(body){
+  const name=($('#mx-name').value||'').trim().slice(0,80);if(!name){toast('先给动作起个名字');return;}
+  if(STATE.myEx.length>=20){toast('最多 20 个自定义动作');return;}
+  const item={id:BojiData.makeId('exercise-custom'),name:name,part:$('#mx-part').value,sets:Math.max(1,Math.min(10,Math.round(+$('#mx-sets').value||3))),
+    reps:($('#mx-reps').value||'12').trim().slice(0,16)||'12',rest:Math.max(10,Math.min(600,Math.round(+$('#mx-rest').value||60))),note:($('#mx-note').value||'').trim().slice(0,240)};
+  try{const record=customExerciseRecord(item);await BojiData.putCustomExercise(record);STATE.myEx.push(item);STATE.customExerciseCatalogInitialized=true;
+    TRAINING_CATALOG.customExercises.push(record);STATE.showExForm=false;
+    if(await saveAsync()){renderTraining(body);setMood('happy',1500);toast('已保存自定义动作「'+name+'」');}
+    else toast('自定义动作已写入训练库，但页面状态未能同步保存');
+  }catch(error){toast('自定义动作未保存：'+(error.message||'本机存储不可用'));}
 }
 /* ---------- 组间休息计时器 ---------- */
 let restId=null;
-function startRest(sec){
-  const box=$('#rest-timer'); if(!box) return;
-  let left=Math.max(1, Math.round(+sec||60));
-  $('#rt-sec').textContent=left;
-  box.classList.remove('hidden');
-  clearInterval(restId);
-  restId=setInterval(()=>{
-    left--; $('#rt-sec').textContent=Math.max(0,left);
-    if(left<=0){ stopRest(); setMood('happy',1600); toast('休息结束，开始下一组！'); }
-  }, 1000);
+let restClearPendingAt=null;
+function stopRestUI(){ clearInterval(restId); restId=null; const box=$('#rest-timer'); if(box) box.classList.add('hidden'); }
+function showWorkoutRest(endAt){
+  const box=$('#rest-timer'),sec=$('#rt-sec');if(!box||!sec)return;
+  clearInterval(restId);box.classList.remove('hidden');
+  const tick=()=>{
+    const left=Math.max(0,Math.ceil((endAt-Date.now())/1000));sec.textContent=left;
+    if(left===0){
+      stopRestUI();
+      if(ACTIVE_WORKOUT&&ACTIVE_WORKOUT.session.activeRestEndAt===endAt&&restClearPendingAt!==endAt){
+        restClearPendingAt=endAt;
+        BojiData.clearWorkoutRest(ACTIVE_WORKOUT.session.sessionId).then(updated=>{
+          ACTIVE_WORKOUT=updated;setMood('happy',1600);toast('休息结束，开始下一组！');
+        }).catch(error=>toast('休息计时已到；恢复状态将在下次读取：'+(error.message||''))).finally(()=>{restClearPendingAt=null;});
+      }
+    }
+  };
+  tick();if(Date.now()<endAt)restId=setInterval(tick,1000);
 }
-function stopRest(){ clearInterval(restId); restId=null; const b=$('#rest-timer'); if(b) b.classList.add('hidden'); }
-
-function finishDay(sel,t){
-  const plan=PLANS[t]; const exDone=STATE.checkins[sel]?.ex||{};
-  const total=plan.ex.length; const done=Object.values(exDone).filter(Boolean).length;
-  // 记录每个动作“上次用重量”（来自 STATE.weights 的实时保存），供渐进超负荷建议使用
-  STATE.exLast[t]=STATE.exLast[t]||{};
-  plan.ex.forEach((e,i)=>{ const w=STATE.weights[sel]?.[i]; if(w!=null && w!=='') STATE.exLast[t][i]=w; });
-  if(done<total){ toast(`还有 ${total-done} 个动作没完成哦`); setMood('sad',2000); return; }
-  STATE.checkins[sel]={ex:exDone, at:Date.now()}; save();
-  setMood('cheer',3500); setTimeout(()=>setMood('proud',3000),3600);
-  $('#done-emoji').textContent='🎉'; $('#done-title').textContent='今日训练完成！';
-  $('#done-sub').textContent=`${plan.name} · 全部 ${total} 个动作达成，小练为你骄傲(★ω★)`;
-  $('#done-stats').innerHTML=`<div class="ds"><b>${total}</b><span>动作</span></div><div class="ds"><b>${estMin(plan)}</b><span>分钟</span></div><div class="ds"><b>${streak()}</b><span>连续天</span></div>`;
-  $('#done-modal').classList.add('show');
-  navOpen('done-modal');          // 入栈：返回键先关弹窗，不退出 App
-  renderHome();
-  setTimeout(()=>toast('到「数据」页给今天的训练打个分吧 (｡･ω･｡)'), 1200);
+async function skipWorkoutRest(){
+  if(!ACTIVE_WORKOUT){stopRestUI();return;}
+  try{ACTIVE_WORKOUT=await BojiData.clearWorkoutRest(ACTIVE_WORKOUT.session.sessionId);stopRestUI();
+    if($('#module')?.classList.contains('open'))renderTraining($('#mod-body'));
+    toast('休息计时已保存为跳过');
+  }catch(error){toast('跳过计时未保存：'+(error.message||'本机存储不可用'));}
 }
 
 /* ---------- 饮食 ---------- */
@@ -3954,9 +4171,15 @@ async function boot(){
   try{
     await BojiData.open();
     await BojiData.seedKnowledgeRegistry(KB.map(item=>({question:item.q, text:[item.a,item.more].filter(Boolean).join('\n\n'), scope:item.q})));
+    await BojiData.seedTrainingCatalog(await buildTrainingCatalog());
+    TRAINING_CATALOG = await BojiData.loadTrainingCatalog();
     const persisted = await BojiData.loadState();
     if(persisted) hydrateState(persisted);
+    indexWorkoutHistory(await BojiData.listWorkoutHistory());
+    ACTIVE_WORKOUT = (await BojiData.listActiveWorkouts())[0] || null;
     DATA_READY = true;
+    await hydrateCustomExercises();
+    if(ACTIVE_WORKOUT && ACTIVE_WORKOUT.session.activeRestEndAt) showWorkoutRest(ACTIVE_WORKOUT.session.activeRestEndAt);
   }catch(error){
     DATA_ERROR = `V2 数据库不可用，当前为只读临时画面：${error && error.message ? error.message : '未知存储错误'}`;
   }
