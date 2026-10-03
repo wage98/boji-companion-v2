@@ -6,9 +6,11 @@ const { JSDOM } = require('jsdom');
 const PROJ = path.join(__dirname, '..');
 const html = fs.readFileSync(path.join(PROJ, 'index.html'), 'utf8').replace('<script src="app.js"></script>', '');
 const appJs = fs.readFileSync(path.join(PROJ, 'app.js'), 'utf8');
+const appForTests = appJs.replace("document.addEventListener('DOMContentLoaded', boot);", "document.addEventListener('DOMContentLoaded', ()=>{ if(window.__TEST_V2_STATE__) hydrateState(window.__TEST_V2_STATE__); DATA_READY=true; bootUI(); });");
 
-const tk = () => { const d = new Date(); return `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`; };
-const dayKey = (offset) => { const d = new Date(); d.setDate(d.getDate() + offset); return `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`; };
+const dateKey = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+const tk = () => dateKey(new Date());
+const dayKey = (offset) => { const d = new Date(); d.setDate(d.getDate() + offset); return dateKey(d); };
 
 let pass = 0, fail = 0;
 const ok = (cond, name) => { if (cond) { pass++; console.log('PASS ' + name); } else { fail++; console.log('FAIL ' + name); } };
@@ -31,10 +33,11 @@ const seed = {
 };
 const dom = new JSDOM(html, { url: 'http://localhost/', runScripts: 'dangerously', pretendToBeVisual: true });
 const w = dom.window;
-w.localStorage.setItem('boji_v7', JSON.stringify(seed));
+w.BojiData = { localDateKey(date){ const d = date instanceof Date ? date : new Date(date == null ? Date.now() : date); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; } };
+w.__TEST_V2_STATE__ = seed;
 // 以经典脚本方式注入 app.js（严格模式下 top-level 函数仍挂到 window，let/const 经 eval 导出）
 const sc = w.document.createElement('script');
-sc.textContent = appJs;
+sc.textContent = appForTests;
 w.document.body.appendChild(sc);
 w.document.dispatchEvent(new w.Event('DOMContentLoaded'));
 w.eval('window.__S = STATE; window.__PLANS = PLANS;');
@@ -60,7 +63,7 @@ ok($('#home-stats').textContent.includes('居家哑铃'), '主页出现「居家
 // 4. 训练页标签（今天若是周日休息日，则选下一个周一验证）
 {
   const d = new Date(); d.setDate(d.getDate() + ((1 - d.getDay() + 7) % 7 || 7));
-  const monKey = `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`;
+  const monKey = dateKey(d);
   w.__S.selDate = monKey; w.renderProfile; // noop
   w.eval('renderTraining')(doc.querySelector('#mod-body'));
   ok($('#mod-body').innerHTML.includes('居家哑铃'), '训练计划卡带「居家哑铃」标签');
@@ -240,6 +243,7 @@ ok(true, 'finishDay 无异常（休息日跳过）');
     if (captured) { const buf = await captured.arrayBuffer(); const u8 = new w.Uint8Array(buf); bomOk = u8[0] === 0xEF && u8[1] === 0xBB && u8[2] === 0xBF; }
   } catch (e) { bomOk = false; }
   ok(bomOk, '回归：exportCSV 仍带 UTF-8 BOM');
+  ok(w.eval('_csvRow')(['=1+1','@SUM(A1:A2)']).includes("'=1+1") && w.eval('_csvRow')(['=1+1','@SUM(A1:A2)']).includes("'@SUM"), 'CSV 公式前缀被转为文本');
   console.log(`\n==== 结果：${pass} PASS / ${fail} FAIL ====`);
   process.exit(fail ? 1 : 0);
 })();

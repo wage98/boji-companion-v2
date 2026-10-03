@@ -3,7 +3,7 @@
    居家哑铃训练记录 App：常驻浮层桌宠 + 训练 / 饮食 / 数据 / 助手四个模块。
 
    设计约束（改动前请先读）：
-   - 纯前端单页，无构建、无框架、无后端；数据只存本机 localStorage（键 boji_v7）。
+   - V2 本地数据写入 RC 专属 IndexedDB；V1 localStorage（boji_v7）仅在用户发起导入时读取。
    - 桌宠形象、教练身份、桌面背景全部可更换，切换只换渲染数据源，不动用户数据。
    - 训练计划分 A / B 两套（有 / 无卧推椅），两套数据各自完整、互不交叉引用。
    - 所有写入走 save()：存储不可用时返回 false 并提示，绝不静默丢数据。
@@ -12,7 +12,7 @@
    历史版本流水见 docs/轮次总结.md，此处不再罗列。
    ============================================================ */
 'use strict';
-const APP_VERSION = '1.2.0';   // 语义化版本 MAJOR.MINOR.PATCH；发布规范见 docs/产品评估与开源差距清单.md
+const APP_VERSION = '2.0.0-pre.1';
 const $ = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
 const el = html => { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstChild; };
@@ -667,7 +667,7 @@ function dataReply(q){
   }
   if(/本周|这周|一周.*(练|打)|连打|坚持/.test(q) || /练了.*几次/.test(q)){
     const now=new Date(); const mon=new Date(now); mon.setDate(now.getDate()-((now.getDay()+6)%7));
-    const mk=d=>`${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`;
+    const mk=d=>BojiData.localDateKey(d);
     let days=0, sets=0;
     for(let i=0;i<7;i++){ const d=new Date(mon); d.setDate(mon.getDate()+i);
       const ck=STATE.checkins[mk(d)]; if(ck&&ck.ex){ const n=Object.values(ck.ex).filter(Boolean).length; if(n){days++; sets+=n;} } }
@@ -792,23 +792,8 @@ function dailyGoal(){
   };
 }
 
-/* ---------- 状态持久化 ---------- */
-const KEY = 'boji_v7';
-const load = () => { try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch { return {}; } };
-/* 修复：旧版 save() 没有任何异常保护。localStorage 写满 / 隐私模式 / 浏览器禁用存储时
-   会直接抛 QuotaExceededError，中断整条调用链——表现就是「点了打卡没反应、记录丢失、设置不生效」。
-   现在统一吞掉异常并返回布尔值，同时首次失败给用户明确提示（不静默丢数据）。 */
-let _saveWarned = false;
-const save = () => {
-  try{ localStorage.setItem(KEY, JSON.stringify(STATE)); return true; }
-  catch(_){
-    if(!_saveWarned){ _saveWarned = true;
-      try{ toast('本机存储写入失败（空间不足或隐私模式），本次改动没保存成功'); }catch(__){}
-    }
-    return false;
-  }
-};
-let STATE = Object.assign({
+/* ---------- V2 状态与 IndexedDB 持久化 ---------- */
+const DEFAULT_STATE = {
   profile:null, isFirstLaunch:true,
   checkins:{}, weights:{}, meals:{}, water:0, waterMl:null,
   scores:{},                                 // 每日训练评分 { feel, energy, sat, at }
@@ -822,7 +807,76 @@ let STATE = Object.assign({
   runs:[],                                   // v1.1 跑步记录 [{date,dist,ms,kcal,pts[]}]
   knowledge:{ read:{} },                     // v1.1 知识库已读标记 { 'k1':1 }
   ctxLimit:0,                                // v1.1 上下文记忆轮数上限；0=不限（限时开放）
-}, load());
+};
+let STATE = Object.assign({}, DEFAULT_STATE);
+let DATA_READY = false;
+let DATA_ERROR = null;
+let _saveWarned = false;
+let _saveQueue = Promise.resolve(true);
+let APP_INITIALIZING = false;
+function normalizeState(){
+  if(!STATE || typeof STATE !== 'object' || Array.isArray(STATE)) STATE = {};
+  STATE = Object.assign({}, DEFAULT_STATE, STATE);
+  if(!STATE.profile || typeof STATE.profile !== 'object' || Array.isArray(STATE.profile)) STATE.profile = null;
+  ['checkins','weights','meals','scores','planEdits','exLast','knowledge'].forEach(key=>{
+    if(!STATE[key] || typeof STATE[key] !== 'object' || Array.isArray(STATE[key])) STATE[key] = key === 'knowledge' ? { read:{} } : {};
+  });
+  if(!Array.isArray(STATE.myEx)) STATE.myEx = [];
+  if(!Array.isArray(STATE.bodyWeights)) STATE.bodyWeights = [];
+  if(!Array.isArray(STATE.runs)) STATE.runs = [];
+  if(!STATE.vision || typeof STATE.vision !== 'object' || Array.isArray(STATE.vision)) STATE.vision = { mode:'off', endpoint:'', token:'', model:'glm-4v-flash' };
+  if(!STATE.knowledge.read || typeof STATE.knowledge.read !== 'object') STATE.knowledge.read = {};
+  if(typeof STATE.ctxLimit !== 'number' || STATE.ctxLimit < 0) STATE.ctxLimit = 0;
+  if(STATE.waterMl == null && +STATE.water > 0) STATE.waterMl = Math.round(+STATE.water * 250);
+  if(!STATE.settings || typeof STATE.settings !== 'object' || Array.isArray(STATE.settings)) STATE.settings = { bg:'', coachName:'', coachAvatar:'' };
+  if(typeof STATE.settings.bg !== 'string') STATE.settings.bg = '';
+  if(typeof STATE.settings.coachName !== 'string') STATE.settings.coachName = '';
+  if(typeof STATE.settings.coachAvatar !== 'string') STATE.settings.coachAvatar = '';
+  if(!STATE.settings.petPhotoFit || typeof STATE.settings.petPhotoFit !== 'object') STATE.settings.petPhotoFit = { z:1, dx:0, dy:0 };
+  if(!isFinite(+STATE.settings.petPhotoFit.z) || +STATE.settings.petPhotoFit.z <= 0) STATE.settings.petPhotoFit.z = 1;
+  if(!isFinite(+STATE.settings.petPhotoFit.dx)) STATE.settings.petPhotoFit.dx = 0;
+  if(!isFinite(+STATE.settings.petPhotoFit.dy)) STATE.settings.petPhotoFit.dy = 0;
+  if(STATE.settings.petPhotoFx !== 'sticker') STATE.settings.petPhotoFx = 'natura';
+  if(['A','B','C'].indexOf(STATE.planSet) < 0) STATE.planSet = 'A';
+  if(STATE.planEdits.pump && !STATE.planEdits.core){ STATE.planEdits.core = STATE.planEdits.pump; delete STATE.planEdits.pump; }
+  if(STATE.exLast.pump && !STATE.exLast.core){ STATE.exLast.core = STATE.exLast.pump; delete STATE.exLast.pump; }
+  if(STATE.petSkin in _PET_MAP) STATE.petSkin = _PET_MAP[STATE.petSkin];
+  if(_PET_KEYS.indexOf(STATE.petSkin) < 0) STATE.petSkin = 'spiderV3';
+}
+function hydrateState(value){
+  STATE = Object.assign({}, DEFAULT_STATE, value && typeof value === 'object' && !Array.isArray(value) ? value : {});
+  normalizeState();
+}
+async function saveAsync(queuedSnapshot){
+  if(!DATA_READY){
+    if(!_saveWarned){ _saveWarned = true; try{ toast(DATA_ERROR || 'V2 本机数据尚未就绪，本次改动没有保存'); }catch(_){} }
+    return false;
+  }
+  let snapshot = queuedSnapshot;
+  try{ if(!snapshot) snapshot = JSON.parse(JSON.stringify(STATE)); }
+  catch(error){
+    if(!_saveWarned){ _saveWarned = true; try{ toast(`V2 本机保存失败：${error && error.message ? error.message : '状态无法序列化'}`); }catch(_){} }
+    return false;
+  }
+  const operation = _saveQueue.then(()=>BojiData.saveState(snapshot));
+  _saveQueue = operation.catch(error=>{
+    if(!_saveWarned){ _saveWarned = true; try{ toast(`V2 本机保存失败：${error && error.message ? error.message : '存储空间不足或不可用'}`); }catch(_){} }
+    return false;
+  });
+  return operation.then(()=>true, ()=>false);
+}
+const save = () => {
+  if(APP_INITIALIZING) return true;
+  if(!DATA_READY) return false;
+  let snapshot;
+  try{ snapshot = JSON.parse(JSON.stringify(STATE)); }
+  catch(error){
+    if(!_saveWarned){ _saveWarned = true; try{ toast(`V2 本机保存失败：${error && error.message ? error.message : '状态无法序列化'}`); }catch(_){} }
+    return false;
+  }
+  saveAsync(snapshot).catch(()=>false);
+  return true;
+};
 // 数据迁移：旧版饮水按“杯”（1杯≈250ml），一次性换算为 ml
 if(STATE.waterMl == null && STATE.water > 0) STATE.waterMl = Math.round(STATE.water * 250);
 if(!STATE.scores || typeof STATE.scores !== 'object') STATE.scores = {};
@@ -866,7 +920,7 @@ function planSetMeta(){ return PLAN_SETS[STATE.planSet] || PLAN_SETS.A; }
 function applyPlanSet(){ PLANS = planSetMeta().days; }
 
 /* ---------- 工具 ---------- */
-const todayKey = () => { const d = new Date(); return `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`; };
+const todayKey = () => BojiData.localDateKey();
 const wd = () => new Date().getDay();
 const selKey = () => STATE.selDate || todayKey();
 const estMin = plan => plan.ex.reduce((s,e)=>s + e.sets*((e.rest||60)/60) + e.sets*1.2, 0) | 0;
@@ -881,7 +935,7 @@ const suggKg = e => {
 // 仅勾选部分动作（STATE.checkins[k].ex 有 true 但无 at）不算完成，不计入连续/累计打卡。
 const isDayComplete = k => !!(STATE.checkins[k] && STATE.checkins[k].at);
 const dayCompleteCount = () => Object.keys(STATE.checkins).filter(isDayComplete).length;
-const streak = () => { let n=0; const d=new Date(); for(;;){ const k=`${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`; if(isDayComplete(k)){n++; d.setDate(d.getDate()-1);} else break; } return n; };
+const streak = () => { let n=0; const d=new Date(); for(;;){ const k=BojiData.localDateKey(d); if(isDayComplete(k)){n++; d.setDate(d.getDate()-1);} else break; } return n; };
 // 渐进超负荷：重量按 0.5kg 取整（哑铃片最小刻度）
 const roundHalf = x => Math.round((+x) * 2) / 2;
 // 计算某动作的上次重量与“建议下一级重量”（达标后 +2.5kg）
@@ -1947,7 +2001,7 @@ function renderHome(){
    改成只替换标记本身，正文原样保留。 */
 function md(s){
   return esc(s)
-    .replace(/\*\[([ABC])\]([^*]*)\*/g, (_, lv, txt) => `<span class="ev">证据等级 ${lv}</span>${txt}`)
+    .replace(/\*\[([ABC])\]([^*]*)\*/g, (_, _lv, txt) => `<span class="ev">来源待核</span>${txt}`)
     .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
 }
 function addMsg(role,text){
@@ -2318,7 +2372,7 @@ function renderTraining(body){
   const done = isDayComplete(sel);
   let html = `<div class="card"><h4>本周安排 <span class="tag">${isToday?'今天':WEEKDAY[w]}</span></h4><div class="week">`;
   for(let i=0;i<7;i++){ const dd=new Date(); dd.setDate(dd.getDate()-dd.getDay()+i);
-    const k=`${dd.getFullYear()}-${dd.getMonth()+1}-${dd.getDate()}`; const tw=dd.getDay(); const tt=getDayType(tw);
+    const k=BojiData.localDateKey(dd); const tw=dd.getDay(); const tt=getDayType(tw);
     const cls=['wday']; if(tw===wd())cls.push('today'); if(k===sel)cls.push('sel'); if(STATE.checkins[k])cls.push('done');
     html+=`<button class="${cls.join(' ')}" data-day="${k}"><span>${WEEKDAY[tw][1]}</span><span class="wd-d">${dd.getDate()}</span><span>${tt==='rest'?'休':tt[0].toUpperCase()}</span></button>`;
   }
@@ -2472,7 +2526,7 @@ function bar2(pct, cls){
 function lastMealEntries(mi){
   for(let i=1;i<=7;i++){
     const d=new Date(); d.setDate(d.getDate()-i);
-    const k=`${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`;
+    const k=BojiData.localDateKey(d);
     const arr=(STATE.meals[k]||{})[mi];
     if(Array.isArray(arr) && arr.length) return arr;
   }
@@ -2623,7 +2677,7 @@ function compressImage(file, maxPx, cb, q){
    架构：前端拍照 → 512px 压缩 → 识别服务（自建代理 或 OpenAI 兼容直连）→ 视觉大模型
         → 结构化 JSON → 二次校验 → 结果页（标注 AI 来源与置信度）→ 用户确认
    诚实边界：①需要视觉大模型 API（默认关闭，未配置时明确降级为本地匹配，不做假识别）；
-            ②Key 只存在你本机 localStorage，不上传我们的仓库；推荐走自建代理，避免 Key 暴露在前端；
+            ②Key 仅保存在当前设备的 V2 本机数据中，不上传仓库；推荐走自建代理，避免 Key 暴露在前端；
             ③模型估算仍有误差（±15~30%），结果页强制可校正，绝不盲信。
    ============================================================ */
 const VISION_PROMPT =
@@ -3227,7 +3281,7 @@ function renderData(body){
   let cells='';
   for(let i=0;i<lead;i++) cells+=`<span class="cal-day empty"></span>`;
   for(let d=1;d<=days;d++){
-    const k=`${dataMonth.y}-${dataMonth.m+1}-${d}`;
+    const k=BojiData.localDateKey(new Date(dataMonth.y, dataMonth.m, d));
     const done=isDayComplete(k); const scored=!!STATE.scores[k];
     const cls=['cal-day']; if(done)cls.push('done'); if(k===dataScoreDay)cls.push('sel'); if(k===todayKey())cls.push('today');
     cells+=`<button type="button" class="${cls.join(' ')}" data-cal="${k}"><span>${d}</span>${done?'<i>✓</i>':''}</button>`;
@@ -3258,7 +3312,7 @@ function renderData(body){
     ${scoreCard}`;
   // 近 7 日动作数：最近 7 个自然日（今天及前 6 天），每根柱子 = 当天完成的动作个数（无记录记 0）
   const base7=new Date(); base7.setHours(0,0,0,0);
-  const days7=[]; for(let i=6;i>=0;i--){ const d=new Date(base7); d.setDate(d.getDate()-i); days7.push(`${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`); }
+  const days7=[]; for(let i=6;i>=0;i--){ const d=new Date(base7); d.setDate(d.getDate()-i); days7.push(BojiData.localDateKey(d)); }
   const cnt7=k=>Object.values(STATE.checkins[k]?.ex||{}).filter(Boolean).length;
   const maxv=Math.max(1,...days7.map(cnt7));
   let bars='';
@@ -3266,7 +3320,7 @@ function renderData(body){
     bars+=`<div class="bar" style="height:${h}px"><span>${dt.getDate()}</span></div>`; });
   body.innerHTML+=`<div class="card"><h4>近 7 日动作数 <span class="tag">最近 7 天</span></h4><div class="chart">${bars}</div><p style="font-size:10.5px;color:var(--faint);margin-top:6px">统计口径：今天及前 6 个自然日，每根柱子为当天完成的动作个数（含未打卡但已勾选的动作）。</p></div>
     ${weightCardHtml()}
-    <div class="card"><h4>知识库</h4><p style="font-size:12.5px;color:var(--ink2);line-height:1.7">小练内置 <b style="color:var(--pink)">${KB.length}</b> 条带证据等级的训练/营养问答（A=系统综述 · B=权威机构 · C=专家共识）。点“聊天”随时问。</p></div>`;
+    <div class="card"><h4>知识库</h4><p style="font-size:12.5px;color:var(--ink2);line-height:1.7">小练内置 <b style="color:var(--pink)">${KB.length}</b> 条训练/营养问答。旧版证据标签尚无可核验的来源登记，相关内容已标记为“来源待核”。点“聊天”随时问。</p></div>`;
   // 绑定：月历翻页 / 选日 / 评分
   const pm=body.querySelector('[data-pm]'); if(pm) pm.onclick=()=>{ dataMonth.m--; if(dataMonth.m<0){ dataMonth.m=11; dataMonth.y--; } renderData(body); };
   const nm=body.querySelector('[data-nm]'); if(nm) nm.onclick=()=>{ dataMonth.m++; if(dataMonth.m>11){ dataMonth.m=0; dataMonth.y++; } renderData(body); };
@@ -3500,6 +3554,8 @@ function renderProfile(body){
       <div class="list-row" id="exp-json"><span class="lr-ic">💾</span>导出备份 JSON<span class="lr-ar">›</span></div>
       <div class="list-row" id="exp-csv"><span class="lr-ic">📄</span>导出训练/饮食 CSV<span class="lr-ar">›</span></div>
       <div class="list-row" id="imp-json"><span class="lr-ic">📥</span>导入 JSON 备份<span class="lr-ar">›</span></div>
+      <div class="list-row" id="imp-v1"><span class="lr-ic">↗</span>从 V1 导入本机记录<span class="lr-ar">›</span></div>
+      <p style="font-size:11px;color:var(--faint);line-height:1.6;margin:2px 0 8px">V1 数据只在你点击导入后读取，原数据不会被改写。无法确定来源的记录会列入隔离清单供复核。</p>
     </div>
     <div class="card" style="padding:6px 14px">
       <div class="list-row" id="reset-pet"><span class="lr-ic">↺</span>重置桌宠位置<span class="lr-ar">›</span></div>
@@ -3681,10 +3737,11 @@ function renderProfile(body){
   const vsOff=$('#vs-off');
   if(vsOff) vsOff.onclick=()=>{ STATE.vision={ mode:'off', endpoint:'', token:'', model:(STATE.vision&&STATE.vision.model)||'glm-4v-flash' }; save(); renderProfile(body); toast('已停用 AI 识别'); };
   $('#reset-pet').onclick=()=>{ STATE.petDock={edge:'right', off:0.62}; delete STATE.petPos; delete STATE.selDate; save(); applyDock(); toast('桌宠位置已重置'); };
-  $('#reset-all').onclick=()=>{ if(confirm('确定清空所有本地数据？')){ localStorage.removeItem(KEY); location.reload(); } };
+  $('#reset-all').onclick=async()=>{ if(confirm('确定清空 V2 本地数据？V1 记录不会被改动。')){ try{ await BojiData.clearV2Data(); location.reload(); }catch(error){ toast(`清空失败：${error.message||'存储错误'}`); } } };
   $('#exp-json') && ($('#exp-json').onclick=exportJSON);
   $('#exp-csv') && ($('#exp-csv').onclick=exportCSV);
   $('#imp-json') && ($('#imp-json').onclick=importJSON);
+  $('#imp-v1') && ($('#imp-v1').onclick=importLegacyFromBrowser);
 }
 
 /* ---------- P2 数据导出 / 导入 ---------- */
@@ -3695,11 +3752,19 @@ function downloadFile(name, mime, text){
   a.href = url; a.download = name; document.body.appendChild(a); a.click();
   setTimeout(()=>{ a.remove(); URL.revokeObjectURL(url); }, 1500);
 }
-const _csvRow = arr => arr.map(c=>`"${String(c==null?'':c).replace(/"/g,'""')}"`).join(',');
-function exportJSON(){
-  const data = JSON.stringify({ app:'训练日记', version:7, exportedAt:new Date().toISOString(), state:STATE }, null, 2);
-  downloadFile(`训练日记-备份-${todayKey()}.json`, 'application/json;charset=utf-8', data);
-  toast('已导出 JSON 备份（可留存/换机恢复）');
+const _csvCell = value => {
+  let text = String(value == null ? '' : value);
+  if(/^[\u0000-\u0020]*[=+\-@]/.test(text)) text = "'" + text;
+  return `"${text.replace(/"/g,'""')}"`;
+};
+const _csvRow = arr => arr.map(_csvCell).join(',');
+async function exportJSON(){
+  if(!await saveAsync()) return;
+  try{
+    const result = await BojiData.exportBackup();
+    downloadFile(`boji-v2-backup-${todayKey()}.json`, 'application/json;charset=utf-8', result.json);
+    toast('V2 备份已导出；备份不包含访问令牌或密码');
+  }catch(error){ toast(`备份失败：${error && error.message ? error.message : '导出错误'}`); }
 }
 function exportCSV(){
   const ckRows=[['日期','星期','计划','完成动作数','动作总数']];
@@ -3728,34 +3793,48 @@ function exportCSV(){
   downloadFile(`训练日记-记录-${todayKey()}.csv`, 'text/csv;charset=utf-8', '\ufeff' + csv);   // BOM：Excel 不乱码
   toast('已导出 CSV（打卡/重量/饮食三段）');
 }
+async function importLegacySnapshot(snapshot, sourceLabel){
+  const preflight = BojiData.preflightLegacy(snapshot);
+  if(!preflight.ok){ toast(`V1 预检未通过：${preflight.message || '数据结构无效'}`); return false; }
+  const existing = await BojiData.hasCompletedMigration();
+  if(existing){ toast('这份 V1 数据已经导入过；为避免重复覆盖，V2 未作更改'); return false; }
+  const s = preflight.summary;
+  const message = `${sourceLabel || 'V1 数据'}预检完成：\n档案 ${s.profile} 份；训练日 ${s.checkinDays} 天（其中 ${s.legacyActionIndexes} 天含无法语义映射的旧动作编号）；饮食 ${s.mealEntries} 条；体重 ${s.weightEntries} 条；跑步 ${s.runEntries} 条；自定义动作 ${s.customExercises} 个。\n${s.quarantineItems} 类记录需要隔离复核。确认后只写入 V2；V1 数据保持原样。`;
+  if(!confirm(message)) return false;
+  try{
+    const result = await BojiData.migrateLegacy(snapshot, { confirmed:true });
+    toast(result.status === 'IMPORTED' ? 'V1 记录已导入 V2，隔离项已保留供复核' : 'V1 记录已经导入过');
+    setTimeout(()=>location.reload(), 500);
+    return true;
+  }catch(error){ toast(`导入失败，V1 数据保持原样：${error && error.message ? error.message : '迁移事务已回滚'}`); return false; }
+}
+async function importLegacyFromBrowser(){
+  const result = BojiData.readLegacySnapshot();
+  if(!result.ok){ toast(result.message); return; }
+  return await importLegacySnapshot(result.snapshot, '本机 V1 数据');
+}
 function importJSON(){
   const inp = document.createElement('input');
   inp.type='file'; inp.accept='application/json,.json';
   inp.onchange=()=>{
     const f = inp.files && inp.files[0]; if(!f) return;
     const rd = new FileReader();
-    rd.onload=()=>{
+    rd.onload=async()=>{
       try{
-        const d = JSON.parse(rd.result);
-        const st = (d && d.state) ? d.state : d;
-        if(!st || typeof st !== 'object') throw new Error('bad');
-        STATE = Object.assign({
-          profile:null, isFirstLaunch:true, checkins:{}, weights:{}, meals:{}, water:0, waterMl:null,
-          scores:{},
-          petPos:null, petDock:null, petMood:'happy', lastPetTouch:Date.now(),
-          planEdits:{}, exLast:{}, editPlan:false, planSet:'A',
-        }, st);
-        if(STATE.waterMl == null && STATE.water > 0) STATE.waterMl = Math.round(STATE.water * 250);
-        if(!STATE.scores || typeof STATE.scores !== 'object') STATE.scores = {};
-        // 导入的方案键同样做校验 + pump→core 键名迁移
-        if(['A','B','C'].indexOf(STATE.planSet) < 0) STATE.planSet = 'A';   // 脏值一律回落 A
-        if(STATE.planEdits && STATE.planEdits.pump && !STATE.planEdits.core){ STATE.planEdits.core = STATE.planEdits.pump; delete STATE.planEdits.pump; }
-        if(STATE.exLast && STATE.exLast.pump && !STATE.exLast.core){ STATE.exLast.core = STATE.exLast.pump; delete STATE.exLast.pump; }
-        // 导入备份同样过一遍新字段容错（背景/教练/桌宠皮肤）
-        if(!STATE.settings || typeof STATE.settings !== 'object') STATE.settings = { bg:'', coachName:'', coachAvatar:'' };
-        if(['nahida','spiderV1','spiderV2','spiderV3','official','photo'].indexOf(STATE.petSkin)<0) STATE.petSkin='spiderV3';
-        save(); toast('导入成功，正在重载…'); setTimeout(()=>location.reload(), 700);
-      }catch(_){ toast('这不是有效的备份 JSON 文件'); }
+        if(f.size > BojiData.MAX_BACKUP_BYTES) throw new Error('文件大于 32 MiB');
+        const text = await f.text();
+        const validation = BojiData.validateBackup(text);
+        if(!validation.ok){
+          const value = JSON.parse(text);
+          const legacy = value && value.state && typeof value.state === 'object' ? value.state : value;
+          await importLegacySnapshot(legacy, '所选 V1 备份');
+          return;
+        }
+        const rows = Object.entries(validation.preview.incomingCounts).filter(([,count])=>count).map(([name,count])=>`${name}: ${count}`).join('\n') || '空数据集';
+        if(!confirm(`V2 备份预检通过。\n${rows}\n\n恢复将先保存不可变的恢复前快照，再事务性替换 V2 本地记录。确认恢复？`)) return;
+        await BojiData.restoreBackup(text, { confirmed:true });
+        toast('V2 备份已恢复，正在重新载入…'); setTimeout(()=>location.reload(), 600);
+      }catch(error){ toast(`备份未导入：${error && error.message ? error.message : '文件无效或事务回滚'}`); }
     };
     rd.readAsText(f);
   };
@@ -3781,8 +3860,15 @@ function bilibiliEmbed(url){
   return 'https://player.bilibili.com/player.html?bvid=' + m[1] +
          '&page=1&high_quality=1&danmaku=0&autoplay=1&as_wide=1';
 }
+let localVideoObjectUrl = null;
+function releaseLocalVideoObjectUrl(){
+  if(!localVideoObjectUrl) return;
+  try{ URL.revokeObjectURL(localVideoObjectUrl); }catch(_){}
+  localVideoObjectUrl = null;
+}
 function openVideo(url, label){
   try{
+    releaseLocalVideoObjectUrl();
     const pop = $('#video-pop'); if(!pop) return;
     const u = String(url || '');
     const t = $('#vpop-title'); if(t) t.textContent = label || '动作示范';
@@ -3801,6 +3887,7 @@ function openVideo(url, label){
 }
 function closeVideo(){
   try{
+    releaseLocalVideoObjectUrl();
     const pop = $('#video-pop'); if(!pop) return;
     const stage = $('#vpop-stage'); if(stage) stage.innerHTML = '';   // 卸载 iframe/video，释放解码资源
     pop.classList.remove('show'); navUIClose('video-pop'); voiceSync();
@@ -3812,8 +3899,10 @@ function pickLocalVideo(){
     const inp = document.createElement('input'); inp.type='file'; inp.accept='video/*';
     inp.onchange=()=>{ const f = inp.files && inp.files[0]; if(!f) return;
       const stage = $('#vpop-stage'); if(!stage) return;
+      releaseLocalVideoObjectUrl();
       const v = document.createElement('video');
-      v.src = URL.createObjectURL(f); v.controls = true; v.autoplay = true; v.playsInline = true;
+      localVideoObjectUrl = URL.createObjectURL(f);
+      v.src = localVideoObjectUrl; v.controls = true; v.autoplay = true; v.playsInline = true;
       stage.innerHTML = ''; stage.appendChild(v);
       const t = $('#vpop-title'); if(t) t.textContent = String(f.name || '本机视频').slice(0,40);
       const tip = $('#vpop-tip'); if(tip) tip.textContent = '正在播放你手机里的视频（离线可用，不上传、不占仓库）。';
@@ -3858,13 +3947,33 @@ function prewarmAssets(){
   }catch(_){}
   list.forEach(src=>{ try{ const i = new Image(); i.decoding = 'async'; i.src = src; }catch(_){} });
 }
-function boot(){
+let APP_BOOTED = false;
+async function boot(){
+  if(APP_BOOTED) return;
+  APP_BOOTED = true;
+  try{
+    await BojiData.open();
+    await BojiData.seedKnowledgeRegistry(KB.map(item=>({question:item.q, text:[item.a,item.more].filter(Boolean).join('\n\n'), scope:item.q})));
+    const persisted = await BojiData.loadState();
+    if(persisted) hydrateState(persisted);
+    DATA_READY = true;
+  }catch(error){
+    DATA_ERROR = `V2 数据库不可用，当前为只读临时画面：${error && error.message ? error.message : '未知存储错误'}`;
+  }
+  bootUI();
+}
+function bootUI(){
   /* ---- ① 首屏关键路径：只做「必须立刻看得见」的事 ---- */
-  applyWallpaper(); applyCoachIdentity();
-  applyPlanSet();                    // 按已选方案挂载训练日数据（A 有卧推椅 / B 无卧推椅 / C 健身房）
-  renderHome(); initPet();
-  hideBoot();                        // 首屏已成型 → 立刻收启动画面（不再转圈）
-  bindUI();                          // 事件绑定很轻，随首屏完成，保证点得动
+  APP_INITIALIZING = true;
+  try{
+    applyWallpaper(); applyCoachIdentity();
+    applyPlanSet();                    // 按已选方案挂载训练日数据（A 有卧推椅 / B 无卧推椅 / C 健身房）
+    renderHome(); initPet();
+    hideBoot();                        // 首屏已成型 → 立刻收启动画面（不再转圈）
+    bindUI();                          // 事件绑定很轻，随首屏完成，保证点得动
+  }finally{
+    APP_INITIALIZING = false;
+  }
   /* ---- ② 非关键：下一帧 / 空闲再做，避免拖慢首屏 ---- */
   const later = ()=>{ showOnboard(); prewarmAssets(); };
   if(typeof requestIdleCallback === 'function') requestIdleCallback(later, { timeout: 600 });
@@ -3877,6 +3986,7 @@ function boot(){
   setInterval(renderHome, 30000);
   // 5 分钟后若未打卡，桌宠委屈提醒（仅今日且未打卡）
   setTimeout(()=>{ if(!STATE.checkins[todayKey()] && getDayType(wd())!=='rest') setMood('sad',6000); }, 300000);
+  if(DATA_ERROR) toast(DATA_ERROR);
 }
 /* 事件绑定集中一处（首屏后调用；抽出便于 boot 保持精简） */
 function bindUI(){
@@ -3897,5 +4007,6 @@ function bindUI(){
     if(document.hidden){ petRoundBubble('bye'); voicePause(); }
     else { petWake(); if(!$('#pet').classList.contains('mood-sleep')){ petGreet(); setMood('wave', 2200); } voiceResume(); }
   });
+  window.addEventListener('pagehide', releaseLocalVideoObjectUrl);
 }
 document.addEventListener('DOMContentLoaded', boot);

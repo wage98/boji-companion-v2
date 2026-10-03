@@ -5,6 +5,7 @@ const { JSDOM } = require('jsdom');
 const PROJ = path.join(__dirname, '..');
 const HTML = fs.readFileSync(path.join(PROJ, 'index.html'), 'utf8').replace('<script src="app.js"></script>', '');
 const APP = fs.readFileSync(path.join(PROJ, 'app.js'), 'utf8');
+const APP_FOR_TESTS = APP.replace("document.addEventListener('DOMContentLoaded', boot);", "document.addEventListener('DOMContentLoaded', ()=>{ if(window.__TEST_V2_STATE__) hydrateState(window.__TEST_V2_STATE__); DATA_READY=true; bootUI(); });");
 
 let pass = 0, fail = 0;
 const results = [];
@@ -16,9 +17,13 @@ function check(name, fn) {
 function boot(raw) {
   const dom = new JSDOM(HTML, { url: 'http://localhost/', runScripts: 'dangerously', pretendToBeVisual: true });
   const w = dom.window;
-  if (raw !== null) w.localStorage.setItem('boji_v7', raw);
+  w.BojiData = { localDateKey(date){ const d = date instanceof Date ? date : new Date(date == null ? Date.now() : date); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; } };
+  if (raw !== null) {
+    try { w.__TEST_V2_STATE__ = JSON.parse(raw); }
+    catch (_) { w.localStorage.setItem('boji_v7', raw); }
+  }
   const sc = w.document.createElement('script');
-  sc.textContent = APP;
+  sc.textContent = APP_FOR_TESTS;
   w.document.body.appendChild(sc);
   w.document.dispatchEvent(new w.Event('DOMContentLoaded'));
   w.eval('window.__S = STATE; window.__KB = KB; window.__CTX = CTX;');
@@ -27,6 +32,7 @@ function boot(raw) {
   return w;
 }
 const J = o => JSON.stringify(o);
+const dateKey = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 
 /* ---------- A. 脏数据（localStorage 被写坏） ---------- */
 check('A1 localStorage 存非 JSON 字符串', () => boot('这不是JSON').document.querySelector('#home-stats') !== null);
@@ -82,7 +88,7 @@ check('B7 导入非法 JSON 不崩', () => { const w = boot(J({ profile: { weigh
 check('B8 未打卡日期点评分仅提示不写入', () => { const w = boot(J({ profile: { weight: 70 }, checkins: {} })); w.goModule('data');
   const cell = w.document.querySelector('[data-cal]'); w.__click(cell);
   return w.document.querySelector('#score-save') === null && Object.keys(w.__S.scores).length === 0; });
-check('B9 评分为空点保存仅提示', () => { const d = new Date(); const k = `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`;
+check('B9 评分为空点保存仅提示', () => { const d = new Date(); const k = dateKey(d);
   const w = boot(J({ profile: { weight: 70 }, checkins: { [k]: { ex: { 0: true } } } })); w.goModule('data');
   w.__click(w.document.querySelector('#score-save')); return Object.keys(w.__S.scores).length === 0; });
 
@@ -180,7 +186,7 @@ async function asyncChecks() {
     const q = w4.document.querySelector('#fe-q');
     check('D5 在线条目按克计（默认 100g）', () => +q.value === 100);
     w4.__click(w4.document.querySelector('#fe-add'));
-    const key = new Date(); const tk = `${key.getFullYear()}-${key.getMonth()+1}-${key.getDate()}`;
+    const key = new Date(); const tk = dateKey(key);
     const rec = (w4.__S.meals[tk] || {})[1] || [];
     check('D6 在线条目写入且宏量按 100g 换算', () => rec.length === 1 && Math.abs(rec[0].p - 31) < 0.2 && Math.abs(rec[0].f - 3.6) < 0.2);
   }
@@ -221,7 +227,7 @@ check('E10 极端输入（1 万字符）不崩', () => { const w = boot(J({ prof
 
 /* ---------- F. 回归：v7.4/v7.5 关键链路未回退 ---------- */
 check('F1 返回键层栈仍在', () => { const w = boot(J({ profile: { weight: 70 } })); w.goModule('training'); w.navUIClose('module'); return !w.document.querySelector('#module').classList.contains('open'); });
-check('F2 月历打卡标记：完成打卡（含 at）才显示 ✓，部分勾选不算', () => { const d = new Date(); const k = `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`;
+check('F2 月历打卡标记：完成打卡（含 at）才显示 ✓，部分勾选不算', () => { const d = new Date(); const k = dateKey(d);
   const w1 = boot(J({ profile: { weight: 70 }, checkins: { [k]: { ex: { 0: true }, at: Date.now() } } })); w1.goModule('data');
   const fullDone = w1.document.querySelectorAll('#mod-body .cal-day.done').length === 1;
   const w2 = boot(J({ profile: { weight: 70 }, checkins: { [k]: { ex: { 0: true } } } })); w2.goModule('data');
@@ -232,7 +238,7 @@ check('F4 组间休息计时器可启动与跳过', () => { const w = boot(J({ p
   const shown = !w.document.querySelector('#rest-timer').classList.contains('hidden');
   w.stopRest(); return shown && w.document.querySelector('#rest-timer').classList.contains('hidden'); });
 check('F5 时间戳出处说明已接上', () => { const w = boot(J({ profile: { weight:70 } })); w.goModule('training'); return w.document.querySelector('#mod-body').textContent.indexOf('时间戳取自') >= 0 || new Date().getDay() === 0; });
-check('F6 打卡口径：仅完成全部动作并打卡（at）才计成功；部分勾选不计入连续/累计', () => { const d = new Date(); const k = `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`;
+check('F6 打卡口径：仅完成全部动作并打卡（at）才计成功；部分勾选不计入连续/累计', () => { const d = new Date(); const k = dateKey(d);
   const w = boot(J({ profile: { weight: 70 }, checkins: { [k]: { ex: { 0: true } } } }));
   return w.eval('isDayComplete')(k) === false && w.eval('dayCompleteCount')() === 0 && w.eval('streak')() === 0; });
 
@@ -275,7 +281,7 @@ check('G11 热量覆盖 99999 被夹取到 5000', () => { const w = boot(J({ pro
   w.__click(w.document.querySelector('#food-hits [data-hit]'));
   const k = w.document.querySelector('#fe-kfix'); k.value = '99999'; w.__input(k);
   return w.document.querySelector('#fe-kfix').value === '5000'; });
-check('G12 单份热量 >4000 时确认添加被拦截（结果二次校验）', () => { const d = new Date(); const tk = `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+check('G12 单份热量 >4000 时确认添加被拦截（结果二次校验）', () => { const d = new Date(); const tk = dateKey(d);
   const w = boot(J({ profile: { weight: 70 } })); w.goModule('diet');
   w.openFoodSheet(0, w.document.querySelector('#mod-body'), null);
   w.__click(w.document.querySelector('#food-hits [data-hit]'));
@@ -324,7 +330,7 @@ check('H6 logWeight 同日覆盖、跨日追加且按日期排序', () => {
   const lw = w.eval('logWeight');
   lw(69.5);                                     // 今日
   const arr = w.__S.bodyWeights;
-  const today = (() => { const d = new Date(); return `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`; })();
+  const today = dateKey(new Date());
   const dv = w.eval('dateVal');
   let sorted = true; for (let i = 1; i < arr.length; i++) if (dv(arr[i].d) < dv(arr[i-1].d)) sorted = false;
   return sorted && arr.filter(x => x.d === today).length === 1 && arr.filter(x => x.d === today)[0].w === 69.5;
@@ -400,7 +406,7 @@ check('H13 myEx 脏数据（非数组 / 缺 id 项）不影响训练页渲染', 
   return Array.isArray(w1.__S.myEx) && w1.__S.myEx.length === 0 && w2.document.querySelector('#mx-add') !== null;
 });
 check('H14 体重录入越界被拒绝（25 / 500 / 空）', () => {
-  const d = new Date(); const tk = `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`;
+  const d = new Date(); const tk = dateKey(d);
   const w = boot(J({ profile: { weight: 70 } })); w.goModule('data');
   const inp = w.document.querySelector('#wt-in');
   inp.value = '25'; w.__click(w.document.querySelector('#wt-add'));
@@ -548,7 +554,7 @@ function v79Checks() {
   // I9/I10 一键复制上一餐
   {
     const yst = new Date(); yst.setDate(yst.getDate() - 1);
-    const yk = yst.getFullYear() + '-' + (yst.getMonth() + 1) + '-' + yst.getDate();
+    const yk = dateKey(yst);
     const w = boot(J({ profile: { weight: 70 },
       meals: { [yk]: { 0: [{ n:'鸡胸', p:35, c:0, f:3, q:1, photo:'data:image/jpeg;base64,AAAA' }] } } }));
     w.goModule('diet');
@@ -848,9 +854,9 @@ function v80Checks() {
   {
     const w = boot(J({ profile: { weight: 70 } }));
     const md = w.eval('md');
-    check('L9 助手回答不再吞掉证据正文（星级标记后的说明文本须保留）', () => {
+    check('L9 助手保留知识正文并将无来源登记的旧证据标签降级', () => {
       const out = md('先降重量。\n*[B] 证据：NSCA 建议肩胛稳定是卧推安全前提*');
-      return out.indexOf('证据等级 B') >= 0 && out.indexOf('NSCA 建议肩胛稳定是卧推安全前提') >= 0;
+      return out.indexOf('来源待核') >= 0 && out.indexOf('证据等级 B') < 0 && out.indexOf('NSCA 建议肩胛稳定是卧推安全前提') >= 0;
     });
     check('L10 教练头像预设 SVG → data URI（旧版直接当 img src 会渲染成破图）', () => {
       w.__S.settings.coachAvatar = 'dog1';
@@ -1161,6 +1167,24 @@ function v120Checks() {
       let okClose = true;
       try { w.eval('closeVideo')(); } catch (e) { okClose = false; }
       return okOpen && okClose && w.document.getElementById('vpop-stage').innerHTML === '';
+    });
+    check('W5 本地视频 Object URL 在替换、关闭与页面销毁时释放', () => {
+      const revoked = [];
+      let created = 0;
+      w.URL.createObjectURL = () => `blob:boji-${++created}`;
+      w.URL.revokeObjectURL = url => revoked.push(url);
+      w.HTMLInputElement.prototype.click = function(){
+        Object.defineProperty(this, 'files', { configurable: true, value: [new w.File(['clip'], `clip-${created + 1}.mp4`)] });
+        this.onchange();
+      };
+      w.eval('pickLocalVideo')();
+      w.eval('pickLocalVideo')();
+      const replaced = revoked.includes('blob:boji-1');
+      w.eval('closeVideo')();
+      const closed = revoked.includes('blob:boji-2');
+      w.eval('pickLocalVideo')();
+      w.dispatchEvent(new w.Event('pagehide'));
+      return replaced && closed && revoked.includes('blob:boji-3');
     });
   }
   // —— ④ 底部导航 ——

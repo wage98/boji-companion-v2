@@ -2,7 +2,7 @@
 const { spawnSync } = require('child_process');
 const path = require('path');
 const NODE = process.execPath;
-const files = ['selfcheck-functional.js', 'selfcheck-attack.js'];
+const files = ['selfcheck-functional.js', 'selfcheck-attack.js', 'data-layer-check.js'];
 const projectRoot = path.join(__dirname, '..');
 
 // Generated eval artifacts are ignored by Git. Build them as an explicit,

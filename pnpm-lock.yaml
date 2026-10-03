@@ -8,6 +8,9 @@ importers:
 
   .:
     devDependencies:
+      fake-indexeddb:
+        specifier: 6.2.4
+        version: 6.2.4
       jsdom:
         specifier: 28.1.0
         version: 28.1.0
@@ -153,6 +156,10 @@ packages:
   entities@8.1.0:
     resolution: {integrity: sha512-kxL7msIffSuh9aaFAMD7rxAIuTRMAHMeBtgHW2yUdWw732ZNh4MehkF2gdjvtdmikkaIP9bFDDJOPlsvm7avrA==}
     engines: {node: '>=20.19.0'}
+
+  fake-indexeddb@6.2.4:
+    resolution: {integrity: sha512-INKeIKEtSViN4yVtEWEUqbsqmaIy7Ls+MfU0yxQVXg67pOJ/sH1ZxcVrP8XrKULUFohcPD9gnmym+qBfEybACw==}
+    engines: {node: '>=18'}
 
   find-up@4.1.0:
     resolution: {integrity: sha512-PpOwAdQ/YlXQ2vj8a3h8IipDuYRi3wceVQQGYWxNINccq40Anw7BlsEXCMbt1Zt+OLA6Fq9suIpIWD0OsnISlw==}
@@ -451,6 +458,8 @@ snapshots:
   emoji-regex@8.0.0: {}
 
   entities@8.1.0: {}
+
+  fake-indexeddb@6.2.4: {}
 
   find-up@4.1.0:
     dependencies:
