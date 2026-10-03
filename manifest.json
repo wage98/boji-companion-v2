@@ -1,6 +1,7 @@
 {
-  "name": "Boji Companion V2",
-  "short_name": "Boji",
+  "id": "./",
+  "name": "Boji Companion V2 RC",
+  "short_name": "Boji RC",
   "description": "Local-first training companion for workouts, meals, running, and progress.",
   "lang": "zh-CN",
   "start_url": "./",

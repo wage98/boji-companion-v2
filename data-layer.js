@@ -3,7 +3,14 @@
 (function (root) {
   'use strict';
 
-  const DB_NAME = 'boji-companion-v2-rc';
+  const RELEASE_CONFIG = root.BOJI_RELEASE_CONFIG || {
+    channel: 'rc', indexedDbName: 'boji-companion-v2-rc', cachePrefix: 'boji-v2-rc-'
+  };
+  const RELEASE_CHANNEL = RELEASE_CONFIG.channel === 'prod' ? 'prod' : 'rc';
+  const RELEASE_CACHE_PREFIX = `boji-v2-${RELEASE_CHANNEL}-`;
+  const DB_NAME = RELEASE_CONFIG.indexedDbName === `boji-companion-v2-${RELEASE_CHANNEL}`
+    ? RELEASE_CONFIG.indexedDbName
+    : `boji-companion-v2-${RELEASE_CHANNEL}`;
   const DB_VERSION = 2;
   const LEGACY_KEY = 'boji_v7';
   const MAX_BACKUP_BYTES = 32 * 1024 * 1024;
@@ -20,9 +27,9 @@
   const PRODUCT_STORES = Object.freeze(['exercises', 'programs', 'templates', 'equipmentProfiles', 'knowledgeClaims', 'knowledgeSources']);
   const USER_STORES = Object.keys(STORE_KEYS).filter(name => !['snapshots', 'metadata'].includes(name) && !PRODUCT_STORES.includes(name));
   const VERSION = Object.freeze({
-    PRODUCT_VERSION: '2.0.0-pre.3',
+    PRODUCT_VERSION: '2.0.0-pre.4',
     SCHEMA_VERSION: 2,
-    APP_CACHE_VERSION: 'boji-v2-rc-3',
+    APP_CACHE_VERSION: `${RELEASE_CACHE_PREFIX}3`,
     FEATURE_MANIFEST_VERSION: 2,
     EXERCISE_DATA_VERSION: 2,
     KNOWLEDGE_VERSION: 1
@@ -158,12 +165,20 @@
       let tx;
       try { tx = db.transaction(stores, mode); }
       catch (error) { reject(error); return; }
+      const trackedCommit = mode === 'readwrite' && typeof root.__BOJI_COMMIT_HOOK === 'function';
+      if (trackedCommit) { try { root.__BOJI_COMMIT_HOOK('start'); } catch (_) {} }
+      let commitClosed = false;
+      const closeCommit = () => {
+        if (!trackedCommit || commitClosed) return;
+        commitClosed = true;
+        try { root.__BOJI_COMMIT_HOOK('end'); } catch (_) {}
+      };
       let value;
       let workError = null;
       try { value = work(tx); }
       catch (error) { workError = error; try { tx.abort(); } catch (_) {} }
-      tx.oncomplete = () => workError ? reject(workError) : resolve(value);
-      tx.onabort = () => reject(workError || tx.error || new Error('IndexedDB transaction aborted'));
+      tx.oncomplete = () => { closeCommit(); workError ? reject(workError) : resolve(value); };
+      tx.onabort = () => { closeCommit(); reject(workError || tx.error || new Error('IndexedDB transaction aborted')); };
       tx.onerror = () => { if (!workError) workError = tx.error || new Error('IndexedDB transaction failed'); };
     }));
   }
@@ -806,9 +821,33 @@
     const sessions = await readAll(db, 'sessions');
     return Promise.all(sessions.sort((a,b)=>(b.startedAt||0)-(a.startedAt||0)).map(row => loadWorkoutSession(row.sessionId)));
   }
+  async function claimWorkoutOwnership(sessionId, ownerId, options) {
+    if (typeof sessionId !== 'string' || !sessionId || typeof ownerId !== 'string' || !ownerId) {
+      throw new TypeError('Workout ownership needs a session and a tab owner id.');
+    }
+    const takeover = !!(options && options.takeover);
+    const result = { status: 'PENDING', sessionId, ownerId };
+    await transaction('sessions', 'readwrite', tx => {
+      const store = tx.objectStore('sessions'), request = store.get(sessionId);
+      request.onsuccess = () => {
+        const session = request.result;
+        if (!session) { result.status = 'NOT_FOUND'; return; }
+        if (session.status !== 'ACTIVE') { result.status = 'SESSION_NOT_ACTIVE'; return; }
+        if (session.ownerTabId && session.ownerTabId !== ownerId && !takeover) {
+          result.status = 'OWNED_ELSEWHERE'; result.currentOwnerId = session.ownerTabId; return;
+        }
+        const claimedAt = now();
+        store.put(Object.assign({}, session, { ownerTabId: ownerId, ownerClaimedAt: claimedAt, updatedAt: claimedAt }));
+        result.status = 'CLAIMED'; result.currentOwnerId = ownerId;
+      };
+      request.onerror = () => { try { tx.abort(); } catch (_) {} };
+    });
+    if (result.status === 'CLAIMED' || result.status === 'OWNED_ELSEWHERE') result.workout = await loadWorkoutSession(sessionId);
+    return result;
+  }
   async function startWorkout(input) {
     const spec = clone(input || {});
-    if (!isObject(spec) || typeof spec.templateId !== 'string' || typeof spec.idempotencyKey !== 'string' || !spec.idempotencyKey) throw new TypeError('Workout start needs a templateId and idempotency key.');
+    if (!isObject(spec) || typeof spec.templateId !== 'string' || typeof spec.idempotencyKey !== 'string' || !spec.idempotencyKey || typeof spec.ownerId !== 'string' || !spec.ownerId) throw new TypeError('Workout start needs a templateId, idempotency key and tab owner id.');
     if (!/^\d{4}-\d{2}-\d{2}$/.test(spec.localDateKey || '')) throw new TypeError('Workout start needs a canonical localDateKey.');
     const catalog = await loadTrainingCatalog();
     const template = catalog.templates.find(row => row.templateId === spec.templateId);
@@ -853,6 +892,7 @@
       goal: spec.goal || program.goal || 'HYPERTROPHY', localDateKey: spec.localDateKey,
       planSnapshot: prescriptions.map(row => ({ exerciseId: row.exerciseId, sets: row.sets, reps: row.reps, restSeconds: row.restSeconds })),
       timezoneContext: timezoneContext(createdAt), status: 'ACTIVE', startedAt: createdAt,
+      ownerTabId: spec.ownerId, ownerClaimedAt: createdAt,
       updatedAt: createdAt, currentExerciseSessionId: exerciseSessions[0].exerciseSessionId,
       currentSetId: sets[0].setId, activeRestStartedAt: null, activeRestEndAt: null,
       lastCommittedAt: null, lastCommittedSetId: null
@@ -882,7 +922,7 @@
     if (outcome.status === 'CREATED') return loadWorkoutSession(sessionId);
     return Object.assign(outcome, { workout: await loadWorkoutSession(outcome.sessionId) });
   }
-  async function completeWorkoutSet(sessionId, setId, input) {
+  async function completeWorkoutSet(sessionId, setId, input, ownerId) {
     const values = isObject(input) ? input : {};
     const reps = Number(values.reps);
     const weightKg = values.weightKg == null || values.weightKg === '' ? null : Number(values.weightKg);
@@ -903,6 +943,7 @@
         const session = sessionReq.result, set = setReq.result;
         if (!session || !set || set.sessionId !== sessionId) { result.status = 'NOT_FOUND'; return; }
         if (session.status !== 'ACTIVE') { result.status = 'SESSION_NOT_ACTIVE'; return; }
+        if (typeof ownerId !== 'string' || !ownerId || session.ownerTabId !== ownerId) { result.status = 'NOT_OWNER'; return; }
         if (set.completed) { result.status = 'ALREADY_COMPLETED'; result.completedAt = set.completedAt; return; }
         if (session.currentSetId && session.currentSetId !== setId) { result.status = 'OUT_OF_ORDER'; return; }
         set.weightKg = weightKg; set.reps = reps; set.rir = rir;
@@ -920,9 +961,10 @@
       };
       [sessionReq, setReq, allReq].forEach(request => { request.onsuccess = proceed; request.onerror = () => { try { tx.abort(); } catch (_) {} }; });
     });
+    result.commitCompletedAtPerformance = root.performance && typeof root.performance.now === 'function' ? root.performance.now() : null;
     return Object.assign(result, { workout: await loadWorkoutSession(sessionId) });
   }
-  async function finishWorkout(sessionId, options) {
+  async function finishWorkout(sessionId, options, ownerId) {
     const opts = options || {};
     const result = { status: 'PENDING' };
     await transaction(['sessions', 'setRecords'], 'readwrite', tx => {
@@ -935,6 +977,7 @@
         const session = sessionReq.result;
         if (!session) { result.status = 'NOT_FOUND'; return; }
         if (session.status !== 'ACTIVE') { result.status = 'ALREADY_FINISHED'; return; }
+        if (typeof ownerId !== 'string' || !ownerId || session.ownerTabId !== ownerId) { result.status = 'NOT_OWNER'; return; }
         const ownSets = allReq.result.filter(row => row.sessionId === sessionId);
         const complete = ownSets.length > 0 && ownSets.every(row => row.completed === true);
         if (!complete && opts.action !== 'ABANDON') { result.status = 'INCOMPLETE'; result.incompleteSetCount = ownSets.filter(row => !row.completed).length; return; }
@@ -949,14 +992,15 @@
     if (['COMPLETED', 'ABANDONED', 'ALREADY_FINISHED'].includes(result.status)) result.workout = await loadWorkoutSession(sessionId);
     return result;
   }
-  async function clearWorkoutRest(sessionId) {
+  async function clearWorkoutRest(sessionId, ownerId) {
     const updatedAt=now();
+    let cleared = false;
     await transaction('sessions','readwrite',tx=>{
       const store=tx.objectStore('sessions'),request=store.get(sessionId);
-      request.onsuccess=()=>{ const row=request.result; if(row&&row.status==='ACTIVE') store.put(Object.assign({},row,{activeRestStartedAt:null,activeRestEndAt:null,updatedAt})); };
+      request.onsuccess=()=>{ const row=request.result; if(row&&row.status==='ACTIVE'&&typeof ownerId==='string'&&row.ownerTabId===ownerId){store.put(Object.assign({},row,{activeRestStartedAt:null,activeRestEndAt:null,updatedAt}));cleared=true;} };
       request.onerror=()=>{ try{ tx.abort(); }catch(_){} };
     });
-    return loadWorkoutSession(sessionId);
+    return cleared ? loadWorkoutSession(sessionId) : null;
   }
   async function suggestProgression(exerciseId, targetReps, equipmentIncrementKg) {
     const allSets = await readAll(await open(), 'setRecords');
@@ -1181,12 +1225,12 @@
     return claims.length;
   }
   const api = Object.freeze({
-    DB_NAME, DB_VERSION, VERSION, PROVENANCE, STORE_KEYS, PRODUCT_STORES, USER_STORES, MAX_BACKUP_BYTES,
+    DB_NAME, DB_VERSION, VERSION, RELEASE_CHANNEL, PROVENANCE, STORE_KEYS, PRODUCT_STORES, USER_STORES, MAX_BACKUP_BYTES,
     localDateKey, timezoneContext, makeId, canonical, sha256, open, saveState, loadState,
     readLegacySnapshot, parseLegacyValue, preflightLegacy, migrateLegacy, hasCompletedMigration,
     exportBackup, validateBackup, restoreBackup, counts, clearV2Data, validateDomainRecord,
     seedTrainingCatalog, loadTrainingCatalog, putCustomExercise, deleteCustomExercise, loadWorkoutSession, listActiveWorkouts,
-    listWorkoutHistory, startWorkout, completeWorkoutSet, finishWorkout, clearWorkoutRest, suggestProgression,
+    listWorkoutHistory, claimWorkoutOwnership, startWorkout, completeWorkoutSet, finishWorkout, clearWorkoutRest, suggestProgression,
     createFoodDraft, listFoodDrafts, listMealRecords, updateFoodDraft, deleteFoodDraft, confirmFoodDraft, validateFoodDraft,
     putProfile, listProfiles, updateMealRecord, deleteMealRecord, listBodyWeights, putBodyWeight, listWaterEntries, putWaterEntry, listRuns, putRun,
     createRequestOwner, putKnowledgeSource, putKnowledgeClaim, seedKnowledgeRegistry,

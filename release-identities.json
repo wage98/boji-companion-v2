@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "origin": "https://wage98.github.io",
+  "repositoryPath": "/boji-companion-v2/",
+  "channels": {
+    "rc": {
+      "path": "/boji-companion-v2/rc/",
+      "id": "/boji-companion-v2/rc/",
+      "start_url": "/boji-companion-v2/rc/",
+      "scope": "/boji-companion-v2/rc/",
+      "name": "Boji Companion V2 RC",
+      "short_name": "Boji RC",
+      "indexedDbName": "boji-companion-v2-rc",
+      "cachePrefix": "boji-v2-rc-"
+    },
+    "prod": {
+      "path": "/boji-companion-v2/prod/",
+      "id": "/boji-companion-v2/prod/",
+      "start_url": "/boji-companion-v2/prod/",
+      "scope": "/boji-companion-v2/prod/",
+      "name": "Boji Companion V2",
+      "short_name": "Boji",
+      "indexedDbName": "boji-companion-v2-prod",
+      "cachePrefix": "boji-v2-prod-"
+    }
+  },
+  "automatedBuildChannel": "rc"
+}

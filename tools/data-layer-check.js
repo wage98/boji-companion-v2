@@ -9,6 +9,9 @@ const { JSDOM } = require('jsdom');
 let Data;
 let passed = 0;
 let failed = 0;
+const OWNER_A = 'tab-owner-a';
+const OWNER_B = 'tab-owner-b';
+let workoutOwner = OWNER_A;
 function check(name, fn) {
   return Promise.resolve().then(fn).then(() => { passed += 1; console.log(`PASS ${name}`); }, error => {
     failed += 1; console.error(`FAIL ${name}: ${error && error.stack ? error.stack : error}`);
@@ -241,16 +244,22 @@ async function main() {
     assert.equal(catalog.programs.length, 1);
     assert.equal(catalog.templates.length, 1);
     assert.equal(catalog.exercises.length, 1);
-    const start = await Data.startWorkout({ templateId: 'template:A:push', localDateKey: '2026-10-03', idempotencyKey: 'tap-1' });
+    const start = await Data.startWorkout({ templateId: 'template:A:push', localDateKey: '2026-10-03', idempotencyKey: 'tap-1', ownerId: OWNER_A });
     assert.equal(start.session.status, 'ACTIVE');
     assert.equal(start.exerciseSessions.length, 1);
     assert.equal(start.sets.length, 2);
-    const duplicate = await Data.startWorkout({ templateId: 'template:A:push', localDateKey: '2026-10-03', idempotencyKey: 'tap-1' });
+    const duplicate = await Data.startWorkout({ templateId: 'template:A:push', localDateKey: '2026-10-03', idempotencyKey: 'tap-1', ownerId: OWNER_A });
     assert.equal(duplicate.status, 'EXISTING_INTENT');
     assert.equal(duplicate.sessionId, start.session.sessionId);
-    const secondStart = await Data.startWorkout({ templateId: 'template:A:push', localDateKey: '2026-10-03', idempotencyKey: 'tap-2' });
+    const secondStart = await Data.startWorkout({ templateId: 'template:A:push', localDateKey: '2026-10-03', idempotencyKey: 'tap-2', ownerId: OWNER_A });
     assert.equal(secondStart.status, 'ACTIVE_EXISTS');
     assert.equal((await Data.counts()).sessions, 1);
+    assert.equal((await Data.claimWorkoutOwnership(start.session.sessionId, OWNER_B)).status, 'OWNED_ELSEWHERE');
+    assert.equal((await Data.completeWorkoutSet(start.session.sessionId, start.sets[0].setId, { weightKg: 20, reps: 8 }, OWNER_B)).status, 'NOT_OWNER');
+    const takeover = await Data.claimWorkoutOwnership(start.session.sessionId, OWNER_B, { takeover: true });
+    assert.equal(takeover.status, 'CLAIMED', 'takeover requires and accepts an explicit owner action');
+    assert.equal((await Data.completeWorkoutSet(start.session.sessionId, start.sets[0].setId, { weightKg: 20, reps: 8 }, OWNER_A)).status, 'NOT_OWNER', 'former owner cannot commit after takeover');
+    workoutOwner = OWNER_B;
   });
   await check('custom exercise catalog uses user-store persistence and explicit stable identity', async () => {
     const row = { exerciseId: 'exercise-custom-ui-1', name: 'Band row', origin: 'USER_CREATED', targetMuscles: ['back'],
@@ -265,14 +274,14 @@ async function main() {
   await check('set completion commits values before return, rejects out-of-order and duplicate completion, and recovers rest clock', async () => {
     const [session] = await Data.listActiveWorkouts();
     const [first, second] = session.sets;
-    const outOfOrder = await Data.completeWorkoutSet(session.session.sessionId, second.setId, { weightKg: 20, reps: 8, rir: 2 });
+    const outOfOrder = await Data.completeWorkoutSet(session.session.sessionId, second.setId, { weightKg: 20, reps: 8, rir: 2 }, workoutOwner);
     assert.equal(outOfOrder.status, 'OUT_OF_ORDER');
-    const saved = await Data.completeWorkoutSet(session.session.sessionId, first.setId, { weightKg: 20, reps: 10, rir: 2 });
+    const saved = await Data.completeWorkoutSet(session.session.sessionId, first.setId, { weightKg: 20, reps: 10, rir: 2 }, workoutOwner);
     assert.equal(saved.status, 'COMPLETED');
     assert.equal(saved.workout.sets[0].completed, true);
     assert.equal(saved.workout.sets[0].weightKg, 20);
     assert.ok(saved.workout.session.activeRestEndAt >= saved.completedAt + 59000);
-    const duplicate = await Data.completeWorkoutSet(session.session.sessionId, first.setId, { weightKg: 25, reps: 1, rir: 0 });
+    const duplicate = await Data.completeWorkoutSet(session.session.sessionId, first.setId, { weightKg: 25, reps: 1, rir: 0 }, workoutOwner);
     assert.equal(duplicate.status, 'ALREADY_COMPLETED');
     assert.equal(duplicate.workout.sets[0].weightKg, 20, 'duplicate tap cannot overwrite the committed set');
     Data.close();
@@ -283,11 +292,11 @@ async function main() {
   });
   await check('workout only completes when all planned sets commit and progression stays explainable', async () => {
     const [active] = await Data.listActiveWorkouts();
-    assert.equal((await Data.finishWorkout(active.session.sessionId)).status, 'INCOMPLETE');
+    assert.equal((await Data.finishWorkout(active.session.sessionId, {}, workoutOwner)).status, 'INCOMPLETE');
     const second = active.sets.find(row => !row.completed);
-    const saved = await Data.completeWorkoutSet(active.session.sessionId, second.setId, { weightKg: 20, reps: 10, rir: 2 });
+    const saved = await Data.completeWorkoutSet(active.session.sessionId, second.setId, { weightKg: 20, reps: 10, rir: 2 }, workoutOwner);
     assert.equal(saved.status, 'COMPLETED');
-    const finished = await Data.finishWorkout(active.session.sessionId);
+    const finished = await Data.finishWorkout(active.session.sessionId, {}, workoutOwner);
     assert.equal(finished.status, 'COMPLETED');
     const suggestion = await Data.suggestProgression('exercise:press', '8-10', 2.5);
     assert.equal(suggestion.kind, 'INCREASE_LOAD');
@@ -296,16 +305,16 @@ async function main() {
     assert.match(suggestion.reason, /All 2 committed sets reached 10 reps/);
   });
   await check('partial workout requires explicit abandonment and remains recoverable in history', async () => {
-    const adjusted = await Data.startWorkout({ templateId: 'template:A:push', localDateKey: '2026-10-04', idempotencyKey: 'trimmed-template',
+    const adjusted = await Data.startWorkout({ templateId: 'template:A:push', localDateKey: '2026-10-04', idempotencyKey: 'trimmed-template', ownerId: workoutOwner,
       prescriptionOverrides: [{ exerciseId: 'exercise:press', sets: 1, reps: '8-10', restSeconds: 60 }] });
     assert.equal(adjusted.session.planSnapshot[0].sets, 1, 'time adjustment is frozen into the session snapshot');
     assert.equal(adjusted.sets.length, 1, 'reduced prescription creates exactly one planned set');
-    await assert.rejects(Data.startWorkout({ templateId: 'template:A:push', localDateKey: '2026-10-04', idempotencyKey: 'invalid-trim',
+    await assert.rejects(Data.startWorkout({ templateId: 'template:A:push', localDateKey: '2026-10-04', idempotencyKey: 'invalid-trim', ownerId: workoutOwner,
       prescriptionOverrides: [{ exerciseId: 'exercise:press', sets: 3, reps: '8-10', restSeconds: 60 }] }), /only reduce set count/);
-    assert.equal((await Data.finishWorkout(adjusted.session.sessionId, { action: 'ABANDON' })).status, 'ABANDONED');
-    const started = await Data.startWorkout({ templateId: 'template:A:push', localDateKey: '2026-10-04', idempotencyKey: 'tap-3' });
-    assert.equal((await Data.finishWorkout(started.session.sessionId)).status, 'INCOMPLETE');
-    const abandoned = await Data.finishWorkout(started.session.sessionId, { action: 'ABANDON' });
+    assert.equal((await Data.finishWorkout(adjusted.session.sessionId, { action: 'ABANDON' }, workoutOwner)).status, 'ABANDONED');
+    const started = await Data.startWorkout({ templateId: 'template:A:push', localDateKey: '2026-10-04', idempotencyKey: 'tap-3', ownerId: workoutOwner });
+    assert.equal((await Data.finishWorkout(started.session.sessionId, {}, workoutOwner)).status, 'INCOMPLETE');
+    const abandoned = await Data.finishWorkout(started.session.sessionId, { action: 'ABANDON' }, workoutOwner);
     assert.equal(abandoned.status, 'ABANDONED');
     assert.equal(abandoned.workout.session.status, 'ABANDONED');
     assert.equal((await Data.listActiveWorkouts()).length, 0);

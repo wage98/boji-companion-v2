@@ -1241,18 +1241,37 @@ function v120Checks() {
       w.eval('hideBoot')();
       return w.__READY === true && b.classList.contains('done');
     });
-    check('Q3 Service Worker 使用 V2 RC 缓存命名空间并只清理自有缓存', () => {
+    check('Q3 Service Worker 等待安全采用更新并仅清理本 RC 命名空间', () => {
       const sw = fs.readFileSync(path.join(PROJ, 'sw.js'), 'utf8');
-      return /CACHE\s*=\s*'boji-v2-rc-3'/.test(sw)
-        && sw.indexOf("'boji-v2-rc-'") >= 0
-        && sw.indexOf("'boji-v2-prod-'") >= 0
-        && sw.indexOf('c.match(req)') >= 0
-        && sw.indexOf('staleWhileRevalidate') >= 0
-        && sw.indexOf("c.match('./index.html')") >= 0;
+      return /const CACHE_PREFIX = `boji-v2-\$\{RELEASE_CHANNEL\}-`/.test(sw)
+        && sw.indexOf('key.startsWith(CACHE_PREFIX)') >= 0
+        && sw.indexOf("event.data.type === 'BOJI_ADOPT_UPDATE'") >= 0
+        && sw.indexOf("type: 'BOJI_UPDATE_READY'") >= 0
+        && sw.indexOf('event.waitUntil(update.then') >= 0
+        && sw.indexOf("new URL('index.html', BASE_URL)") >= 0
+        && !/install[\s\S]{0,240}skipWaiting/.test(sw);
     });
     check('Q4 背景图等待上限收紧到 3.5s（网络不通快速回落底色）', () => {
       const src = fs.readFileSync(path.join(PROJ, 'app.js'), 'utf8');
       return /setTimeout\(fallback,\s*3500\)/.test(src) && !/setTimeout\(fallback,\s*8000\)/.test(src);
+    });
+    check('Q5 浏览器拒绝持久存储时应用仍可运行并给出备份提示', async () => {
+      Object.defineProperty(w.navigator, 'storage', { configurable: true, value: {
+        persisted: async () => false, persist: async () => false
+      }});
+      await w.eval('requestPersistentStorage')();
+      return w.eval('STORAGE_PERSISTENCE_STATUS') === 'NOT_GRANTED'
+        && /浏览器未授予持久存储/.test(w.eval('STORAGE_PERSISTENCE_DETAIL'))
+        && /定期导出备份/.test(w.eval('STORAGE_PERSISTENCE_DETAIL'));
+    });
+    check('Q6 页面隐藏时停止非关键轮询与计时器 interval', () => {
+      const intervals=[];
+      const nativeSetInterval=w.setInterval.bind(w);
+      w.setInterval=(fn,ms)=>{intervals.push(ms);return nativeSetInterval(fn,ms);};
+      Object.defineProperty(w.document,'hidden',{configurable:true,value:true});
+      w.eval('RUN.active=true;syncHomePolling();startRunTicker();showWorkoutRest(Date.now()+60000)');
+      Object.defineProperty(w.document,'hidden',{configurable:true,value:false});
+      return intervals.length===0;
     });
   }
   // —— ② 情感语音 ——

@@ -8,6 +8,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#F6F4ED">
+<base href="./">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/png" sizes="192x192" href="assets/boji-icon-192.png">
 <link rel="icon" type="image/png" sizes="512x512" href="assets/boji-icon-512.png">
@@ -89,6 +90,10 @@ window.__T0 = Date.now();
           <span class="sb-right"><i class="sig"></i><i class="wifi"></i><i class="bat"></i></span>
         </div>
         <div class="critical-storage-error" id="critical-storage-error" role="alert" aria-live="assertive" hidden></div>
+        <div class="update-ready-banner" id="update-ready-banner" role="status" aria-live="polite" hidden>
+          <span id="update-ready-copy">Boji Companion 有可用更新。</span>
+          <button type="button" id="update-ready-apply">安全更新</button>
+        </div>
 
         <!-- 桌面主屏（桌宠即主界面） -->
         <main class="homescreen" id="home">
@@ -226,6 +231,7 @@ window.__T0 = Date.now();
 <!-- toast -->
 <div class="toast hidden" id="toast"></div>
 
+<script src="release-config.js" defer></script>
 <script src="data-layer.js" defer></script>
 <script src="app.js" defer></script>
 </body>

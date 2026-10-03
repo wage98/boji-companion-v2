@@ -1,94 +1,86 @@
-// Boji Companion V2 service worker. The V2 cache namespace is isolated from V1.
-const CACHE = 'boji-v2-rc-3';
+// Boji Companion V2 service worker. The release build replaces the channel
+// marker so RC and Production have disjoint Cache Storage namespaces.
+const RELEASE_CHANNEL = 'rc';
+const CACHE_PREFIX = `boji-v2-${RELEASE_CHANNEL}-`;
+const CACHE_NAME = `${CACHE_PREFIX}6`;
+const BASE_URL = new URL('./', self.registration.scope);
 const ASSETS = [
-  './',
-  './index.html',
-  './app.js',
-  './styles.css',
-  './manifest.json',
-  './assets/icon.svg',
-  './assets/boji-icon-192.png',
-  './assets/boji-icon-512.png',
-  './assets/boji-companion-candidate.png',
-  './assets/boji-companion-pet-candidate.png',
-];
+  './', './index.html', './app.js', './data-layer.js', './styles.css',
+  './manifest.json', './release-config.js', './assets/icon.svg',
+  './assets/boji-icon-192.png', './assets/boji-icon-512.png',
+  './assets/boji-companion-candidate.png', './assets/boji-companion-pet-candidate.png'
+].map(path => new URL(path, BASE_URL).href);
 
-// 逐条写入：任一资源取不到也不让 install 整体失败
 async function precache() {
-  const c = await caches.open(CACHE);
-  await Promise.all(ASSETS.map(u =>
-    c.add(new Request(u, { cache: 'reload' })).catch(() => null)
-  ));
-  // 导航兜底：显式放一份 index.html，供断网时回落
-  try { await c.put('./index.html', await fetch('./index.html')); } catch (_) {}
+  const cache = await caches.open(CACHE_NAME);
+  await cache.addAll(ASSETS.map(url => new Request(url, { cache: 'reload' })));
 }
 
-self.addEventListener('install', e => {
-  e.waitUntil(precache().then(() => self.skipWaiting()));
+self.addEventListener('install', event => {
+  event.waitUntil((async () => {
+    await precache();
+    if (!self.registration.active) return;
+    const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    clients.forEach(client => client.postMessage({ type: 'BOJI_UPDATE_READY', cacheName: CACHE_NAME }));
+  })());
 });
 
-self.addEventListener('activate', e => {
-  e.waitUntil((async () => {
+self.addEventListener('activate', event => {
+  event.waitUntil((async () => {
     const keys = await caches.keys();
-    const managedPrefixes=['boji-v2-rc-','boji-v2-prod-'];
-    await Promise.all(keys.filter(k => k !== CACHE && managedPrefixes.some(prefix=>k.startsWith(prefix))).map(k => caches.delete(k)));
+    // This registration may remove only older caches owned by its own release
+    // channel. Unmanaged and Production caches remain untouched by RC.
+    await Promise.all(keys
+      .filter(key => key.startsWith(CACHE_PREFIX) && key !== CACHE_NAME)
+      .map(key => caches.delete(key)));
     await self.clients.claim();
   })());
 });
 
-// 后台更新：命中缓存后顺手拉一份新的，下次打开就是最新版（不阻塞当前请求）
-function staleWhileRevalidate(cache, request) {
-  const net = fetch(request).then(res => {
-    if (res && res.status === 200) {
-      try { cache.put(request, res.clone()); } catch (_) {}
-    }
-    return res;
-  }).catch(() => null);
-  return net;
+self.addEventListener('message', event => {
+  if (event.data && event.data.type === 'BOJI_ADOPT_UPDATE') {
+    event.waitUntil(self.skipWaiting());
+  }
+});
+
+function offlinePage() {
+  return new Response(
+    '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
+    '<title>Boji Companion V2</title><main style="font:16px system-ui;max-width:34rem;margin:12vh auto;padding:1rem;line-height:1.7">' +
+    '<h1>暂时无法打开</h1><p>当前页面还没有可用的离线副本。请联网打开一次，再使用离线功能。</p>' +
+    '<button onclick="location.reload()">重试</button></main>',
+    { headers: { 'Content-Type': 'text/html; charset=utf-8' } }
+  );
 }
 
-self.addEventListener('fetch', e => {
-  const req = e.request;
-  if (req.method !== 'GET') return;
-  const url = new URL(req.url);
-  if (url.origin !== self.location.origin) return;   // 跨域资源（外链/瓦片）不接管
+function cacheResponse(cache, request, response) {
+  if (!response || response.status !== 200 || response.type === 'opaque') return Promise.resolve();
+  return cache.put(request, response.clone());
+}
 
-  const isPage = req.mode === 'navigate' || (req.headers.get('accept') || '').includes('text/html');
+self.addEventListener('fetch', event => {
+  const request = event.request;
+  if (request.method !== 'GET') return;
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin || !url.href.startsWith(BASE_URL.href)) return;
 
-  // —— 页面：缓存优先（首屏秒开）→ 后台更新 → 断网回落缓存 ——
-  if (isPage) {
-    e.respondWith((async () => {
-      const c = await caches.open(CACHE);
-      const hit = await c.match(req) || await c.match('./index.html');
-      const upd = staleWhileRevalidate(c, req);
-      if (hit) return hit;                  // 立刻用本地副本渲染
-      const fresh = await upd;              // 首次访问：等网络
-      if (fresh && fresh.status === 200) {
-        // 托管方返回的错误页（如 GitHub Pages 404）不放行，宁可显示自己的兜底
-        return fresh;
-      }
-      return new Response(
-        '<!doctype html><meta charset="utf-8"><title>Boji Companion V2</title>' +
-        '<body style="font-family:system-ui;padding:24px;line-height:1.8">' +
-        '<h3>暂时打不开</h3><p>没有可用的本地缓存，且网络未连通。</p>' +
-        '<button onclick="location.reload()">重试</button></body>',
-        { headers: { 'Content-Type': 'text/html; charset=utf-8' } }
-      );
-    })());
-    return;
-  }
-
-  // —— 静态资源：缓存优先 + 后台更新 ——
-  e.respondWith((async () => {
-    const c = await caches.open(CACHE);
-    const hit = await c.match(req);
-    if (hit) { staleWhileRevalidate(c, req); return hit; }
+  const isPage = request.mode === 'navigate' || (request.headers.get('accept') || '').includes('text/html');
+  const update = (async () => {
     try {
-      const res = await fetch(req);
-      if (res && res.status === 200) { try { c.put(req, res.clone()); } catch (_) {} }
-      return res;
-    } catch (_) {
-      return new Response('', { status: 504, statusText: 'offline' });
-    }
+      const response = await fetch(request);
+      try { await cacheResponse(await caches.open(CACHE_NAME), request, response); } catch (_) {}
+      return response;
+    } catch (_) { return null; }
+  })();
+  // Keep refresh/cache writes alive after the response has been returned.
+  event.waitUntil(update.then(() => undefined));
+
+  event.respondWith((async () => {
+    const cache = await caches.open(CACHE_NAME);
+    const hit = await cache.match(request) || (isPage ? await cache.match(new URL('index.html', BASE_URL).href) : null);
+    if (hit) return hit;
+    const fresh = await update;
+    if (fresh && fresh.status === 200) return fresh;
+    return isPage ? offlinePage() : new Response('', { status: 504, statusText: 'offline' });
   })());
 });

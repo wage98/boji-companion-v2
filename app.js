@@ -993,6 +993,80 @@ const EQUIPMENT_PROFILE_DEFS = {
 };
 let TRAINING_CATALOG = null;
 let ACTIVE_WORKOUT = null;
+const TAB_OWNER_ID = (BojiData && typeof BojiData.makeId === 'function')
+  ? BojiData.makeId('tab-owner')
+  : `tab-owner-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+let WORKOUT_CHANNEL = null;
+try {
+  if (typeof BroadcastChannel === 'function') {
+    WORKOUT_CHANNEL = new BroadcastChannel(`boji-workout:${BojiData.DB_NAME || 'rc'}`);
+  }
+} catch (_) {}
+let STORAGE_PERSISTENCE_STATUS = 'CHECKING';
+let STORAGE_PERSISTENCE_DETAIL = '正在检查浏览器本机存储保护状态…';
+let SERVICE_WORKER_STATUS = 'CHECKING';
+let SERVICE_WORKER_DETAIL = '正在检查离线应用服务…';
+let HOME_POLL_ID = null;
+let WAKE_LOCK = null;
+let WAKE_LOCK_REQUEST = 0;
+let SERVICE_WORKER_REGISTRATION = null;
+let WAITING_SERVICE_WORKER = null;
+let UPDATE_RELOAD_PENDING = false;
+let CRITICAL_COMMIT_COUNT = 0;
+let MIGRATION_ACTIVE = false;
+const RUNTIME_METRICS = { lcpMs:null, maxInteractionMs:null, cls:0, appReadyMs:null, activeResumeMs:null,
+  pageTransitionMs:[], teachingDrawerMs:[], setUiAckMs:[], localSearchMs:[] };
+const APP_PERFORMANCE_STARTED_AT = typeof performance!=='undefined'&&performance.now?performance.now():null;
+function runtimeNow(){return typeof performance!=='undefined'&&performance.now?performance.now():null;}
+function metricAfterPaint(list,start){
+  if(!Number.isFinite(start))return;
+  const done=()=>{const end=runtimeNow();if(Number.isFinite(end))list.push(Math.max(0,end-start));};
+  if(typeof requestAnimationFrame==='function')requestAnimationFrame(done);else setTimeout(done,0);
+}
+function startRuntimePerformanceObservers(){
+  if(typeof PerformanceObserver!=='function'||!Array.isArray(PerformanceObserver.supportedEntryTypes))return;
+  try{
+    if(PerformanceObserver.supportedEntryTypes.includes('largest-contentful-paint'))new PerformanceObserver(list=>{
+      const entries=list.getEntries();if(entries.length)RUNTIME_METRICS.lcpMs=entries[entries.length-1].startTime;
+    }).observe({type:'largest-contentful-paint',buffered:true});
+    if(PerformanceObserver.supportedEntryTypes.includes('layout-shift'))new PerformanceObserver(list=>{
+      list.getEntries().forEach(entry=>{if(!entry.hadRecentInput)RUNTIME_METRICS.cls+=entry.value;});
+    }).observe({type:'layout-shift',buffered:true});
+    if(PerformanceObserver.supportedEntryTypes.includes('event'))new PerformanceObserver(list=>{
+      const entries=list.getEntries().filter(entry=>entry.interactionId>0);
+      if(entries.length)RUNTIME_METRICS.maxInteractionMs=Math.max(RUNTIME_METRICS.maxInteractionMs||0,...entries.map(entry=>entry.duration||0));
+    }).observe({type:'event',buffered:true,durationThreshold:16});
+  }catch(_){}
+}
+function runtimePerformanceSummary(){
+  const fmt=value=>Number.isFinite(value)?`${Math.round(value*10)/10} ms`:'尚无样本';
+  const transition=RUNTIME_METRICS.pageTransitionMs.length?Math.max(...RUNTIME_METRICS.pageTransitionMs):null;
+  const drawer=RUNTIME_METRICS.teachingDrawerMs.length?Math.max(...RUNTIME_METRICS.teachingDrawerMs):null;
+  const setAck=RUNTIME_METRICS.setUiAckMs.length?Math.max(...RUNTIME_METRICS.setUiAckMs):null;
+  const search=RUNTIME_METRICS.localSearchMs.length?Math.max(...RUNTIME_METRICS.localSearchMs):null;
+  return `本机当前会话样本（仅供资格检查）：LCP ${fmt(RUNTIME_METRICS.lcpMs)}；最长观测交互 ${fmt(RUNTIME_METRICS.maxInteractionMs)}；CLS ${Math.round(RUNTIME_METRICS.cls*1000)/1000}；应用首屏 ${fmt(RUNTIME_METRICS.appReadyMs)}；页面切换 ${fmt(transition)}；教学抽屉 ${fmt(drawer)}；本地食物搜索 ${fmt(search)}；提交后界面确认 ${fmt(setAck)}；活动训练恢复 ${fmt(RUNTIME_METRICS.activeResumeMs)}。未观测项保持“尚无样本”，这些单机样本不代表发布资格或实体设备表现。`;
+}
+startRuntimePerformanceObservers();
+function broadcastWorkoutChange(sessionId, changeType){
+  try{WORKOUT_CHANNEL&&WORKOUT_CHANNEL.postMessage({type:'WORKOUT_CHANGED',sessionId,changeType,from: TAB_OWNER_ID});}catch(_){}
+}
+async function refreshActiveWorkoutFromDB(){
+  if(!DATA_READY||!BojiData||typeof BojiData.listActiveWorkouts!=='function')return;
+  try{
+    const active=(await BojiData.listActiveWorkouts())[0]||null;
+    if(!ACTIVE_WORKOUT||!active||ACTIVE_WORKOUT.session.sessionId===active.session.sessionId)ACTIVE_WORKOUT=active;
+    if(ACTIVE_MODULE==='training'&&$('#module')?.classList.contains('open'))renderTraining($('#mod-body'));
+    if(ACTIVE_WORKOUT&&ACTIVE_WORKOUT.session.activeRestEndAt&&!document.hidden)showWorkoutRest(ACTIVE_WORKOUT.session.activeRestEndAt);
+    else if(!ACTIVE_WORKOUT)stopRestUI();
+  }catch(_){}
+}
+if(WORKOUT_CHANNEL)WORKOUT_CHANNEL.onmessage=event=>{
+  if(event.data&&event.data.type==='WORKOUT_CHANGED'&&event.data.from!==TAB_OWNER_ID)refreshActiveWorkoutFromDB();
+};
+window.__BOJI_COMMIT_HOOK=phase=>{
+  CRITICAL_COMMIT_COUNT=Math.max(0,CRITICAL_COMMIT_COUNT+(phase==='start'?1:-1));
+  if(WAITING_SERVICE_WORKER)showUpdateReady();
+};
 let START_INTENT_KEY = null;
 function movementPatternFor(name, day){
   const n=String(name||'');
@@ -1795,10 +1869,12 @@ function updateDockState(tab){
   });
 }
 function goModule(name){
+  const transitionStarted=runtimeNow();
   const titles={training:['训练','学习动作，或进入今天的训练'],boji:['Boji','记录与陪伴都在这里'],progress:['进步','训练规律、力量记录与趋势'],data:['进步','训练规律、力量记录与趋势'],profile:['我的','档案与设置'],diet:['饮食记录','已确认的餐点与营养记录'],run:['跑步','记录路线、距离与时间'],knowledge:['训练知识','有来源边界的训练与营养问答']};
   if(name==='today'){
     updateDockState('today');ACTIVE_MODULE='today';renderHome();
     if($('#module').classList.contains('open'))closePanel('module');
+    metricAfterPaint(RUNTIME_METRICS.pageTransitionMs,transitionStarted);
     return;
   }
   const title=titles[name]||titles.today;
@@ -1806,8 +1882,9 @@ function goModule(name){
   $('#mod-title').textContent=title[0]; $('#mod-sub').textContent=title[1];
   renderModule(name);
   voiceSync();                                          // 离开桌面：立即停语音并释放
-  if($('#module').classList.contains('open')) return;   // 已打开：只重渲染，不重复压栈
+  if($('#module').classList.contains('open')){metricAfterPaint(RUNTIME_METRICS.pageTransitionMs,transitionStarted);return;}   // 已打开：只重渲染，不重复压栈
   openPanel('module'); voiceSync();
+  metricAfterPaint(RUNTIME_METRICS.pageTransitionMs,transitionStarted);
 }
 
 /* ============================================================
@@ -2107,7 +2184,10 @@ function runStart(){
 let runTicker = null;
 function startRunTicker(){
   clearInterval(runTicker);
-  runTicker = setInterval(()=>{if(RUN.active)updateRunMetrics();else clearInterval(runTicker);},1000);
+  runTicker=null;
+  if(!RUN.active||document.hidden)return;
+  updateRunMetrics();
+  runTicker = setInterval(()=>{if(RUN.active&&!document.hidden)updateRunMetrics();else{clearInterval(runTicker);runTicker=null;}},1000);
 }
 function runStop(){
   if(!RUN.active) return;
@@ -2427,6 +2507,7 @@ function renderTraining(body){
   const defaultMinutes=minuteChoices.reduce((best,n)=>Math.abs(n-preferredMinutes)<Math.abs(best-preferredMinutes)?n:best,minuteChoices[0]);
   const template=day==='rest'?null:trainingTemplate('template:'+code+':'+day),active=ACTIVE_WORKOUT&&ACTIVE_WORKOUT.session.status==='ACTIVE'?ACTIVE_WORKOUT:null;
   const workout=active&&active.session.localDateKey===key?active:null;
+  const restSkip=$('#rt-skip');if(restSkip)restSkip.disabled=!!(ACTIVE_WORKOUT&&ACTIVE_WORKOUT.session.ownerTabId!==TAB_OWNER_ID);
   let html='<div class="mode-switch card" role="group" aria-label="训练模式"><b>训练模式</b><button type="button" data-training-mode="learning" class="'+(mode==='learning'?'active':'')+'" aria-pressed="'+(mode==='learning')+'">学习</button><button type="button" data-training-mode="performance" class="'+(mode==='performance'?'active':'')+'" aria-pressed="'+(mode==='performance')+'">表现</button><span>'+(mode==='learning'?'先看动作要点，再记录组数':'突出上次记录和当前组')+'</span></div>';
   html+='<div class="card"><h4>本周安排</h4><div class="week">';
   for(let i=0;i<7;i++){const d=new Date();d.setDate(d.getDate()-d.getDay()+i);const k=BojiData.localDateKey(d),cls=['wday'];
@@ -2435,10 +2516,13 @@ function renderTraining(body){
       (getDayType(d.getDay())==='rest'?'休':getDayType(d.getDay())[0].toUpperCase())+'</span></button>';}
   html+='</div></div>';
   if(active&&!workout)html+='<div class="card"><h4>有一节训练尚未结束</h4><p>'+esc(active.session.localDateKey)+' · '+active.sets.filter(x=>x.completed).length+'/'+
-    active.sets.length+' 组已保存</p><button class="btn-grad" id="resume-workout">继续这节训练</button></div>';
+    active.sets.length+' 组已保存</p><button class="btn-grad" id="resume-workout">查看这节训练</button>'+
+    (active.session.ownerTabId!==TAB_OWNER_ID?'<button class="ex-do ghost-btn" id="takeover-workout">在此标签页接管</button>':'')+'</div>';
   if(workout){
     const s=workout.session,t=trainingTemplate(s.templateId),profile=TRAINING_CATALOG.equipmentProfiles.find(x=>x.profileId===s.equipmentProfileId);
+    const ownsWorkout=s.ownerTabId===TAB_OWNER_ID;
     const complete=workout.sets.length>0&&workout.sets.every(x=>x.completed);
+    if(!ownsWorkout)html+='<div class="card workout-owner-notice" role="status"><b>当前为只读</b><p>这节训练由另一个标签页控制。接管后，原标签页会变为只读。</p><button class="ex-do" id="takeover-workout">在此标签页接管</button></div>';
     html+='<div class="card"><h4>'+esc(t&&t.name||'训练进行中')+' <span class="tag">'+esc(profile&&profile.name||'器械档案')+'</span></h4><p>'+
       esc(s.localDateKey)+' · 已保存 '+workout.sets.filter(x=>x.completed).length+'/'+workout.sets.length+' 组</p>'+
       (s.lastCommittedAt?'<p>最近一组保存于 '+new Date(s.lastCommittedAt).toLocaleTimeString()+(s.activeRestEndAt?' · 休息计时已恢复':'')+'</p>':'')+'</div>';
@@ -2461,11 +2545,12 @@ function renderTraining(body){
         const enabled=!set.completed&&set.setId===s.currentSetId,weight=STATE.weights[key]&&STATE.weights[key][String(i)]||'';
         const rirOptions=Array.from({length:11},(_,n)=>'<option value="'+n+'" '+(set.rir===n?'selected':'')+'>'+n+'</option>').join('');
         const action=set.completed?'<span>已保存：'+(set.weightKg==null?'重量未填':set.weightKg+' kg')+' · '+set.reps+' 次</span>':
-          enabled?'<button class="ex-do" data-complete-set="'+esc(set.setId)+'">保存并完成本组</button>':'<small>按顺序完成上一组后解锁</small>';
+          enabled&&ownsWorkout?'<button class="ex-do" data-complete-set="'+esc(set.setId)+'">保存并完成本组</button>':
+          !ownsWorkout?'<small>只读标签页无法保存训练组</small>':'<small>按顺序完成上一组后解锁</small>';
         html+='<div class="workout-set '+(set.completed?'set-complete':'')+'" data-set-row="'+esc(set.setId)+'"><b>第 '+(set.setIndex+1)+' 组'+(set.completed?' ✓':'')+'</b>'+
-          '<label>重量 kg <input type="number" min="0" max="2000" step="0.5" value="'+(set.weightKg==null?esc(weight):set.weightKg)+'" data-weight '+(set.completed||!enabled?'disabled':'')+'></label>'+
-          '<label>次数 <input type="number" min="1" max="1000" value="'+(set.reps==null?repsDefault(set.targetReps):set.reps)+'" data-reps '+(set.completed||!enabled?'disabled':'')+'></label>'+
-          '<details><summary>进阶记录（选填）</summary><label>RIR <select data-rir '+(set.completed||!enabled?'disabled':'')+'><option value="">未记录</option>'+rirOptions+'</select></label></details>'+action+'</div>';
+          '<label>重量 kg <input type="number" min="0" max="2000" step="0.5" value="'+(set.weightKg==null?esc(weight):set.weightKg)+'" data-weight '+(set.completed||!enabled||!ownsWorkout?'disabled':'')+'></label>'+
+          '<label>次数 <input type="number" min="1" max="1000" value="'+(set.reps==null?repsDefault(set.targetReps):set.reps)+'" data-reps '+(set.completed||!enabled||!ownsWorkout?'disabled':'')+'></label>'+
+          '<details><summary>进阶记录（选填）</summary><label>RIR <select data-rir '+(set.completed||!enabled||!ownsWorkout?'disabled':'')+'><option value="">未记录</option>'+rirOptions+'</select></label></details>'+action+'</div>';
       });
       html+='</div>';
       if(current)html+='<button class="ex-do ghost-btn" data-progression="'+esc(ex.exerciseId)+'" data-target-reps="'+esc(ex.targetReps)+'">查看进阶建议</button>';
@@ -2474,7 +2559,7 @@ function renderTraining(body){
         esc(ex.exerciseId)+'" data-load="'+suggestion.suggestedKg+'">采用建议</button>':'')+'</div>';
       html+='</div>';
     });
-    html+='<button class="btn-grad" id="finish-workout" '+(complete?'':'disabled')+'>'+(complete?'完成训练':'完成所有组后可结束训练')+
+    if(ownsWorkout)html+='<button class="btn-grad" id="finish-workout" '+(complete?'':'disabled')+'>'+(complete?'完成训练':'完成所有组后可结束训练')+
       '</button><button class="ex-do ghost-btn" id="abandon-workout">放弃本次训练</button>';
   }else if(day==='rest')html+='<div class="card"><h4>休息日 ♡</h4><p>休息也是训练的一部分。点上方其他训练日查看计划。</p></div>';
   else{
@@ -2503,9 +2588,15 @@ function renderTraining(body){
     '<label>要点备注<input id="mx-note" maxlength="240"></label><button class="btn-grad" id="mx-save">保存动作</button><button class="ex-do" id="mx-cancel">取消</button></div>';
   else html+='<button class="btn-grad ghost-btn" id="mx-add">＋ 添加自定义动作</button>';
   html+='</div>';body.innerHTML=html;
+  body.querySelectorAll('details.learning-details > summary').forEach(summary=>{
+    const measureOpen=()=>{const started=runtimeNow();requestAnimationFrame(()=>{if(summary.parentElement&&summary.parentElement.open)metricAfterPaint(RUNTIME_METRICS.teachingDrawerMs,started);});};
+    summary.addEventListener('click',measureOpen,{capture:true});
+    summary.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' ')measureOpen();},{capture:true});
+  });
   $$('#mod-body [data-training-mode]').forEach(button=>button.onclick=()=>{STATE.settings.trainingMode=button.dataset.trainingMode;save();renderTraining(body);});
   $$('#mod-body .wday').forEach(b=>b.onclick=()=>{STATE.selDate=b.dataset.day;save();PROGRESSION_SUGGESTIONS.clear();renderTraining(body);});
   const resume=$('#resume-workout');if(resume)resume.onclick=()=>{STATE.selDate=active.session.localDateKey;save();renderTraining(body);};
+  const takeover=$('#takeover-workout');if(takeover)takeover.onclick=()=>takeOverActiveWorkout(body);
   const start=$('#start-workout');if(start)start.onclick=()=>beginWorkout(key,day,body);
   const preview=$('#preview-adjustment');if(preview)preview.onclick=()=>{
     PENDING_ADJUSTMENT=adjustmentProposal(key,day,$('#adjust-profile').value,+$('#adjust-minutes').value);const p=PENDING_ADJUSTMENT,out=$('#adjustment-preview');
@@ -2559,23 +2650,48 @@ async function beginWorkout(date,day,body){
   const override=STATE.planOverrides[date],templateId=override&&override.templateId||'template:'+code+':'+day;
   const intent=BojiData.makeId('workout-intent');START_INTENT_KEY=intent;const button=$('#start-workout');if(button)button.disabled=true;
   try{const result=await BojiData.startWorkout({templateId:templateId,idempotencyKey:intent,localDateKey:date,equipmentProfileId:'equipment:'+code,goal:'HYPERTROPHY',
-    prescriptionOverrides:override&&override.prescriptionOverrides});
+    ownerId:TAB_OWNER_ID,prescriptionOverrides:override&&override.prescriptionOverrides});
     const loaded=result.workout||result;if(!loaded||!loaded.session)throw new Error(result.status==='ACTIVE_EXISTS'?'已有一节未结束的训练':'训练没有写入本机数据库');
+    if(result.status==='ACTIVE_EXISTS'){
+      const claim=await BojiData.claimWorkoutOwnership(loaded.session.sessionId,TAB_OWNER_ID);
+      ACTIVE_WORKOUT=claim.workout||loaded;STATE.selDate=ACTIVE_WORKOUT.session.localDateKey;
+      indexWorkoutHistory(await BojiData.listWorkoutHistory());renderTraining(body);toast(claim.status==='CLAIMED'?'已恢复这节训练':'已有一节训练进行中；当前标签页为只读');
+      if(claim.status==='CLAIMED')broadcastWorkoutChange(ACTIVE_WORKOUT.session.sessionId,'owner');
+      return;
+    }
     ACTIVE_WORKOUT=loaded;indexWorkoutHistory(await BojiData.listWorkoutHistory());renderTraining(body);toast('训练已保存，可以开始第一组');setMood('expect',1400);
+    broadcastWorkoutChange(loaded.session.sessionId,'started');requestWorkoutWakeLock();showUpdateReady();
   }catch(error){if(button)button.disabled=false;toast('训练未开始：'+(error.message||'保存失败'));}finally{START_INTENT_KEY=null;}
+}
+async function takeOverActiveWorkout(body){
+  if(!ACTIVE_WORKOUT)return;
+  const sessionId=ACTIVE_WORKOUT.session.sessionId;
+  try{
+    const result=await BojiData.claimWorkoutOwnership(sessionId,TAB_OWNER_ID,{takeover:true});
+    if(result.status!=='CLAIMED')throw new Error(result.status==='SESSION_NOT_ACTIVE'?'这节训练已结束':'无法接管这节训练');
+    ACTIVE_WORKOUT=result.workout;STATE.selDate=ACTIVE_WORKOUT.session.localDateKey;
+    broadcastWorkoutChange(sessionId,'owner');renderTraining(body);requestWorkoutWakeLock();
+    if(ACTIVE_WORKOUT.session.activeRestEndAt&&!document.hidden)showWorkoutRest(ACTIVE_WORKOUT.session.activeRestEndAt);
+    toast('此标签页已接管训练；其他标签页现在为只读');
+  }catch(error){toast('接管失败：'+(error.message||'请重新读取训练状态'));await refreshActiveWorkoutFromDB();}
 }
 async function commitWorkoutSet(button,body){
   const id=button.dataset.completeSet,row=button.closest('[data-set-row]');if(!ACTIVE_WORKOUT||!row||ACTIVE_WORKOUT.session.currentSetId!==id)return;
   const weight=row.querySelector('[data-weight]').value,reps=+row.querySelector('[data-reps]').value,rir=row.querySelector('[data-rir]').value;button.disabled=true;
-  try{const result=await BojiData.completeWorkoutSet(ACTIVE_WORKOUT.session.sessionId,id,{weightKg:weight,reps:reps,rir:rir===''?null:+rir});
+  try{const result=await BojiData.completeWorkoutSet(ACTIVE_WORKOUT.session.sessionId,id,{weightKg:weight,reps:reps,rir:rir===''?null:+rir},TAB_OWNER_ID);
+    if(result.status==='NOT_OWNER'){toast('训练已由其他标签页接管；此标签页已切换为只读');await refreshActiveWorkoutFromDB();return;}
     if(result.status!=='COMPLETED')throw new Error(result.status);ACTIVE_WORKOUT=result.workout;indexWorkoutHistory(await BojiData.listWorkoutHistory());
-    renderTraining(body);setMood('cheer',1300);toast('本组已写入本机训练记录');
+    broadcastWorkoutChange(ACTIVE_WORKOUT.session.sessionId,'set');
+    renderTraining(body);
+    if(Number.isFinite(result.commitCompletedAtPerformance)){const now=runtimeNow();if(Number.isFinite(now))RUNTIME_METRICS.setUiAckMs.push(Math.max(0,now-result.commitCompletedAtPerformance));}
+    setMood('cheer',1300);toast('本组已写入本机训练记录');
   }catch(error){button.disabled=false;toast('本组未保存：'+(error.message||'请重试'));}
 }
 async function completeWorkout(body){
-  if(!ACTIVE_WORKOUT)return;try{const result=await BojiData.finishWorkout(ACTIVE_WORKOUT.session.sessionId);
+  if(!ACTIVE_WORKOUT)return;try{const result=await BojiData.finishWorkout(ACTIVE_WORKOUT.session.sessionId,{},TAB_OWNER_ID);
+    if(result.status==='NOT_OWNER'){toast('训练已由其他标签页接管；此标签页已切换为只读');await refreshActiveWorkoutFromDB();return;}
     if(result.status!=='COMPLETED'){toast('仍有未完成组；训练保持可恢复');return;}
-    indexWorkoutHistory(await BojiData.listWorkoutHistory());ACTIVE_WORKOUT=null;stopRestUI();setMood('cheer',3500);setTimeout(()=>setMood('proud',3000),3600);
+    indexWorkoutHistory(await BojiData.listWorkoutHistory());ACTIVE_WORKOUT=null;stopRestUI();releaseWorkoutWakeLock();broadcastWorkoutChange(result.workout.session.sessionId,'finished');showUpdateReady();setMood('cheer',3500);setTimeout(()=>setMood('proud',3000),3600);
     $('#done-emoji').textContent='🎉';$('#done-title').textContent='今日训练完成！';$('#done-sub').textContent=result.workout.session.localDateKey+' · 所有训练组已保存';
     $('#done-stats').innerHTML='<div class="ds"><b>'+result.workout.sets.length+'</b><span>组</span></div><div class="ds"><b>'+
       Math.floor((result.workout.session.finishedAt-result.workout.session.startedAt)/60000)+'</b><span>分钟</span></div><div class="ds"><b>'+streak()+'</b><span>连续天</span></div>';
@@ -2584,8 +2700,8 @@ async function completeWorkout(body){
 }
 async function abandonWorkout(body){
   if(!ACTIVE_WORKOUT||!confirm('放弃这次训练？已完成组会保留，未完成组不会算作完成。'))return;
-  try{const result=await BojiData.finishWorkout(ACTIVE_WORKOUT.session.sessionId,{action:'ABANDON'});if(result.status!=='ABANDONED')throw new Error(result.status);
-    ACTIVE_WORKOUT=null;indexWorkoutHistory(await BojiData.listWorkoutHistory());stopRestUI();renderTraining(body);toast('训练已标记为放弃；已保存组仍保留');
+  try{const result=await BojiData.finishWorkout(ACTIVE_WORKOUT.session.sessionId,{action:'ABANDON'},TAB_OWNER_ID);if(result.status==='NOT_OWNER'){toast('训练已由其他标签页接管；此标签页已切换为只读');await refreshActiveWorkoutFromDB();return;}if(result.status!=='ABANDONED')throw new Error(result.status);
+    ACTIVE_WORKOUT=null;indexWorkoutHistory(await BojiData.listWorkoutHistory());stopRestUI();releaseWorkoutWakeLock();broadcastWorkoutChange(result.workout.session.sessionId,'finished');showUpdateReady();renderTraining(body);toast('训练已标记为放弃；已保存组仍保留');
   }catch(error){toast('未能保存放弃状态：'+(error.message||'本机存储不可用'));}
 }
 async function createCustomExercise(body){
@@ -2602,27 +2718,45 @@ async function createCustomExercise(body){
 /* ---------- 组间休息计时器 ---------- */
 let restId=null;
 let restClearPendingAt=null;
+function releaseWorkoutWakeLock(){
+  WAKE_LOCK_REQUEST++;
+  const held=WAKE_LOCK;WAKE_LOCK=null;
+  if(held)try{held.release();}catch(_){}
+}
+async function requestWorkoutWakeLock(){
+  if(!ACTIVE_WORKOUT||ACTIVE_WORKOUT.session.ownerTabId!==TAB_OWNER_ID||document.hidden||!navigator.wakeLock||typeof navigator.wakeLock.request!=='function')return;
+  const requestId=++WAKE_LOCK_REQUEST;
+  try{
+    const lock=await navigator.wakeLock.request('screen');
+    if(requestId!==WAKE_LOCK_REQUEST||document.hidden||!ACTIVE_WORKOUT||ACTIVE_WORKOUT.session.ownerTabId!==TAB_OWNER_ID){try{await lock.release();}catch(_){}return;}
+    if(WAKE_LOCK&&WAKE_LOCK!==lock)try{await WAKE_LOCK.release();}catch(_){}
+    WAKE_LOCK=lock;
+    lock.addEventListener('release',()=>{if(WAKE_LOCK===lock)WAKE_LOCK=null;},{once:true});
+  }catch(_){/* Wake Lock is optional and never affects workout correctness. */}
+}
 function stopRestUI(){ clearInterval(restId); restId=null; const box=$('#rest-timer'); if(box) box.classList.add('hidden'); }
 function showWorkoutRest(endAt){
   const box=$('#rest-timer'),sec=$('#rt-sec');if(!box||!sec)return;
-  clearInterval(restId);box.classList.remove('hidden');
+  clearInterval(restId);restId=null;box.classList.remove('hidden');
   const tick=()=>{
     const left=Math.max(0,Math.ceil((endAt-Date.now())/1000));sec.textContent=left;
     if(left===0){
       stopRestUI();
-      if(ACTIVE_WORKOUT&&ACTIVE_WORKOUT.session.activeRestEndAt===endAt&&restClearPendingAt!==endAt){
+      if(ACTIVE_WORKOUT&&ACTIVE_WORKOUT.session.ownerTabId===TAB_OWNER_ID&&ACTIVE_WORKOUT.session.activeRestEndAt===endAt&&restClearPendingAt!==endAt){
         restClearPendingAt=endAt;
-        BojiData.clearWorkoutRest(ACTIVE_WORKOUT.session.sessionId).then(updated=>{
-          ACTIVE_WORKOUT=updated;setMood('happy',1600);toast('休息结束，开始下一组！');
+        BojiData.clearWorkoutRest(ACTIVE_WORKOUT.session.sessionId,TAB_OWNER_ID).then(updated=>{
+          if(!updated)return refreshActiveWorkoutFromDB();
+          ACTIVE_WORKOUT=updated;broadcastWorkoutChange(ACTIVE_WORKOUT.session.sessionId,'rest');setMood('happy',1600);toast('休息结束，开始下一组！');
         }).catch(error=>toast('休息计时已到；恢复状态将在下次读取：'+(error.message||''))).finally(()=>{restClearPendingAt=null;});
       }
     }
   };
-  tick();if(Date.now()<endAt)restId=setInterval(tick,1000);
+  tick();if(!document.hidden&&Date.now()<endAt)restId=setInterval(tick,1000);
 }
 async function skipWorkoutRest(){
   if(!ACTIVE_WORKOUT){stopRestUI();return;}
-  try{ACTIVE_WORKOUT=await BojiData.clearWorkoutRest(ACTIVE_WORKOUT.session.sessionId);stopRestUI();
+  if(ACTIVE_WORKOUT.session.ownerTabId!==TAB_OWNER_ID){toast('当前标签页为只读，无法跳过组间休息');return;}
+  try{const updated=await BojiData.clearWorkoutRest(ACTIVE_WORKOUT.session.sessionId,TAB_OWNER_ID);if(!updated){await refreshActiveWorkoutFromDB();return;}ACTIVE_WORKOUT=updated;broadcastWorkoutChange(ACTIVE_WORKOUT.session.sessionId,'rest');stopRestUI();
     if($('#module')?.classList.contains('open'))renderTraining($('#mod-body'));
     toast('休息计时已保存为跳过');
   }catch(error){toast('跳过计时未保存：'+(error.message||'本机存储不可用'));}
@@ -2891,6 +3025,7 @@ async function visionRecognize(base64, signal){
 }
 /* ---------- 拍照 / 相册两个独立入口（修复：旧版写死 capture 导致相册入口不可用） ---------- */
 let _fsPhotoFile=null;   // 当前照片原文件（供条码检测用高清图；仅在面板存续期内持有）
+let _fsOriginalName='';  // 当前候选名称，用于区分数据库名称与用户改名
 function cancelFoodWork(){
   if(FOOD_SEARCH_TIMER)clearTimeout(FOOD_SEARCH_TIMER);FOOD_SEARCH_TIMER=null;
   [FOOD_SEARCH_OWNER,FOOD_AI_OWNER,FOOD_BARCODE_OWNER].forEach(owner=>{try{owner&&owner.cancel();}catch(_){}});
@@ -3346,7 +3481,8 @@ function openFoodSheet(mi, body, photo){
   }
   const searchEl=list.querySelector('#food-search');
   searchEl.oninput=e=>{
-    const kw=e.target.value||'';renderHits(kw);
+    const kw=e.target.value||'',searchStarted=runtimeNow();renderHits(kw);
+    const searchEnded=runtimeNow();if(Number.isFinite(searchStarted)&&Number.isFinite(searchEnded))RUNTIME_METRICS.localSearchMs.push(Math.max(0,searchEnded-searchStarted));
     if(FOOD_SEARCH_TIMER)clearTimeout(FOOD_SEARCH_TIMER);
     const request=FOOD_SEARCH_OWNER.begin(),offEl=list.querySelector('#off-hits');
     if(kw.trim().length<2){offEl.innerHTML='';return;}
@@ -3525,6 +3661,7 @@ function renderData(body){
       <div class="cal-grid">${cells}</div>
       <p style="font-size:10.5px;color:var(--faint);margin-top:8px">✓ 已打卡 · 点日期可补录/查看当天训练评分</p></div>
     ${scoreCard}`;
+  body.insertAdjacentHTML('afterbegin',`<section class="card storage-health" aria-live="polite"><h4>本机存储健康</h4><p id="storage-health-status">${esc(STORAGE_PERSISTENCE_DETAIL)}<br>${esc(SERVICE_WORKER_DETAIL)}</p><p id="runtime-performance-status">${esc(runtimePerformanceSummary())}</p><p class="provenance-note">V2 记录保存在当前安装身份的本机数据库。请定期导出备份；浏览器持久存储状态不能代替备份。</p></section>`);
   // 近 7 日动作数：最近 7 个自然日（今天及前 6 天），每根柱子 = 当天完成的动作个数（无记录记 0）
   const base7=new Date(); base7.setHours(0,0,0,0);
   const days7=[]; for(let i=6;i>=0;i--){ const d=new Date(base7); d.setDate(d.getDate()-i); days7.push(BojiData.localDateKey(d)); }
@@ -3996,12 +4133,14 @@ async function importLegacySnapshot(snapshot, sourceLabel){
   const s = preflight.summary;
   const message = `${sourceLabel || 'V1 数据'}预检完成：\n档案 ${s.profile} 份；训练日 ${s.checkinDays} 天（其中 ${s.legacyActionIndexes} 天含无法语义映射的旧动作编号）；饮食 ${s.mealEntries} 条；体重 ${s.weightEntries} 条；跑步 ${s.runEntries} 条；自定义动作 ${s.customExercises} 个。\n${s.quarantineItems} 类记录需要隔离复核。确认后只写入 V2；V1 数据保持原样。`;
   if(!confirm(message)) return false;
+  MIGRATION_ACTIVE=true;showUpdateReady();
   try{
     const result = await BojiData.migrateLegacy(snapshot, { confirmed:true });
     toast(result.status === 'IMPORTED' ? 'V1 记录已导入 V2，隔离项已保留供复核' : 'V1 记录已经导入过');
     setTimeout(()=>location.reload(), 500);
     return true;
   }catch(error){ toast(`导入失败，V1 数据保持原样：${error && error.message ? error.message : '迁移事务已回滚'}`); return false; }
+  finally{MIGRATION_ACTIVE=false;showUpdateReady();}
 }
 async function importLegacyFromBrowser(){
   const result = BojiData.readLegacySnapshot();
@@ -4110,6 +4249,87 @@ function pickLocalVideo(){
    引导 / 完成 / 计时 / toast
    ============================================================ */
 function toast(t){ const el=$('#toast'); el.textContent=t; el.classList.add('show'); clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove('show'),2200); }
+async function requestPersistentStorage(){
+  try{
+    const storage=navigator.storage;
+    if(!storage||typeof storage.persisted!=='function'){
+      STORAGE_PERSISTENCE_STATUS='UNSUPPORTED';
+      STORAGE_PERSISTENCE_DETAIL='此浏览器未提供持久存储申请；Boji 仍使用本机数据库，请定期导出备份。';
+    }else{
+      let granted=await storage.persisted();
+      if(!granted&&typeof storage.persist==='function')granted=await storage.persist();
+      STORAGE_PERSISTENCE_STATUS=granted?'PERSISTED':'NOT_GRANTED';
+      STORAGE_PERSISTENCE_DETAIL=granted
+        ?'浏览器已授予持久存储。请仍保留定期导出的备份。'
+        :'浏览器未授予持久存储；训练、文字教学和记录仍可使用本机数据库，但浏览器可能按自身策略清理数据，请定期导出备份。';
+    }
+  }catch(_){
+    STORAGE_PERSISTENCE_STATUS='UNKNOWN';
+    STORAGE_PERSISTENCE_DETAIL='无法确认浏览器的持久存储状态；本机记录仍可使用，请定期导出备份。';
+  }
+  refreshRuntimeHealth();
+  if(ACTIVE_MODULE==='data'||ACTIVE_MODULE==='progress')renderData($('#mod-body'));
+}
+function canAdoptServiceWorkerUpdate(){
+  return DATA_READY&&!DATA_ERROR&&!ACTIVE_WORKOUT&&!START_INTENT_KEY&&!CRITICAL_COMMIT_COUNT&&!MIGRATION_ACTIVE;
+}
+function syncHomePolling(){
+  if(document.hidden){clearInterval(HOME_POLL_ID);HOME_POLL_ID=null;return;}
+  if(!HOME_POLL_ID)HOME_POLL_ID=setInterval(renderHome,30000);
+}
+function showUpdateReady(){
+  const banner=$('#update-ready-banner'),copy=$('#update-ready-copy'),button=$('#update-ready-apply');
+  if(!banner||!WAITING_SERVICE_WORKER)return;
+  banner.hidden=false;
+  const safe=canAdoptServiceWorkerUpdate();
+  copy.textContent=safe?'Boji Companion 有可用更新。':'有可用更新；完成当前训练或本机保存后即可安全更新。';
+  button.disabled=!safe;
+  button.onclick=()=>{
+    if(!canAdoptServiceWorkerUpdate()){showUpdateReady();return;}
+    UPDATE_RELOAD_PENDING=true;
+    copy.textContent='正在安全应用更新…';button.disabled=true;
+    WAITING_SERVICE_WORKER.postMessage({type:'BOJI_ADOPT_UPDATE'});
+  };
+}
+async function registerServiceWorker(){
+  if(!('serviceWorker' in navigator)||!(location.protocol==='https:'||location.hostname==='localhost')){
+    SERVICE_WORKER_STATUS='UNAVAILABLE';SERVICE_WORKER_DETAIL='此环境未提供安全上下文中的 Service Worker；联网功能仍可使用。';refreshRuntimeHealth();return;
+  }
+  const base=new URL('./',document.baseURI);
+  try{
+    const registration=await navigator.serviceWorker.register(new URL('sw.js',base),{scope:base.pathname});
+    SERVICE_WORKER_REGISTRATION=registration;
+    SERVICE_WORKER_STATUS='REGISTERED';SERVICE_WORKER_DETAIL=`离线应用已注册，作用范围为 ${registration.scope}`;refreshRuntimeHealth();
+    WAITING_SERVICE_WORKER=registration.waiting||null;
+    if(WAITING_SERVICE_WORKER)showUpdateReady();
+    registration.addEventListener('updatefound',()=>{
+      const installing=registration.installing;
+      if(!installing)return;
+      installing.addEventListener('statechange',()=>{
+        if(installing.state==='installed'&&navigator.serviceWorker.controller){
+          WAITING_SERVICE_WORKER=registration.waiting||installing;showUpdateReady();
+        }
+      });
+    });
+    navigator.serviceWorker.addEventListener('message',event=>{
+      if(event.data&&event.data.type==='BOJI_UPDATE_READY'){
+        WAITING_SERVICE_WORKER=registration.waiting||event.source||null;showUpdateReady();
+      }
+    });
+    navigator.serviceWorker.addEventListener('controllerchange',()=>{
+      if(UPDATE_RELOAD_PENDING&&canAdoptServiceWorkerUpdate())location.reload();
+    });
+    document.addEventListener('visibilitychange',()=>{
+      if(!document.hidden&&SERVICE_WORKER_REGISTRATION)SERVICE_WORKER_REGISTRATION.update().catch(()=>{});
+    });
+  }catch(error){SERVICE_WORKER_STATUS='FAILED';SERVICE_WORKER_DETAIL=`离线应用注册失败：${error&&error.message?error.message:'浏览器未接受注册'}`;refreshRuntimeHealth();}
+}
+function refreshRuntimeHealth(){
+  const status=$('#storage-health-status');
+  if(status)status.innerHTML=`${esc(STORAGE_PERSISTENCE_DETAIL)}<br>${esc(SERVICE_WORKER_DETAIL)}`;
+  const performanceStatus=$('#runtime-performance-status');
+  if(performanceStatus)performanceStatus.textContent=runtimePerformanceSummary();
+}
 function showStorageStatus(){
   const notice=$('#critical-storage-error');if(!notice)return;
   notice.textContent=DATA_ERROR||'';notice.hidden=!DATA_ERROR;
@@ -4160,6 +4380,8 @@ let APP_BOOTED = false;
 async function boot(){
   if(APP_BOOTED) return;
   APP_BOOTED = true;
+  const bootStartedAt=runtimeNow();
+  void requestPersistentStorage();
   try{
     await BojiData.open();
     await BojiData.seedKnowledgeRegistry(KB.map(item=>({question:item.q, text:[item.a,item.more].filter(Boolean).join('\n\n'), scope:item.q})));
@@ -4181,7 +4403,12 @@ async function boot(){
       typicalSessionMinutes:canonicalProfile.typicalSessionMinutes||STATE.profile&&STATE.profile.typicalSessionMinutes||null});
     await refreshPersonalRecords();
     indexWorkoutHistory(await BojiData.listWorkoutHistory());
-    ACTIVE_WORKOUT = (await BojiData.listActiveWorkouts())[0] || null;
+    const storedWorkout=(await BojiData.listActiveWorkouts())[0]||null;
+    if(storedWorkout){
+      const ownership=await BojiData.claimWorkoutOwnership(storedWorkout.session.sessionId,TAB_OWNER_ID);
+      ACTIVE_WORKOUT=ownership.workout||storedWorkout;
+      if(ownership.status==='CLAIMED')broadcastWorkoutChange(storedWorkout.session.sessionId,'owner');
+    }else ACTIVE_WORKOUT=null;
     DATA_READY = true;
     await hydrateCustomExercises();
     if(ACTIVE_WORKOUT && ACTIVE_WORKOUT.session.activeRestEndAt) showWorkoutRest(ACTIVE_WORKOUT.session.activeRestEndAt);
@@ -4189,6 +4416,9 @@ async function boot(){
     DATA_ERROR = `V2 数据库不可用，当前为只读临时画面：${error && error.message ? error.message : '未知存储错误'}`;
   }
   bootUI();
+  const appReadyAt=runtimeNow();
+  if(Number.isFinite(APP_PERFORMANCE_STARTED_AT)&&Number.isFinite(appReadyAt))RUNTIME_METRICS.appReadyMs=Math.max(0,appReadyAt-APP_PERFORMANCE_STARTED_AT);
+  if(ACTIVE_WORKOUT&&Number.isFinite(bootStartedAt)&&Number.isFinite(appReadyAt))RUNTIME_METRICS.activeResumeMs=Math.max(0,appReadyAt-bootStartedAt);
 }
 function bootUI(){
   /* ---- ① 首屏关键路径：只做「必须立刻看得见」的事 ---- */
@@ -4207,12 +4437,9 @@ function bootUI(){
   const later = ()=>{ showOnboard(); prewarmAssets(); };
   if(typeof requestIdleCallback === 'function') requestIdleCallback(later, { timeout: 600 });
   else setTimeout(later, 0);
-  // 真实 PWA：注册 Service Worker（仅 https/localhost 生效，file:// 静默跳过）
-  // 提前到首屏后立刻注册（不等 window.load），让第二次打开走本地缓存
-  if('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')){
-    navigator.serviceWorker.register('sw.js').catch(()=>{});
-  }
-  setInterval(renderHome, 30000);
+  // Service Worker updates wait for an explicit safe adoption action.
+  registerServiceWorker();
+  syncHomePolling();
   // 5 分钟后若未打卡，桌宠委屈提醒（仅今日且未打卡）
   setTimeout(()=>{ if(!STATE.checkins[todayKey()] && getDayType(wd())!=='rest') setMood('sad',6000); }, 300000);
   if(DATA_ERROR) toast(DATA_ERROR);
@@ -4233,14 +4460,21 @@ function bindUI(){
   // 视频同款：切后台说 bye，回来说 hi（wave 求偶池含 hi 台词）
   document.addEventListener('visibilitychange', ()=>{
     if(document.hidden){
+      syncHomePolling();clearInterval(runTicker);runTicker=null;clearInterval(restId);restId=null;releaseWorkoutWakeLock();
       syncPetMotion();petRoundBubble('bye');voicePause();
       if(RUN.active){if(RUN.watchId!=null&&navigator.geolocation)try{navigator.geolocation.clearWatch(RUN.watchId);}catch(_){}RUN.watchId=null;RUN.gapPending=true;RUN.gaps++;updateRunStatus('应用进入后台，GPS 前台记录已暂停；返回后从新测量点继续。');}
     }else{
+      syncHomePolling();if(RUN.active)startRunTicker();
       petWake();if(!$('#pet').classList.contains('mood-sleep')){petGreet();setMood('wave',2200);}voiceResume();syncPetMotion();
       if(RUN.active){attachRunGeolocation();updateRunStatus('应用回到前台，等待新的 GPS 测量点；中断路段不会连接。');}
+      if(ACTIVE_WORKOUT&&ACTIVE_WORKOUT.session.activeRestEndAt)showWorkoutRest(ACTIVE_WORKOUT.session.activeRestEndAt);
+      refreshActiveWorkoutFromDB().then(()=>requestWorkoutWakeLock());
+      if(WAITING_SERVICE_WORKER)showUpdateReady();
     }
   });
-  window.addEventListener('pagehide', ()=>{pausePetMotion();releaseLocalVideoObjectUrl();});
-  window.addEventListener('pageshow', ()=>{petWake();syncPetMotion();});
+  window.addEventListener('pagehide', ()=>{pausePetMotion();releaseLocalVideoObjectUrl();clearInterval(HOME_POLL_ID);HOME_POLL_ID=null;clearInterval(runTicker);runTicker=null;clearInterval(restId);restId=null;releaseWorkoutWakeLock();
+    if(RUN.active&&RUN.watchId!=null){if(navigator.geolocation)try{navigator.geolocation.clearWatch(RUN.watchId);}catch(_){}RUN.watchId=null;RUN.gapPending=true;RUN.gaps++;}
+  });
+  window.addEventListener('pageshow', ()=>{petWake();syncPetMotion();syncHomePolling();if(RUN.active){startRunTicker();attachRunGeolocation();updateRunStatus('应用回到前台，等待新的 GPS 测量点；中断路段不会连接。');}if(ACTIVE_WORKOUT&&ACTIVE_WORKOUT.session.activeRestEndAt)showWorkoutRest(ACTIVE_WORKOUT.session.activeRestEndAt);refreshActiveWorkoutFromDB();});
 }
 document.addEventListener('DOMContentLoaded', boot);
