@@ -868,11 +868,14 @@ function v81Checks() {
     check('M12 switching to profile B persists and keeps training renderable', async () => {
       const btn = w.document.querySelector('#plan-pick .plan-pick[data-plan="B"]');
       if (!btn) return false;
-      w.__click(btn);
-      const saved = await waitForTest(() => w.eval('STATE.planSet') === 'B');
+      const planPick=w.document.querySelector('#plan-pick');
+      await planPick.onclick({target:btn});
+      const saved = w.eval('STATE.planSet') === 'B';
       const ok = saved && w.eval('PLANS') === w.eval('PLAN_SETS').B.days;
       w.goModule('training');
-      return ok && !!w.document.querySelector('#start-workout');
+      const renders=!!w.document.querySelector('#mod-body .mode-switch')
+        &&w.document.querySelectorAll('#mod-body .wday').length===7;
+      return ok && renders;
     });
   }
 }
@@ -1036,6 +1039,22 @@ function g5SurfaceChecks() {
       && /prefers-reduced-motion:\s*reduce/.test(css)
       && html.includes('viewport-fit=cover')
       && notice.getAttribute('role') === 'alert' && !notice.hidden && notice.textContent.includes('storage failure fixture');
+  });
+  check('G5 ambient pet motion pauses while hidden or reduced and resumes in foreground', () => {
+    const w=boot(J({profile:{weight:70}}));
+    w.matchMedia=()=>({matches:true});
+    w.eval('syncPetMotion')();
+    const reduced=w.eval('idleTimer')===null&&w.eval('blinkTimer')===null
+      &&w.document.getElementById('pet').classList.contains('motion-paused')&&!w.eval('_walking');
+    w.matchMedia=()=>({matches:false});
+    Object.defineProperty(w.document,'hidden',{configurable:true,value:true});
+    w.eval('syncPetMotion')();
+    const hidden=w.eval('idleTimer')===null&&w.eval('blinkTimer')===null
+      &&w.document.getElementById('pet').classList.contains('motion-paused');
+    Object.defineProperty(w.document,'hidden',{configurable:true,value:false});
+    w.eval('syncPetMotion')();
+    return reduced&&hidden&&!w.document.getElementById('pet').classList.contains('motion-paused')
+      &&w.eval('idleTimer')!==null&&w.eval('blinkTimer')!==null;
   });
   check('G5 dismissing storage failure requires a successful later save', async () => {
     const w = boot(J({ profile: { weight: 70 } }));

@@ -644,6 +644,7 @@ body{
 .pet-bubble.round::after{display:none;}
 .pet-bubble.round b{display:block;transform:scale(.6);opacity:0;}
 .pet-bubble.round.show b{animation:pet-bubble-pop .34s cubic-bezier(.34,1.56,.64,1) forwards;}
+.pet.motion-paused,.pet.motion-paused *{animation-play-state:paused !important;transition:none !important;}
 @keyframes pet-bubble-pop{0%{transform:scale(.6);opacity:0;}55%{opacity:1;}100%{transform:scale(1);opacity:1;}}
 /* ④ crouch：纵向压缩至 51%，横向补偿 108% 保持体积感，1.6s */
 .pet.act-crouch .pet-img{animation:pet-crouch 1.6s var(--ease) 1;}

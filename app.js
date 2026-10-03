@@ -1193,12 +1193,16 @@ function applyPetArt(mood){
   img.src=skin.asset&&!skin.photo?skin.asset:petArtURI(mood||STATE.petMood||'happy');
 }
 let blinkTimer=null;
+function prefersReducedMotion(){
+  try{return !!(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches);}catch(_){return false;}
+}
 function scheduleBlink(){
   clearTimeout(blinkTimer);
+  blinkTimer=null;
+  if(document.hidden||prefersReducedMotion())return;
   blinkTimer=setTimeout(()=>{
     const pet=document.getElementById('pet');
-    const reduce=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if(pet&&!document.hidden&&!reduce){
+    if(pet&&!document.hidden&&!prefersReducedMotion()){
       pet.classList.add('boji-blink');
       setTimeout(()=>pet.classList.remove('boji-blink'),150);
     }
@@ -1236,7 +1240,11 @@ function typeBubble(text, done){
 }
 function petIdle(){
   clearTimeout(idleTimer);
+  idleTimer=null;
+  if(document.hidden||prefersReducedMotion())return;
   idleTimer = setTimeout(()=>{
+    idleTimer=null;
+    if(document.hidden||prefersReducedMotion())return;
     const r = Math.random();
     // 动作优先（v1.1）：溜达权重最高，符合「动作 > 表情」的取向
     if(r<0.26) petWalk();                                    // ① 沿边溜达（Shimeji walk）
@@ -1331,7 +1339,7 @@ let _walkTimers = [], _walking = false;
 function petWalk(){
   const pet = $('#pet'); if(!pet || _walking) return;
   if(STATE.settings && STATE.settings.petWalk === false) return;   // 设置里可关
-  if(document.hidden) return;                                       // 后台不跑动画
+  if(document.hidden||prefersReducedMotion()) return;                // 后台或减少动态效果时不跑自动位移动画
   const sr = $('#screen').getBoundingClientRect(); if(!sr.width) return;
   const pw = pet.offsetWidth || 126, ph = pet.offsetHeight || 150;
   const dock = STATE.petDock || { edge:'right', off:0.62 };
@@ -1360,6 +1368,22 @@ function petStopWalk(){
   const pet = $('#pet'); if(!pet) return;
   pet.classList.remove('pet-walking'); pet.style.transition = 'none'; _walking = false;
   applyDock();
+}
+function pausePetMotion(){
+  clearTimeout(idleTimer);idleTimer=null;
+  clearTimeout(blinkTimer);blinkTimer=null;
+  clearTimeout(petTimer);petTimer=null;
+  clearTimeout(sleepTimer);sleepTimer=null;
+  clearTimeout(nudgeTimer);nudgeTimer=null;
+  petStopWalk();
+  const bubble=$('#pet-bubble');if(bubble){clearTimeout(bubble._t);bubble._t=null;bubbleQueue=[];bubbleBusy=false;bubble.classList.remove('show');}
+  const pet=$('#pet');if(pet)pet.classList.add('motion-paused');
+}
+function syncPetMotion(){
+  const pet=$('#pet');
+  if(document.hidden||prefersReducedMotion()){pausePetMotion();return;}
+  if(pet)pet.classList.remove('motion-paused');
+  scheduleBlink();petIdle();
 }
 /* 被抓 → 挣扎摆动；松手 → 落地回弹（对应 Shimeji 的 drag / fall） */
 function petStruggle(on){ const pet = $('#pet'); if(!pet) return; pet.classList.toggle('pet-struggle', !!on); }
@@ -1642,7 +1666,13 @@ function initPet(){
   if(STATE.petPos && !STATE.petDock){ STATE.petDock = { edge:'right', off:0.62 }; }  // 兼容旧版位置数据
   applyDock();
   setMood(STATE.petMood && LINES[STATE.petMood] ? STATE.petMood : 'happy');
-  petWake(); petIdle(); scheduleBlink();
+  petWake();
+  const petMotionQuery=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)');
+  if(petMotionQuery){
+    if(petMotionQuery.addEventListener)petMotionQuery.addEventListener('change',syncPetMotion);
+    else if(petMotionQuery.addListener)petMotionQuery.addListener(syncPetMotion);
+  }
+  syncPetMotion();
   petAct('idle');                                            // ① 待机呼吸（常驻）
   setTimeout(()=>{ if(!document.hidden) petGreet(); }, 900);  // ②+③ 开场挥手 + "hi" 气泡
   let sx,sy,ox,oy,dragged=false,pid=null;
@@ -4203,13 +4233,14 @@ function bindUI(){
   // 视频同款：切后台说 bye，回来说 hi（wave 求偶池含 hi 台词）
   document.addEventListener('visibilitychange', ()=>{
     if(document.hidden){
-      petRoundBubble('bye');voicePause();
+      syncPetMotion();petRoundBubble('bye');voicePause();
       if(RUN.active){if(RUN.watchId!=null&&navigator.geolocation)try{navigator.geolocation.clearWatch(RUN.watchId);}catch(_){}RUN.watchId=null;RUN.gapPending=true;RUN.gaps++;updateRunStatus('应用进入后台，GPS 前台记录已暂停；返回后从新测量点继续。');}
     }else{
-      petWake();if(!$('#pet').classList.contains('mood-sleep')){petGreet();setMood('wave',2200);}voiceResume();
+      petWake();if(!$('#pet').classList.contains('mood-sleep')){petGreet();setMood('wave',2200);}voiceResume();syncPetMotion();
       if(RUN.active){attachRunGeolocation();updateRunStatus('应用回到前台，等待新的 GPS 测量点；中断路段不会连接。');}
     }
   });
-  window.addEventListener('pagehide', releaseLocalVideoObjectUrl);
+  window.addEventListener('pagehide', ()=>{pausePetMotion();releaseLocalVideoObjectUrl();});
+  window.addEventListener('pageshow', ()=>{petWake();syncPetMotion();});
 }
 document.addEventListener('DOMContentLoaded', boot);
