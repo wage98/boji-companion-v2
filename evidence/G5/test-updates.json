@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "classificationVocabulary": ["VALID_REQUIREMENT", "LEGACY_BUG_EXPECTATION", "OBSOLETE_WITH_REASON"],
+  "items": [
+    {
+      "reference": "tools/selfcheck-functional.js Today home metric assertion",
+      "classification": "OBSOLETE_WITH_REASON",
+      "reason": "The V1 home assertion required a location tagline inside the metric group. V2 UX-022 limits Today to a few meaningful progress metrics; the equipment context is shown with today's plan. The replacement asserts three metrics and the primary workout action."
+    },
+    {
+      "reference": "tools/selfcheck-functional.js profile avatar fixture and reply API",
+      "classification": "VALID_REQUIREMENT",
+      "reason": "The fixture now updates the live profile state through the app scope, then exercises Boji's current public reply function. It preserves avatar rendering and assistant behavior coverage."
+    },
+    {
+      "reference": "tools/selfcheck-attack.js former V1 mascot, skin, and identity assertions",
+      "classification": "OBSOLETE_WITH_REASON",
+      "reason": "Assertions for retired V1 character names, SVG mascots, and skin keys do not describe the V2 Boji identity. They were replaced by local Boji candidate renderer checks while retaining explicit Photo Pet renderer, saved-image, and coexistence coverage."
+    },
+    {
+      "reference": "tools/selfcheck-attack.js G5 surface checks",
+      "classification": "VALID_REQUIREMENT",
+      "reason": "Added contract checks for first-use context and no generated program, accessible onboarding dialog semantics/focus handoff, Today metrics/action/rationale/note, six Boji shortcuts, Progress answer order, shared Learning/Performance workout records with teaching and set fields, hidden/reduced-motion suspension, safe areas, touch targets, and persistent storage errors."
+    },
+    {
+      "reference": "tools/selfcheck-attack.js V7 and N4 voice checks",
+      "classification": "VALID_REQUIREMENT",
+      "reason": "Verify visibility pause/resume, cancellation on explicit stop, an understandable unsupported-Web-Speech fallback, and the retained text companion path."
+    },
+    {
+      "reference": "tools/selfcheck-attack.js M12 plan-switch route assertion",
+      "classification": "VALID_REQUIREMENT",
+      "reason": "The plan-switch persistence expectation remains unchanged. The renderability assertion now checks the always-present training mode group and full week schedule, because the current date may correctly be a rest day with no workout-start button."
+    }
+  ]
+}

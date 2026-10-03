@@ -1,0 +1,3 @@
+warning: in the working copy of 'app.js', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'styles.css', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tools/selfcheck-attack.js', LF will be replaced by CRLF the next time Git touches it

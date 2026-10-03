@@ -1,0 +1,1 @@
+774c3237cf53f12c743e7597ab7808e5a2743bb2 Pause ambient Boji motion for lifecycle and preferences
