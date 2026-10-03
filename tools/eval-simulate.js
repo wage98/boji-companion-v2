@@ -29,7 +29,7 @@ function extractFn(src, name){
   throw new Error(name + ' 花括号不闭合');
 }
 const sandbox = {};
-new Function('sandbox', 'const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));' + extractFn(appSrc, 'sanitizeVision') + ';sandbox.sanitizeVision=sanitizeVision;')(sandbox);
+new Function('sandbox', 'const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));' + extractFn(appSrc, 'sanitizeVisionItem') + extractFn(appSrc, 'sanitizeVision') + ';sandbox.sanitizeVision=sanitizeVision;')(sandbox);
 const sanitizeVision = sandbox.sanitizeVision;
 
 /* ---- （--simulate）：以「准确率」为核心指标的迭代回路

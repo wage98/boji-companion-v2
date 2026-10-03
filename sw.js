@@ -7,7 +7,7 @@
 //  2) install 阶段逐条 put（单条失败不影响整体），并缓存 index.html 作为导航兜底，
 //     确保任何情况下都能渲染出自己的页面，而不是托管方的错误页。
 //  3) 跳过等待 + 立即接管，避免旧 SW 卡住导致更新后仍加载旧资源。
-const CACHE = 'boji-1-2-0';
+const CACHE = 'boji-v2-rc-3';
 const ASSETS = [
   './',
   './index.html',
@@ -38,7 +38,8 @@ self.addEventListener('install', e => {
 self.addEventListener('activate', e => {
   e.waitUntil((async () => {
     const keys = await caches.keys();
-    await Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)));
+    const managedPrefixes=['boji-v2-rc-','boji-v2-prod-'];
+    await Promise.all(keys.filter(k => k !== CACHE && managedPrefixes.some(prefix=>k.startsWith(prefix))).map(k => caches.delete(k)));
     await self.clients.claim();
   })());
 });

@@ -70,6 +70,7 @@ const appSrc = fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8');
 const sandbox = {};
 new Function('sandbox', `
   const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
+  ${extractFn(appSrc, 'sanitizeVisionItem')}
   ${extractFn(appSrc, 'sanitizeVision')}
   sandbox.sanitizeVision = sanitizeVision;
 `) (sandbox);
@@ -141,12 +142,12 @@ function offlineEval(){
   // B. 对抗样例：坏输出必须被夹住
   log('\n[B] 对抗样例（模型胡说时 sanitize 必须兜住）');
   const adv = [
-    { in:{ name:'<script>alert(1)</script>', grams:-50, kcal:99999, protein:-10, carb:999, fat:-99, confidence:2 }, chk:s=>s.name.includes('script')===false && s.grams>=10 && s.kcal<=5000 },
-    { in:{ name:'', kcal:3000 }, chk:s=>s.kcal>0 && s.p>0 && s.c>0 && s.f>0 },
-    { in:{ name:'空气', grams:100, kcal:5000, protein:0, carb:0, fat:0, uncertain:true }, chk:s=>s.conf<=0.35 && s.uncertain===true },
-    { in:{ name:'沙拉', grams:80, kcal:2000, protein:5, carb:20, fat:3 }, chk:s=>s.kcal<=1200 || s.conf<=0.7 },   // 宏量自洽仅 ~175，热量被宏量拉回
+    { in:{ name:'<script>alert(1)</script>', grams:-50, kcal:99999, protein:-10, carb:999, fat:-99, confidence:2 }, chk:s=>!s.name.includes('script') && s.grams===10 && s.kcal===5000 },
+    { in:{ name:'', kcal:3000 }, chk:s=>s.kcal===3000 && s.p===null && s.c===null && s.f===null },
+    { in:{ name:'meal', grams:100, kcal:5000, protein:0, carb:0, fat:0, uncertain:true }, chk:s=>s.kcal===5000 && s.inconsistent===true && s.uncertain===true },
+    { in:{ name:'salad', grams:80, kcal:2000, protein:5, carb:20, fat:3 }, chk:s=>s.kcal===2000 && s.inconsistent===true },
     { in:null, chk:s=>s===null },
-  ];
+  ];;
   adv.forEach((a,i)=>{
     const s = sanitizeVision(a.in);
     if(!a.chk(s)) throw new Error('对抗样例 ' + i + ' 未被兜住: ' + JSON.stringify(s));

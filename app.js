@@ -12,7 +12,7 @@
    历史版本流水见 docs/轮次总结.md，此处不再罗列。
    ============================================================ */
 'use strict';
-const APP_VERSION = '2.0.0-pre.2';
+const APP_VERSION = '2.0.0-pre.3';
 const $ = s => document.querySelector(s);
 const $$ = s => Array.from(document.querySelectorAll(s));
 const el = html => { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstChild; };
@@ -636,15 +636,17 @@ function dataReply(q){
     return `今天练【${p.name}】（${p.ex.length} 个动作，约 ${estMin(p)} 分钟）\n已完成 ${done}/${p.ex.length}。\n前三个：${p.ex.slice(0,3).map((e,i)=>`${i+1}. ${e.name} ${e.sets}×${e.reps}`).join('；')}`;
   }
   if(/蛋白(够|够吗|多少|吃了)|吃了多少蛋白/.test(q)){
-    const key=todayKey(), meals=STATE.meals[key]||{}; let pTot=0;
-    Object.keys(meals).forEach(mi=>(meals[mi]||[]).forEach(f=>{ pTot += (f.p||0) * mealQty(f); }));
-    const pct = g.protein ? Math.round(pTot/g.protein*100) : 0;
-    return `今天已记录蛋白 ${Math.round(pTot)}g / 目标 ${g.protein}g（${pct}%）\n${pTot>=g.protein?'达标啦，小练很高兴(★ω★)':'还差 '+Math.round(g.protein-pTot)+'g，建议：鸡胸 150g≈35g 或 蛋白粉 1 勺≈24g。'}`;
+    const key=todayKey(), meals=mealEntriesForDay(key); let pTot=0,complete=true;
+    Object.keys(meals).forEach(mi=>(meals[mi]||[]).forEach(f=>{ if(f.p==null)complete=false;else pTot += f.p * mealQty(f); }));
+    if(!complete)return `今天已记录项目中的已知蛋白质为 ${Math.round(pTot)}g；有食物没有蛋白字段，因此这是部分合计。`;
+    if(!g.hasTargets||g.protein==null)return `今天已记录蛋白 ${Math.round(pTot)}g。当前为仅记录模式；可在「我的」中选择营养目标。`;
+    const pct = Math.round(pTot/g.protein*100);
+    return `今天已记录蛋白 ${Math.round(pTot)}g / 估算目标 ${g.protein}g（${pct}%）\n${pTot>=g.protein?'达到当前估算目标了。':'还差 '+Math.round(g.protein-pTot)+'g；目标是可调整的估算值。'}`;
   }
   if(/热量|卡路里|kcal|今天吃了/.test(q)){
-    const key=todayKey(), meals=STATE.meals[key]||{}; let kc=0;
-    Object.keys(meals).forEach(mi=>(meals[mi]||[]).forEach(f=>{ kc += foodKcal(f); }));
-    return `今天已记录 ${Math.round(kc)} kcal / 目标约 ${g.kcal} kcal。\n${kc? '数据来自你手动/拍照记录，估算误差通常在 ±20%。':'还没记录饮食哦，拍照记一笔更准~'}`;
+    const key=todayKey(), meals=mealEntriesForDay(key); let kc=0,complete=true,count=0;
+    Object.keys(meals).forEach(mi=>(meals[mi]||[]).forEach(f=>{count++;const energy=foodKcal(f);if(energy==null)complete=false;else kc+=energy;}));
+    return `今天${complete?'已记录':'有热量字段的记录小计'} ${Math.round(kc)} kcal${complete&&g.hasTargets&&g.kcal!=null?' / 当前估算目标 '+g.kcal+' kcal':''}。\n${count?'记录值的来源和估算状态会在饮食页逐项显示。':'还没记录饮食哦，可手动录入或拍照识别。'}`;
   }
   if(/连续|打卡几天|坚持了|几天了|streak/.test(q)){
     return `你已经连续打卡 ${streak()} 天，累计 ${dayCompleteCount()} 天 (｡･ω･｡)ﾉ\n${streak()>=7?'一周以上啦，保持节奏！':'先定个小目标：连打 7 天。'}`;
@@ -674,8 +676,11 @@ function dataReply(q){
     return `本周（周一起）已练 ${days} 天、完成 ${sets} 个动作。\n${days>=4?'节奏很好，注意恢复(★ω★)':days>=2?'不错，再练 1–2 天就到位。':'本周还没达标——目标 3–4 次，今晚就开始？'}`;
   }
   if(!/练/.test(q) && /吃什么|吃啥|推荐.{0,4}吃|饮食建议|三餐/.test(q)){
-    const key=todayKey(), meals=STATE.meals[key]||{}; let pTot=0;
-    Object.keys(meals).forEach(mi=>(meals[mi]||[]).forEach(f=>{ pTot += (f.p||0) * mealQty(f); }));
+    const key=todayKey(), meals=mealEntriesForDay(key); let pTot=0;
+    let proteinComplete=true;
+    Object.keys(meals).forEach(mi=>(meals[mi]||[]).forEach(f=>{ if(f.p==null)proteinComplete=false;else pTot += f.p * mealQty(f); }));
+    if(!proteinComplete)return `今天已记录项目中的已知蛋白质为 ${Math.round(pTot)}g；有食物没有蛋白字段，因此这是部分合计。补全营养信息后，我再估算还差多少。`;
+    if(!g.hasTargets||g.protein==null)return `今天已记录蛋白 ${Math.round(pTot)}g。当前为仅记录模式；可在「我的」中选择营养目标。`;
     const gap=Math.round(g.protein-pTot);
     if(gap>10) return `今天蛋白还差约 ${gap}g。推荐：鸡胸 150g（≈35g 蛋白）/ 鸡蛋 2 个+牛奶 250ml（≈20g）/ 豆腐干 100g（≈16g）。\n拍照记一笔，我帮你盯着总量~`;
     if(pTot>0) return `今天蛋白已记录 ${Math.round(pTot)}g（目标 ${g.protein}g），基本够了。主食碳水别怕吃——练前练后都是好时机(｡･ω･｡)`;
@@ -687,7 +692,7 @@ function dataReply(q){
     return `上次重量（${PLANS[t2].name}）：\n${rows.join('\n')}\n全部动作达标后建议 +2.5kg（训练页有“应用”按钮）。`;
   }
   if(/喝水|饮水|水/.test(q)){
-    const w=STATE.waterMl||0;
+    const w=dailyWaterTotal(todayKey());
     return `今天已喝 ${w} ml / 目标 ${g.water} ml。\n${w>=g.water?'目标达成 💧':'再来一杯 250ml 就又近一步啦~'}`;
   }
   return null;
@@ -778,18 +783,46 @@ const EST_LIB = [
   { n:'饼干(3片)', p:2, c:20, f:8 },
 ];
 const MEAL_NAMES = ['早餐','午餐','晚餐','加餐'];
-// 每日目标不再写死，随档案（体重等）实时计算
-// 蛋白 1.8g/kg（ISSN 1.6–2.2 区间中值）· 热量 ≈ 33 kcal/kg（轻活动量估）· 饮水 ≈ 35 ml/kg（30–40 区间中值）
+// Targets are estimates or user-entered values; they are never presented as prescriptions.
 function dailyGoal(){
   const p = STATE.profile;
   const w0 = p && +p.weight;
-  if(!w0 || !isFinite(w0)) return { protein:120, kcal:2000, water:2000 };
-  const w = Math.max(30, Math.min(200, w0));     // 夹取：脏数据/极端值不产生荒谬目标
+  const intent = p && ['LOG_ONLY','MAINTAIN','GAIN','LOSE','CUSTOM'].includes(p.nutritionIntent) ? p.nutritionIntent : 'LOG_ONLY';
+  const w = w0 && isFinite(w0) ? Math.max(30, Math.min(200, w0)) : null;
+  const water = p && +p.waterGoalMl >= 250 && +p.waterGoalMl <= 10000
+    ? Math.round(+p.waterGoalMl/50)*50 : (w ? Math.round(w*35/50)*50 : null);
+  if(intent==='LOG_ONLY') return { intent, hasTargets:false, protein:null, kcal:null, water };
+  if(intent==='CUSTOM') return { intent, hasTargets:true,
+    protein:p && +p.customProteinG>=1 && +p.customProteinG<=500 ? Math.round(+p.customProteinG) : null,
+    kcal:p && +p.customKcal>=500 && +p.customKcal<=10000 ? Math.round(+p.customKcal) : null, water };
+  if(!w) return { intent, hasTargets:true, protein:null, kcal:null, water };
+  const proteinRate = intent==='MAINTAIN' ? 1.6 : 1.8;
+  const kcalRate = intent==='MAINTAIN' ? 30 : intent==='LOSE' ? 27 : 33;
   return {
-    protein: Math.round(w * 1.8),
-    kcal:    Math.round(w * 33),
-    water:   Math.round(w * 35 / 50) * 50,
+    intent, hasTargets:true,
+    protein: Math.round(w * proteinRate),
+    kcal: Math.round(w * kcalRate),
+    water,
   };
+}
+function profileDomainRecord(profile){
+  const p=profile||{};
+  return {profileId:'profile-primary',displayName:String(p.name||'训练者').slice(0,80),
+    heightMeters:p.height!=null&&Number.isFinite(+p.height)?+p.height/100:null,weightKg:p.weight!=null&&Number.isFinite(+p.weight)?+p.weight:null,
+    availableDumbbellMaxKg:p.dumbbell!=null&&Number.isFinite(+p.dumbbell)?+p.dumbbell:null,
+    nutritionIntent:['LOG_ONLY','MAINTAIN','GAIN','LOSE','CUSTOM'].includes(p.nutritionIntent)?p.nutritionIntent:'LOG_ONLY',
+    customKcal:p.customKcal!=null&&p.customKcal!==''&&Number.isFinite(+p.customKcal)?+p.customKcal:null,
+    customProteinG:p.customProteinG!=null&&p.customProteinG!==''&&Number.isFinite(+p.customProteinG)?+p.customProteinG:null,
+    waterGoalMl:p.waterGoalMl!=null&&p.waterGoalMl!==''&&Number.isFinite(+p.waterGoalMl)?+p.waterGoalMl:null,updatedAt:Date.now()};
+}
+function readNutritionPreferences(prefix,previous){
+  const p=previous||{},value=id=>{const el=$('#'+prefix+id);return el&&el.value!==''&&Number.isFinite(+el.value)?+el.value:null;};
+  const intentEl=$('#'+prefix+'intent'),intent=intentEl&&intentEl.value||p.nutritionIntent||'LOG_ONLY';
+  const customKcal=value('custom-kcal'),customProteinG=value('custom-protein'),waterGoalMl=value('water-goal');
+  if(!['LOG_ONLY','MAINTAIN','GAIN','LOSE','CUSTOM'].includes(intent))return {ok:false,message:'请选择有效的营养目标'};
+  if(intent==='CUSTOM'&&(customKcal==null||customKcal<500||customKcal>10000||customProteinG==null||customProteinG<1||customProteinG>500))return {ok:false,message:'自定义模式需要填写热量 500–10000 kcal 与蛋白质 1–500 g'};
+  if(waterGoalMl!=null&&(waterGoalMl<250||waterGoalMl>10000))return {ok:false,message:'饮水目标需在 250–10000 ml，或留空使用估算值'};
+  return {ok:true,value:{nutritionIntent:intent,customKcal,customProteinG,waterGoalMl}};
 }
 
 /* ---------- V2 状态与 IndexedDB 持久化 ---------- */
@@ -809,6 +842,41 @@ const DEFAULT_STATE = {
   ctxLimit:0,                                // v1.1 上下文记忆轮数上限；0=不限（限时开放）
 };
 let STATE = Object.assign({}, DEFAULT_STATE);
+let PERSONAL_RECORDS_READY = false;
+let MEAL_RECORDS = [], FOOD_DRAFTS = [], BODY_WEIGHT_RECORDS = [], WATER_ENTRIES = [], RUN_RECORDS = [];
+let FOOD_SEARCH_OWNER = null, FOOD_AI_OWNER = null, FOOD_BARCODE_OWNER = null, FOOD_SEARCH_TIMER = null;
+let ACTIVE_FOOD_DRAFT = null;
+async function refreshPersonalRecords(){
+  const result=await Promise.all([BojiData.listMealRecords(),BojiData.listFoodDrafts({status:'DRAFT'}),BojiData.listBodyWeights(),BojiData.listWaterEntries(),BojiData.listRuns()]);
+  MEAL_RECORDS=result[0];FOOD_DRAFTS=result[1];BODY_WEIGHT_RECORDS=result[2];WATER_ENTRIES=result[3];RUN_RECORDS=result[4];
+  STATE.bodyWeights=BODY_WEIGHT_RECORDS.filter(row=>row.localDateKey&&row.weightKg!=null).map(row=>({d:row.localDateKey,w:row.weightKg})).sort((a,b)=>dateVal(a.d)-dateVal(b.d));
+  PERSONAL_RECORDS_READY=true;
+  return true;
+}
+function nutritionField(item,name){const row=item&&item.nutrients&&item.nutrients[name];return row&&Number.isFinite(+row.value)?+row.value:null;}
+function mealEntriesForDay(key){
+  if(!PERSONAL_RECORDS_READY)return STATE.meals&&STATE.meals[key]||{};
+  const out={};
+  MEAL_RECORDS.filter(row=>row.localDateKey===key).forEach(record=>{
+    const mi=Number.isInteger(record.mealTypeIndex)?record.mealTypeIndex:3;out[mi]=out[mi]||[];
+    (record.items||[]).forEach(item=>out[mi].push({n:item.name,p:nutritionField(item,'protein'),c:nutritionField(item,'carbohydrate'),f:nutritionField(item,'fat'),
+      q:1,kcalFix:nutritionField(item,'energyKcal'),quantity:item.quantity,unit:item.unit,provenance:item.provenance}));
+  });
+  return out;
+}
+function allMealEntries(){
+  if(!PERSONAL_RECORDS_READY)return STATE.meals||{};
+  const out={};MEAL_RECORDS.forEach(record=>{out[record.localDateKey]=out[record.localDateKey]||{};const mi=Number.isInteger(record.mealTypeIndex)?record.mealTypeIndex:3;
+    out[record.localDateKey][mi]=out[record.localDateKey][mi]||[];(record.items||[]).forEach(item=>out[record.localDateKey][mi].push({n:item.name,p:nutritionField(item,'protein'),c:nutritionField(item,'carbohydrate'),f:nutritionField(item,'fat'),q:1,kcalFix:nutritionField(item,'energyKcal')}));});return out;
+}
+function dailyWaterTotal(key){return PERSONAL_RECORDS_READY?WATER_ENTRIES.filter(row=>row.localDateKey===key).reduce((sum,row)=>sum+row.amountMl,0):(+STATE.waterMl||0);}
+function emitProductEvent(type,record){
+  if(!record)return false;
+  const recordId=record&&(record.mealId||record.runId||record.weightId||record.entryId||record.sessionId);
+  if(!recordId)return false;
+  window.dispatchEvent(new CustomEvent('boji:product-event',{detail:{type,recordId,occurredAt:record.confirmation&&record.confirmation.confirmedAt||record.createdAt||record.measuredAt||record.endedAt||Date.now(),localDateKey:record.localDateKey||null}}));
+  return true;
+}
 let DATA_READY = false;
 let DATA_ERROR = null;
 let _saveWarned = false;
@@ -2017,7 +2085,7 @@ const CLOSERS = {
   module:      ()=>{ const p=$('#module');    p.classList.remove('open'); p.setAttribute('aria-hidden','true'); },
   onboard:     ()=>{ $('#onboard').classList.remove('show'); },
   'done-modal':()=>{ $('#done-modal').classList.remove('show'); },
-  'food-sheet':()=>{ const s=$('#food-sheet'); s.classList.remove('show'); s.setAttribute('aria-hidden','true'); },
+  'food-sheet':()=>{ cancelFoodWork(); _fsPhotoFile=null; const s=$('#food-sheet'); s.classList.remove('show'); s.setAttribute('aria-hidden','true'); },
   // v1.2 视频弹层：关闭时务必清空 iframe/video，释放解码资源
   'video-pop': ()=>{ const p=$('#video-pop'); if(p) p.classList.remove('show');
     const st=$('#vpop-stage'); if(st) st.innerHTML=''; },
@@ -2300,55 +2368,136 @@ function runKcal(distM, ms, w){
   const vo2 = 0.2 * mPerMin + 3.5;                 // ACSM 跑步公式（含静息分量）
   return Math.round(vo2 * (w || 65) / 1000 * 5 * min);
 }
-const RUN = { active:false, watchId:null, pts:[], t0:0, dist:0, lastFix:0 };
+const RUN = { active:false, watchId:null, pts:[], segments:[], t0:0, startedAt:0, localDateKey:null, timezoneContext:null, dist:0, lastFix:0, gaps:0, gapPending:false, geoUnavailable:false, pendingRecord:null, saving:false };
 function runFmtDist(m){ return m >= 1000 ? (m/1000).toFixed(2) + ' km' : Math.round(m) + ' m'; }
 function runFmtDur(ms){ const s = Math.floor(ms/1000); return `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`; }
 function runPace(distM, ms){ if(distM < 10 || !ms) return '--'; const p = (ms/60000) / (distM/1000); return `${Math.floor(p)}'${String(Math.round((p%1)*60)).padStart(2,'0')}"`; }
 function runTotals(){
-  const rs = (STATE.runs && Array.isArray(STATE.runs)) ? STATE.runs : [];
-  return { n:rs.length, dist:rs.reduce((a,r)=>a+(r.dist||0),0), ms:rs.reduce((a,r)=>a+(r.ms||0),0),
-           kcal:rs.reduce((a,r)=>a+(r.kcal||0),0) };
+  const rs=PERSONAL_RECORDS_READY?RUN_RECORDS:(STATE.runs&&Array.isArray(STATE.runs)?STATE.runs:[]);
+  return {n:rs.length,dist:rs.reduce((a,r)=>a+(r.distanceMeters!=null?r.distanceMeters:r.dist||0),0),
+    ms:rs.reduce((a,r)=>a+(r.durationSeconds!=null?r.durationSeconds*1000:r.ms||0),0),
+    kcal:rs.reduce((a,r)=>a+(r.calorieEstimate&&r.calorieEstimate.energyKcal!=null?r.calorieEstimate.energyKcal:r.kcal||0),0)};
+}
+const RUN_MAX_ROUTE_POINTS=400,RUN_GAP_MS=30000;
+function routePerpendicularMeters(point,start,end){
+  const lat0=(point.lat+start.lat+end.lat)/3*Math.PI/180,scaleX=111320*Math.cos(lat0),scaleY=110540;
+  const px=point.lon*scaleX,py=point.lat*scaleY,sx=start.lon*scaleX,sy=start.lat*scaleY,ex=end.lon*scaleX,ey=end.lat*scaleY;
+  const dx=ex-sx,dy=ey-sy;if(dx===0&&dy===0)return Math.hypot(px-sx,py-sy);
+  const t=Math.max(0,Math.min(1,((px-sx)*dx+(py-sy)*dy)/(dx*dx+dy*dy)));
+  return Math.hypot(px-(sx+t*dx),py-(sy+t*dy));
+}
+function simplifyRouteSegment(points,tolerance){
+  if(!Array.isArray(points)||points.length<=2)return (points||[]).slice();
+  const keep=new Uint8Array(points.length);keep[0]=keep[points.length-1]=1;const stack=[[0,points.length-1]];
+  while(stack.length){const [first,last]=stack.pop();let max=tolerance,index=-1;for(let i=first+1;i<last;i++){const distance=routePerpendicularMeters(points[i],points[first],points[last]);if(distance>max){max=distance;index=i;}}
+    if(index>=0){keep[index]=1;stack.push([first,index],[index,last]);}}
+  return points.filter((_,index)=>keep[index]);
+}
+function simplifyRunRoute(segments,maxPoints){
+  const limit=maxPoints||RUN_MAX_ROUTE_POINTS;let tolerance=2,result=(segments||[]).filter(segment=>segment&&segment.length).map(segment=>segment.slice());
+  while(result.reduce((sum,segment)=>sum+segment.length,0)>limit&&tolerance<100000){tolerance*=1.6;result=result.map(segment=>simplifyRouteSegment(segment,tolerance));}
+  if(result.length*2>limit&&result.length>1)result=result.slice(0,Math.floor(limit/2)-1).concat([result[result.length-1]]);
+  return result;
+}
+function attachRunGeolocation(){
+  if(!RUN.active||!navigator.geolocation||document.hidden){RUN.geoUnavailable=!navigator.geolocation;return;}
+  try{
+    RUN.watchId=navigator.geolocation.watchPosition(pos=>{
+      if(!RUN.active||document.hidden)return;
+      const timestamp=Number.isFinite(pos.timestamp)&&pos.timestamp>0?pos.timestamp:Date.now(),acc=pos.coords.accuracy;
+      if(acc!=null&&acc>50){RUN.gapPending=true;updateRunStatus('定位精度较低，已忽略该点');return;}
+      const point={lat:pos.coords.latitude,lon:pos.coords.longitude,recordedAt:timestamp,accuracyMeters:acc==null?null:acc};
+      if(!Number.isFinite(point.lat)||!Number.isFinite(point.lon))return;
+      let segment=RUN.segments[RUN.segments.length-1],last=segment&&segment[segment.length-1];
+      if(!last||RUN.gapPending||timestamp-last.recordedAt>RUN_GAP_MS){if(last||RUN.gapPending)RUN.gaps++;segment=[];RUN.segments.push(segment);RUN.gapPending=false;last=null;}
+      if(last){
+        const elapsed=timestamp-last.recordedAt,distance=haversine(last,point),speed=elapsed>0?distance/(elapsed/1000):Infinity;
+        if(elapsed<=0||speed>8){RUN.gaps++;segment=[];RUN.segments.push(segment);last=null;}
+        else if(distance<1)return;
+        else RUN.dist+=distance;
+      }
+      segment=RUN.segments[RUN.segments.length-1];segment.push(point);RUN.pts.push(point);RUN.lastFix=timestamp;RUN.geoUnavailable=false;
+      updateRunRoute();updateRunStatus(RUN.gaps?'GPS 轨迹有间断，未连接缺失路段':'GPS 前台定位中');
+    },err=>{
+      RUN.geoUnavailable=true;RUN.gapPending=true;
+      if(RUN.watchId!=null)try{navigator.geolocation.clearWatch(RUN.watchId);}catch(_){}
+      RUN.watchId=null;updateRunStatus('GPS 不可用：'+(err&&err.message||'定位失败')+'。可手动填写距离和时长。');toast('GPS 定位不可用，可手动记录跑步');
+    },{enableHighAccuracy:true,timeout:12000,maximumAge:2000});
+  }catch(error){RUN.geoUnavailable=true;updateRunStatus('GPS 不可用，可手动填写距离和时长');}
 }
 function runStart(){
   if(RUN.active) return;
-  if(!navigator.geolocation){ toast('当前环境不支持定位，无法记录轨迹'); return; }
-  RUN.pts = []; RUN.dist = 0; RUN.t0 = Date.now(); RUN.active = true;
-  RUN.watchId = navigator.geolocation.watchPosition(pos=>{
-    const p = { lat:pos.coords.latitude, lon:pos.coords.longitude, t:Date.now() };
-    const acc = pos.coords.accuracy;
-    // 精度太差（>50m）的点丢弃，避免距离被漂移放大
-    if(acc != null && acc > 50) return;
-    const last = RUN.pts[RUN.pts.length-1];
-    if(last){ const d = haversine(last, p); if(d < 1) return; RUN.dist += d; }  // 过滤抖动
-    RUN.pts.push(p); RUN.lastFix = Date.now();
-    renderModule('run');
-  }, err=>{ toast('定位失败：' + (err && err.message ? err.message : '未知原因')); },
-  { enableHighAccuracy:true, timeout:12000, maximumAge:2000 });
+  const at=Date.now();RUN.pts=[];RUN.segments=[];RUN.dist=0;RUN.t0=at;RUN.startedAt=at;RUN.localDateKey=BojiData.localDateKey(new Date(at));RUN.timezoneContext=BojiData.timezoneContext(at);
+  RUN.gaps=0;RUN.gapPending=false;RUN.geoUnavailable=!navigator.geolocation;RUN.pendingRecord=null;RUN.active=true;
+  if(navigator.geolocation)attachRunGeolocation();else toast('当前环境没有定位，可直接手动记录距离和时长');
   renderModule('run');
   startRunTicker();
 }
 let runTicker = null;
 function startRunTicker(){
   clearInterval(runTicker);
-  runTicker = setInterval(()=>{ if(RUN.active) renderModule('run'); else clearInterval(runTicker); }, 1000);
+  runTicker = setInterval(()=>{if(RUN.active)updateRunMetrics();else clearInterval(runTicker);},1000);
 }
 function runStop(){
   if(!RUN.active) return;
-  RUN.active = false;
-  if(RUN.watchId != null && navigator.geolocation) navigator.geolocation.clearWatch(RUN.watchId);
-  RUN.watchId = null; clearInterval(runTicker);
-  const ms = Date.now() - RUN.t0, dist = Math.round(RUN.dist);
-  if(dist < 20){ toast('距离太短（<20m），未记录'); renderModule('run'); return; }
-  const w = (STATE.profile && STATE.profile.weight) || 65;
-  if(!STATE.runs || !Array.isArray(STATE.runs)) STATE.runs = [];
-  STATE.runs.unshift({ date:new Date().toISOString().slice(0,10), dist, ms,
-    kcal:runKcal(dist, ms, w), pts:RUN.pts.filter((_,i)=>i%3===0).slice(0,400) });  // 抽稀存轨迹，控制体积
-  if(STATE.runs.length > 200) STATE.runs.length = 200;
-  save(); toast(`已记录 ${runFmtDist(dist)} · ${runFmtDur(ms)}`);
-  renderModule('run');
+  RUN.active=false;const endedAt=Date.now();if(RUN.watchId!=null&&navigator.geolocation)try{navigator.geolocation.clearWatch(RUN.watchId);}catch(_){}
+  RUN.watchId=null;clearInterval(runTicker);const distance=Math.round(RUN.dist),durationSeconds=Math.max(0,(endedAt-RUN.startedAt)/1000);
+  if(distance<20){RUN.pendingRecord=null;renderModule('run');toast('GPS 距离不足 20m，未保存；可在下方手动填写');return;}
+  const routeSegments=simplifyRunRoute(RUN.segments,RUN_MAX_ROUTE_POINTS),pending={runId:BojiData.makeId('run'),startedAt:RUN.startedAt,endedAt,localDateKey:RUN.localDateKey,
+    timezoneContext:RUN.timezoneContext,distanceMeters:distance,durationSeconds,distanceProvenance:'MEASURED',durationProvenance:'MEASURED',
+    routeSegments,routeStatus:RUN.geoUnavailable?'PARTIAL':RUN.gaps?'PARTIAL':'MEASURED',gpsGaps:RUN.gaps,savePending:true};
+  RUN.pendingRecord=pending;renderModule('run');persistRun(pending);
 }
-function runTrackSVG(pts, w, h){
-  if(!pts || pts.length < 2) return '';
+async function persistRun(pending){
+  if(!pending||RUN.saving)return;RUN.pendingRecord=pending;RUN.saving=true;
+  const weight=STATE.profile&&+STATE.profile.weight>0?+STATE.profile.weight:65;
+  const record=Object.assign({},pending,{savePending:false,calorieEstimate:{energyKcal:runKcal(pending.distanceMeters,pending.durationSeconds*1000,weight),provenance:'DERIVED',method:'ACSM',label:'estimated',weightKgUsed:weight,weightSource:STATE.profile&&STATE.profile.weight?'PROFILE':'DEFAULT_ESTIMATE'}});
+  delete record.savePending;
+  try{
+    const committed=await BojiData.putRun(record);RUN_RECORDS=[committed].concat(RUN_RECORDS.filter(row=>row.runId!==committed.runId));RUN.pendingRecord=null;emitProductEvent('run.recorded',committed);
+    RUN.saving=false;toast(`已记录 ${runFmtDist(committed.distanceMeters)} · ${runFmtDur(committed.durationSeconds*1000)}`);renderModule('run');
+  }catch(error){RUN.saving=false;RUN.pendingRecord=pending;renderModule('run');toast('跑步记录未保存，可点重试：'+(error.message||'本机存储不可用'));}
+}
+async function saveManualRun(){
+  const distance=+($('#run-manual-distance')&&$('#run-manual-distance').value),seconds=+($('#run-manual-duration')&&$('#run-manual-duration').value);
+  if(!Number.isFinite(distance)||distance<10||distance>1000000||!Number.isFinite(seconds)||seconds<1||seconds>604800){toast('请填写距离 10–1000000 米和时长 1–604800 秒');return;}
+  const endedAt=Date.now(),startedAt=endedAt-seconds*1000,record={runId:BojiData.makeId('run'),startedAt,endedAt,localDateKey:BojiData.localDateKey(new Date(endedAt)),
+    timezoneContext:BojiData.timezoneContext(endedAt),distanceMeters:Math.round(distance),durationSeconds:seconds,distanceProvenance:'USER_PROVIDED',durationProvenance:'USER_PROVIDED',
+    routeSegments:[],routeStatus:'MANUAL',gpsGaps:0};
+  await persistRun(record);
+}
+function updateRunMetrics(){
+  const elapsed=RUN.active?Date.now()-RUN.startedAt:0;
+  const distance=RUN.active?RUN.dist:0,distEl=$('#run-live-distance'),durationEl=$('#run-live-duration'),paceEl=$('#run-live-pace'),kcalEl=$('#run-live-kcal');
+  if(distEl)distEl.textContent=runFmtDist(distance);if(durationEl)durationEl.textContent=runFmtDur(elapsed);if(paceEl)paceEl.textContent=runPace(distance,elapsed);if(kcalEl)kcalEl.textContent=runKcal(distance,elapsed,(STATE.profile&&STATE.profile.weight)||65);
+}
+function updateRunStatus(message){const el=$('#run-status');if(el)el.textContent=message;}
+function updateRunRoute(){
+  const host=$('#run-live-route');if(!host)return;
+  host.innerHTML=RUN.pts.length>1?(STATE.settings.runMap?runMapHTML(RUN.segments,320,190):runTrackSVG(RUN.segments,320,190)):'<p class="fs-none">等待 GPS 测量点</p>';
+}
+function normalizeRunSegments(value){
+  let segments=Array.isArray(value)?value:[];
+  if(!segments.length)return[];
+  const first=segments[0],nested=Array.isArray(first)&&first.length>0&&!!first[0]&&typeof first[0]==='object';
+  if(!nested)segments=[segments];
+  return segments.map(segment=>segment.map(point=>{
+    if(Array.isArray(point)&&point.length>=2)return{lat:+point[0],lon:+point[1]};
+    return point;
+  }).filter(point=>point&&Number.isFinite(+point.lat)&&Number.isFinite(+point.lon))).filter(segment=>segment.length);
+}
+function runRouteSegments(record){
+  if(!record)return[];
+  if(Array.isArray(record.routeSegments))return normalizeRunSegments(record.routeSegments);
+  if(Array.isArray(record.route))return normalizeRunSegments(record.route);
+  if(Array.isArray(record.pts))return normalizeRunSegments(record.pts);
+  return[];
+}
+function runRecordDistance(record){return +(record&&record.distanceMeters!=null?record.distanceMeters:record&&record.dist||0);}
+function runRecordDurationMs(record){return +(record&&record.durationSeconds!=null?record.durationSeconds*1000:record&&record.ms||0);}
+function runRecordCalories(record){return +(record&&record.calorieEstimate&&record.calorieEstimate.energyKcal!=null?record.calorieEstimate.energyKcal:record&&record.kcal||0);}
+function runTrackSVG(input, w, h){
+  const segments=normalizeRunSegments(input),pts=segments.flat();if(pts.length < 2) return '';
   const lats = pts.map(p=>p.lat), lons = pts.map(p=>p.lon);
   const minLa = Math.min(...lats), maxLa = Math.max(...lats);
   const minLo = Math.min(...lons), maxLo = Math.max(...lons);
@@ -2361,9 +2510,9 @@ function runTrackSVG(pts, w, h){
   const ox = (w - sx*k)/2, oy = (h - sy*k)/2;
   const X = p => ox + (lonToPx(p.lon,12) - x0) * k;
   const Y = p => h - (oy + (mY(p.lat) - y0) * k);
-  const d = pts.map((p,i)=>`${i?'L':'M'}${X(p).toFixed(1)} ${Y(p).toFixed(1)}`).join(' ');
+  const paths=segments.filter(segment=>segment.length>1).map(segment=>`<path d="${segment.map((p,i)=>`${i?'L':'M'}${X(p).toFixed(1)} ${Y(p).toFixed(1)}`).join(' ')}" fill="none" stroke="#6c5ce7" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" opacity=".9"/>`).join('');
   return `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:100%">
-    <path d="${d}" fill="none" stroke="#6c5ce7" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" opacity=".9"/>
+    ${paths}
     <circle cx="${X(pts[0]).toFixed(1)}" cy="${Y(pts[0]).toFixed(1)}" r="5" fill="#7fc49a"/>
     <circle cx="${X(pts[pts.length-1]).toFixed(1)}" cy="${Y(pts[pts.length-1]).toFixed(1)}" r="5" fill="#e17055"/>
   </svg>`;
@@ -2374,6 +2523,7 @@ function runTrackSVG(pts, w, h){
    瓦片来自 OpenStreetMap，遵循其使用政策（低流量个人使用）。 */
 function runTileURL(z, x, y){ return 'https://tile.openstreetmap.org/' + z + '/' + x + '/' + y + '.png'; }
 function runFitZoom(pts, w, h){
+  pts=normalizeRunSegments(pts).flat();
   const lats = pts.map(p=>p.lat), lons = pts.map(p=>p.lon);
   const minLa = Math.min.apply(null, lats), maxLa = Math.max.apply(null, lats);
   const minLo = Math.min.apply(null, lons), maxLo = Math.max.apply(null, lons);
@@ -2384,8 +2534,8 @@ function runFitZoom(pts, w, h){
   }
   return 8;
 }
-function runMapHTML(pts, w, h){
-  if(!pts || pts.length < 2) return '';
+function runMapHTML(input, w, h){
+  const segments=normalizeRunSegments(input),pts=segments.flat();if(pts.length < 2) return '';
   const z = runFitZoom(pts, w, h);
   const lats = pts.map(p=>p.lat), lons = pts.map(p=>p.lon);
   const cLa = (Math.min.apply(null,lats) + Math.max.apply(null,lats)) / 2;
@@ -2400,71 +2550,46 @@ function runMapHTML(pts, w, h){
       tiles += '<img class="run-tile" src="' + runTileURL(z, tx, ty) + '" style="left:' + (tx*256 - ox) +
                'px;top:' + (ty*256 - oy) + 'px" alt="" loading="lazy">';
   const X = p => lonToPx(p.lon, z) - ox, Y = p => latToPx(p.lat, z) - oy;
-  const d = pts.map((p,i)=>(i ? 'L' : 'M') + X(p).toFixed(1) + ' ' + Y(p).toFixed(1)).join(' ');
+  const paths=segments.filter(segment=>segment.length>1).map(segment=>'<path d="'+segment.map((p,i)=>(i?'L':'M')+X(p).toFixed(1)+' '+Y(p).toFixed(1)).join(' ')+'" fill="none" stroke="#6c5ce7" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round"/>').join('');
   return '<div class="run-tiles">' + tiles +
     '<svg class="run-track" viewBox="0 0 ' + w + ' ' + h + '">' +
-    '<path d="' + d + '" fill="none" stroke="#6c5ce7" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round"/>' +
+    paths+
     '<circle cx="' + X(pts[0]).toFixed(1) + '" cy="' + Y(pts[0]).toFixed(1) + '" r="5.5" fill="#7fc49a" stroke="#fff" stroke-width="2"/>' +
     '<circle cx="' + X(pts[pts.length-1]).toFixed(1) + '" cy="' + Y(pts[pts.length-1]).toFixed(1) + '" r="5.5" fill="#e17055" stroke="#fff" stroke-width="2"/>' +
     '</svg></div>';
 }
 function renderRun(body){
-  const t = runTotals();
-  const live = RUN.active;
-  const ms = live ? (Date.now() - RUN.t0) : 0;
-  const dist = live ? RUN.dist : 0;
-  const w = (STATE.profile && STATE.profile.weight) || 65;
-  const rs = (STATE.runs && Array.isArray(STATE.runs)) ? STATE.runs : [];
-  body.innerHTML = `
+  const totals=runTotals(),live=RUN.active,elapsed=live?Date.now()-RUN.startedAt:0,distance=live?RUN.dist:0,w=(STATE.profile&&STATE.profile.weight)||65;
+  const rs=PERSONAL_RECORDS_READY?RUN_RECORDS:(STATE.runs&&Array.isArray(STATE.runs)?STATE.runs:[]),latest=rs[0],route=live?RUN.segments:runRouteSegments(latest),routePointCount=route.reduce((sum,segment)=>sum+segment.length,0);
+  const pending=RUN.pendingRecord;
+  body.innerHTML=`
     <div class="card run-hero">
-      <div class="run-big">${live ? runFmtDist(dist) : runFmtDist(t.dist)}</div>
-      <div class="run-sub">${live ? '本次里程' : `累计里程 · ${t.n} 次`}</div>
+      <div class="run-big" ${live?'id="run-live-distance"':''}>${live?runFmtDist(distance):runFmtDist(totals.dist)}</div>
+      <div class="run-sub">${live?'本次里程':`累计里程 · ${totals.n} 次`}</div>
       <div class="run-grid">
-        <div><b>${live ? runFmtDur(ms) : runFmtDur(t.ms)}</b><span>${live?'本次时长':'累计时长'}</span></div>
-        <div><b>${live ? runPace(dist, ms) : '--'}</b><span>当前配速</span></div>
-        <div><b>${live ? runKcal(dist, ms, w) : t.kcal}</b><span>${live?'本次':'累计'} 千卡</span></div>
+        <div><b ${live?'id="run-live-duration"':''}>${live?runFmtDur(elapsed):runFmtDur(totals.ms)}</b><span>${live?'本次时长':'累计时长'}</span></div>
+        <div><b ${live?'id="run-live-pace"':''}>${live?runPace(distance,elapsed):'--'}</b><span>${live?'当前配速':'配速'}</span></div>
+        <div><b ${live?'id="run-live-kcal"':''}>${live?runKcal(distance,elapsed,w):totals.kcal}</b><span>${live?'本次估算千卡':'累计估算千卡'}</span></div>
       </div>
     </div>
     <div class="card" style="padding:12px 14px">
-      <div class="row-btns">
-        ${live
-          ? '<button class="btn-grad" id="run-stop" style="padding:11px">■ 结束并记录</button>'
-          : '<button class="btn-grad" id="run-start" style="padding:11px">▶ 开始跑步</button>'}
-      </div>
-      <p style="font-size:10.5px;color:var(--faint);line-height:1.7;padding-top:8px">
-        用手机 GPS 记录：距离/配速/卡路里都在本机计算，不需要联网；定位精度差（>50m）的点会被丢弃。
-        <b>室内与高楼密集处误差较大</b>，建议在开阔处使用。卡路里按 ACSM 跑步公式估算，仅供参考。
-      </p>
+      <div class="row-btns">${live?'<button class="btn-grad" id="run-stop" style="padding:11px">■ 结束并保存</button>':'<button class="btn-grad" id="run-start" style="padding:11px">▶ 开始 GPS 跑步</button>'}
+        ${pending?'<button class="ex-do" id="run-retry" type="button" '+(RUN.saving?'disabled':'')+'>'+ (RUN.saving?'保存中…':'重试保存上一条跑步')+'</button>':''}</div>
+      ${live?'<p id="run-status" class="provenance-note">前台 GPS 定位中；切到后台可能中断定位。本页每秒只更新计时与指标。</p>':''}
+      <p style="font-size:10.5px;color:var(--faint);line-height:1.7;padding-top:8px">GPS 轨迹点按测量保存；定位间断会拆成独立路段，不估算缺失路段。室内或高楼附近定位可能不准。热量按 ACSM 公式估算并标记为 DERIVED。</p>
     </div>
-    ${(live && RUN.pts.length > 1) || rs.length ? `
-    <div class="card" style="padding:12px 14px">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-        <h4 style="margin:0;flex:1">${live ? '当前轨迹' : '最近一次轨迹'}</h4>
-        <button class="ex-do ghost-btn" id="run-map-tg" style="padding:6px 10px">地图底图：${STATE.settings.runMap?'开':'关'}</button>
-      </div>
-      <div class="run-map">${STATE.settings.runMap
-        ? runMapHTML(live ? RUN.pts : (rs[0] ? rs[0].pts : []), 320, 190)
-        : runTrackSVG(live ? RUN.pts : (rs[0] ? rs[0].pts : []), 320, 190)}</div>
-      <p style="font-size:10.5px;color:var(--faint);line-height:1.7;padding-top:8px">
-        ${STATE.settings.runMap
-          ? '底图来自 OpenStreetMap，<b>需要联网</b>；离线或瓦片取不到时会自动只剩轨迹线（不会白屏）。'
-          : '当前为<b>轨迹形状图</b>（离线可用）。打开「地图底图」后会联网加载 OSM 瓦片。'}
-      </p>
-    </div>` : ''}
-    ${rs.length ? `
-    <div class="card" style="padding:6px 14px">
-      <h4 style="margin:8px 0 2px">跑步记录 <span class="tag">${rs.length} 次</span></h4>
-      ${rs.slice(0, 20).map(r=>`<div class="list-row run-row"><span class="lr-ic">🏃</span>
-        <span class="run-rd">${r.date}</span>
-        <span class="run-rv"><b>${runFmtDist(r.dist)}</b> · ${runFmtDur(r.ms)} · ${runPace(r.dist, r.ms)}/km · ${r.kcal||0} kcal</span>
-      </div>`).join('')}
-    </div>` : ''}
+    <div class="card" style="padding:12px 14px"><h4>手动记录跑步</h4><div class="pf-edit"><label>距离（米）<input id="run-manual-distance" type="number" min="10" max="1000000" step="10" inputmode="decimal" placeholder="例如 3000"></label><label>时长（秒）<input id="run-manual-duration" type="number" min="1" max="604800" step="1" inputmode="numeric" placeholder="例如 1500"></label></div><button class="btn-grad" id="run-manual-save" type="button">保存手动记录</button><p class="provenance-note">距离与时长会标记为 USER_PROVIDED；手动记录不包含 GPS 轨迹。</p></div>
+    ${(live||routePointCount>1)?`<div class="card" style="padding:12px 14px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><h4 style="margin:0;flex:1">${live?'当前 GPS 轨迹':`最近一次轨迹 · ${esc(latest&&latest.routeStatus||'LEGACY_UNKNOWN')}`}</h4><button class="ex-do ghost-btn" id="run-map-tg" style="padding:6px 10px">地图底图：${STATE.settings.runMap?'开':'关'}</button></div><div class="run-map" ${live?'id="run-live-route"':''}>${routePointCount>1?(STATE.settings.runMap?runMapHTML(route,320,190):runTrackSVG(route,320,190)):'<p class="fs-none">等待 GPS 测量点</p>'}</div><p class="provenance-note">不同 GPS 路段独立绘制，断点之间没有插值连线。地图瓦片来自 OpenStreetMap，开启后需要联网。</p></div>`:''}
+    ${rs.length?`<div class="card" style="padding:6px 14px"><h4 style="margin:8px 0 2px">跑步记录 <span class="tag">${rs.length} 次</span></h4>${rs.slice(0,20).map(r=>{const d=runRecordDistance(r),ms=runRecordDurationMs(r),cal=runRecordCalories(r),date=r.localDateKey||r.date||'日期未知',mode=r.distanceProvenance==='USER_PROVIDED'?'手动':'GPS';return `<div class="list-row run-row"><span class="lr-ic">🏃</span><span class="run-rd">${esc(date)}</span><span class="run-rv"><b>${runFmtDist(d)}</b> · ${runFmtDur(ms)} · ${runPace(d,ms)}/km · 估算 ${cal} kcal · ${mode}</span></div>`;}).join('')}</div>`:''}
   `;
   const st = $('#run-start'); if(st) st.onclick = runStart;
   const sp = $('#run-stop'); if(sp) sp.onclick = runStop;
+  const manual=$('#run-manual-save');if(manual)manual.onclick=saveManualRun;
+  const retry=$('#run-retry');if(retry)retry.onclick=()=>persistRun(RUN.pendingRecord);
   const mt = $('#run-map-tg');
   if(mt) mt.onclick = ()=>{ STATE.settings.runMap = !STATE.settings.runMap; save(); renderModule('run');
     toast(STATE.settings.runMap ? '已开启地图底图（需联网）' : '已关闭地图底图，回到离线轨迹图'); };
+  if(live){updateRunMetrics();updateRunStatus(RUN.geoUnavailable?'GPS 不可用；可使用手动记录':'前台 GPS 定位中；切到后台可能中断定位');}
 }
 
 function renderModule(name){
@@ -2735,60 +2860,63 @@ async function skipWorkoutRest(){
 /* ---------- 饮食 ---------- */
 // 兼容旧数据：早期记录没有 q 字段，按 1 份计
 const mealQty = f => (f && typeof f === 'object' && +f.q > 0) ? +f.q : 1;
-const foodKcal = f => (+f.kcalFix > 0) ? Math.round(+f.kcalFix * mealQty(f)) : Math.round((f.p*4 + f.c*4 + f.f*9) * mealQty(f));
+const foodKcal = f => f&&f.kcalFix!=null&&Number.isFinite(+f.kcalFix) ? Math.round(+f.kcalFix*mealQty(f))
+  : f&&['p','c','f'].every(key=>f[key]!=null&&Number.isFinite(+f[key])) ? Math.round((+f.p*4 + +f.c*4 + +f.f*9)*mealQty(f)) : null;
 function bar2(pct, cls){
   return `<div class="bar2 ${cls||''}"><i style="width:${Math.max(0,Math.min(100,+pct||0))}%"></i></div>`;
 }
 // 找最近一次该餐有记录的条目（今天往前 7 天），用于「⏩ 一键复制」降低录入摩擦
 function lastMealEntries(mi){
-  for(let i=1;i<=7;i++){
-    const d=new Date(); d.setDate(d.getDate()-i);
-    const k=BojiData.localDateKey(d);
-    const arr=(STATE.meals[k]||{})[mi];
-    if(Array.isArray(arr) && arr.length) return arr;
+  if(PERSONAL_RECORDS_READY){
+    const cutoff=new Date();cutoff.setDate(cutoff.getDate()-7);const key=BojiData.localDateKey(cutoff);
+    const row=MEAL_RECORDS.filter(x=>x.mealTypeIndex===mi&&x.localDateKey>=key&&x.items&&x.items.length).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0))[0];
+    return row?row.items.map(item=>({n:item.name,p:nutritionField(item,'protein'),c:nutritionField(item,'carbohydrate'),f:nutritionField(item,'fat'),q:1,kcalFix:nutritionField(item,'energyKcal')})):null;
   }
+  for(let i=1;i<=7;i++){const d=new Date();d.setDate(d.getDate()-i);const arr=(STATE.meals[BojiData.localDateKey(d)]||{})[mi];if(Array.isArray(arr)&&arr.length)return arr;}
   return null;
 }
 function renderDiet(body){
   const key=todayKey();
-  const meals=STATE.meals[key]||{};
-  const water=STATE.waterMl||0;
+  const meals=mealEntriesForDay(key);
+  const water=dailyWaterTotal(key);
   const goal=dailyGoal();
-  const wPct=Math.min(100, Math.round(water/goal.water*100));
-  let pTot=0,cTot=0,fTot=0,kcalTot=0;
-  MEAL_NAMES.forEach((mn,mi)=>{ (meals[mi]||[]).forEach(f=>{ const q=mealQty(f);
-    pTot+=f.p*q; cTot+=f.c*q; fTot+=f.f*q; kcalTot+=foodKcal(f); }); });
-  const kPct=Math.min(100, Math.round(kcalTot/goal.kcal*100));
-  const pPct=Math.min(100, Math.round(pTot/goal.protein*100));
-  // 顶部汇总卡（Keep 风：大数字 + 可视化进度）
-  let html=`<div class="card diet-sum"><h4>今日热量 <span class="tag">${kPct}%</span></h4>
-    <div class="sum-big"><b>${kcalTot}</b><span>/ ${goal.kcal} kcal</span></div>
-    ${bar2(kPct,'k')}<div class="sum-row"><span>蛋白质</span><b>${Math.round(pTot)} / ${goal.protein} g</b></div>
-    ${bar2(pPct,'p')}
-    <div class="sum-row"><span>碳水</span><b>${Math.round(cTot)} g</b><span style="margin-left:14px">脂肪</span><b>${Math.round(fTot)} g</b></div></div>`;
-  html+=`<div class="card"><h4>今日饮水 <span class="tag">${water} / ${goal.water} ml</span></h4>
-    <div class="water-bar"><i style="width:${wPct}%"></i></div>
+  let pTot=0,cTot=0,fTot=0,kcalTot=0,itemsTotal=0,pComplete=true,cComplete=true,fComplete=true,kcalComplete=true;
+  MEAL_NAMES.forEach((mn,mi)=>{ (meals[mi]||[]).forEach(f=>{ const q=mealQty(f);itemsTotal++;
+    if(f.p==null)pComplete=false;else pTot+=f.p*q;if(f.c==null)cComplete=false;else cTot+=f.c*q;if(f.f==null)fComplete=false;else fTot+=f.f*q;
+    const energy=foodKcal(f);if(energy==null)kcalComplete=false;else kcalTot+=energy; }); });
+  const kPct=goal.kcal&&kcalComplete?Math.min(100,Math.round(kcalTot/goal.kcal*100)):null,pPct=goal.protein&&pComplete?Math.min(100,Math.round(pTot/goal.protein*100)):null;
+  let html=`<div class="card diet-sum"><h4>今日已记录 <span class="tag">${goal.hasTargets?'估算目标 · '+({LOG_ONLY:'仅记录',MAINTAIN:'维持估算',GAIN:'增肌估算',LOSE:'减脂估算',CUSTOM:'自定义'})[goal.intent]:'仅记录模式'}</span></h4>
+    <div class="sum-big"><b>${kcalTot}</b><span> kcal${itemsTotal&&!kcalComplete?' 已知小计':' 记录'}</span></div>
+    ${goal.kcal&&kPct!=null?`${bar2(kPct,'k')}<div class="sum-row"><span>对照估算热量</span><b>${goal.kcal} kcal</b></div>`:'<p>当前不显示热量目标；可在「我的」中选择目标，所有系统值都是可修改的估算。</p>'}
+    <div class="sum-row"><span>蛋白质${itemsTotal&&!pComplete?'已知小计':'记录'}</span><b>${Math.round(pTot)} g${pComplete&&goal.protein?' / 估算 '+goal.protein+' g':''}</b></div>
+    ${goal.protein&&pPct!=null?bar2(pPct,'p'):''}
+    <div class="sum-row"><span>碳水${itemsTotal&&!cComplete?'已知小计':''}</span><b>${Math.round(cTot)} g</b><span style="margin-left:14px">脂肪${itemsTotal&&!fComplete?'已知小计':''}</span><b>${Math.round(fTot)} g</b></div>
+    <p class="provenance-note">汇总只含已确认的 MealRecord。AI 识别结果和份量在确认前属于草稿。</p></div>`;
+  const waterPct=goal.water?Math.min(100,Math.round(water/goal.water*100)):null;
+  html+=`<div class="card"><h4>饮水记录 <span class="tag">${water} ml${goal.water?' / 估算 '+goal.water+' ml':''}</span></h4>
+    ${goal.water?`<div class="water-bar"><i style="width:${waterPct}%"></i></div>`:'<p>饮水只记实际录入量。系统提供的 35 ml/kg 是可修改的粗略估算。</p>'}
     <div class="row-btns"><button class="btn-grad" id="water-100" style="padding:9px">+100ml</button>
     <button class="btn-grad" id="water-250" style="padding:9px">+250ml</button>
     <button class="ex-do" id="water-sub" style="background:var(--glass);color:var(--ink2)">-100ml</button></div></div>`;
+  const draftRows=FOOD_DRAFTS.filter(x=>x.localDateKey===key);
+  if(draftRows.length)html+=`<div class="card"><h4>待确认餐草稿 <span class="tag">${draftRows.length}</span></h4>${draftRows.map(d=>`<button class="rep-row" data-resume-draft="${esc(d.draftId)}">继续${MEAL_NAMES[d.mealTypeIndex]||'餐点'}草稿 · ${(d.items||[]).length} 项</button>`).join('')}<p>草稿尚未计入热量、宏量或历史记录。</p></div>`;
   MEAL_NAMES.forEach((mn,mi)=>{
-    const list=meals[mi]||[]; let mp=0,mc=0,mf=0,mk=0;
-    list.forEach(f=>{ const q=mealQty(f); mp+=f.p*q; mc+=f.c*q; mf+=f.f*q; mk+=foodKcal(f); });
-    html+=`<div class="card meal-card"><h4>${mn} <span class="tag">蛋白 ${Math.round(mp)}g</span><span class="tag" style="background:rgba(126,177,232,.18);color:#4a7fae">${mk} kcal</span></h4>`;
+    const list=meals[mi]||[]; let mp=0,mc=0,mf=0,mk=0,mealProteinComplete=true,mealKcalComplete=true;
+    list.forEach(f=>{ const q=mealQty(f);if(f.p==null)mealProteinComplete=false;else mp+=f.p*q;if(f.c!=null)mc+=f.c*q;if(f.f!=null)mf+=f.f*q;const energy=foodKcal(f);if(energy==null)mealKcalComplete=false;else mk+=energy; });
+    html+=`<div class="card meal-card"><h4>${mn} <span class="tag">${mealProteinComplete?'蛋白':'已知蛋白'} ${Math.round(mp)}g</span><span class="tag" style="background:rgba(126,177,232,.18);color:#4a7fae">${mealKcalComplete?'':'已知 '}${mk} kcal</span></h4>`;
     if(list.length){
-      list.forEach((f,i)=>{ const q=mealQty(f);
-        const thumb = f.photo ? `<img class="fd-ph" src="${f.photo}" alt="">` : '🍽️';
-        const lowConf = (+f.cf > 0 && +f.cf < 0.6) ? '<span class="fd-cf" title="低置信度，建议校正">⚠</span>' : '';
-        html+=`<div class="list-row"><span class="lr-ic">${thumb}</span><span class="fd-n">${esc(f.n)}${lowConf}</span>
-          <span class="fd-q">${q}份 · ${foodKcal(f)} kcal</span>
-          <span class="fd-x" data-dec="${mi}:${i}">−</span><span class="fd-x" data-inc="${mi}:${i}">+</span>
-          <span class="lr-ar fd-del" data-del="${mi}:${i}">✕</span></div>`; });
+      const rows=MEAL_RECORDS.filter(record=>record.localDateKey===key&&record.mealTypeIndex===mi);
+      rows.forEach(record=>(record.items||[]).forEach((item,index)=>{
+        const amount=item.quantity==null?'份量未记录':`${item.quantity} ${item.unit==='g'?'g':'份'}`;
+        const source=Object.values(item.provenance||{}).join(' · '),energy=nutritionField(item,'energyKcal');
+        html+=`<div class="list-row food-record-row"><span class="lr-ic">🍽️</span><span class="fd-n">${esc(item.name)}</span><span class="fd-q">${amount}${energy?' · '+Math.round(energy)+' kcal':''}</span><button class="ex-do ghost-btn" data-meal-remove="${esc(record.mealId)}" data-item-index="${index}">移除</button><small>${esc(source)} · ${esc(item.identityConfidence||'UNASSESSED')} 信心档 · ${esc(item.nutritionSource&&item.nutritionSource.type||'来源待核')}</small></div>`;
+      }));
     } else {
       html+=`<p style="font-size:12px;color:var(--faint)">还没记录</p>`;
       const lastArr=lastMealEntries(mi);
       if(lastArr){
         const names=lastArr.slice(0,2).map(f=>esc(String(f.n||'').slice(0,10))).join('、');
-        html+=`<div class="rep-row" data-rep="${mi}" role="button" tabindex="0">⏩ 一键复制上次：${names}${lastArr.length>2?` 等 ${lastArr.length} 项`:''}</div>`;
+        html+=`<button class="rep-row" data-rep="${mi}">⏩ 将上次${mn}复制为待确认草稿：${names}${lastArr.length>2?` 等 ${lastArr.length} 项`:''}</button>`;
       }
     }
     html+=`<div class="row-btns" style="margin-top:10px">
@@ -2796,8 +2924,9 @@ function renderDiet(body){
       <button class="ex-do" data-album="${mi}">🖼 相册</button>
       <button class="ex-do ghost-btn" data-add="${mi}">✍ 手动</button></div></div>`;
   });
-  html+=`<div class="card"><h4>今日总计 <span class="tag">${kcalTot} / ${goal.kcal} kcal</span></h4>
-    <p style="font-size:11px;color:var(--faint);padding-top:4px">目标随档案体重实时计算（蛋白 1.8g/kg · 热量 ≈33kcal/kg）· ⚠ 标记为低置信度条目，建议核对名称与份量</p></div>`;
+  const legacyCount=PERSONAL_RECORDS_READY?Object.values(STATE.meals||{}).reduce((sum,day)=>sum+Object.values(day||{}).reduce((n,items)=>n+(Array.isArray(items)?items.length:0),0),0):0;
+  if(legacyCount)html+=`<div class="card"><h4>旧版饮食记录待复核</h4><p>${legacyCount} 条旧记录缺少字段来源，未合并进已确认汇总。可按需重新录入。</p></div>`;
+  html+=`<div class="card"><p class="provenance-note">系统营养目标仅为可调整的估算；AI、数据库、用户输入和计算值逐字段保留来源。照片仅在本次识别期间使用，不保存到餐点记录。</p></div>`;
   body.innerHTML=html;
   $('#water-100').onclick=()=>addWater(100,body);
   $('#water-250').onclick=()=>addWater(250,body);
@@ -2805,38 +2934,30 @@ function renderDiet(body){
   $$('#mod-body [data-photo]').forEach(b=>b.onclick=()=>openPhotoIntake(+b.dataset.photo,body,true));
   $$('#mod-body [data-album]').forEach(b=>b.onclick=()=>openPhotoIntake(+b.dataset.album,body,false));
   $$('#mod-body [data-add]').forEach(b=>b.onclick=()=>openFoodSheet(+b.dataset.add,body,null));
-  // 一键复制上次该餐：深拷贝条目（去照片省空间）、克数校验沿用记录时的字段
-  $$('#mod-body [data-rep]').forEach(el=>el.onclick=()=>{
-    const mi=+el.dataset.rep; const src=lastMealEntries(mi); if(!src) return;
-    const key=todayKey();
-    STATE.meals[key]=STATE.meals[key]||{}; STATE.meals[key][mi]=STATE.meals[key][mi]||[];
-    src.forEach(f=>{
-      const rec=Object.assign({}, f);
-      delete rec.photo;                      // 复制的条目不再带照片缩略图
-      if(rec.p!=null){ rec.p=+rec.p; rec.c=+rec.c; rec.f=+rec.f; }
-      STATE.meals[key][mi].push(rec);
-    });
-    save(); renderDiet(body);
-    toast(`已复制 ${src.length} 项到${MEAL_NAMES[mi]}，可调整份量`);
+  $$('#mod-body [data-rep]').forEach(button=>button.onclick=async()=>{
+    const mi=+button.dataset.rep,source=MEAL_RECORDS.filter(row=>row.mealTypeIndex===mi&&row.items&&row.items.length).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0))[0];if(!source)return;
+    try{const draft=await BojiData.createFoodDraft({localDateKey:key,timezoneContext:BojiData.timezoneContext(Date.now()),mealTypeIndex:mi,source:'HISTORY_COPY',items:JSON.parse(JSON.stringify(source.items))});
+      FOOD_DRAFTS.push(draft);ACTIVE_FOOD_DRAFT=draft;openFoodSheet(mi,body,null);
+    }catch(error){toast('复制草稿失败：'+(error.message||'本机存储不可用'));}
   });
-  // 改：± 份数
-  $$('#mod-body [data-inc]').forEach(x=>x.onclick=()=>{ const [mi,i]=x.dataset.inc.split(':').map(Number); changeQty(mi,i,+0.5,body); });
-  $$('#mod-body [data-dec]').forEach(x=>x.onclick=()=>{ const [mi,i]=x.dataset.dec.split(':').map(Number); changeQty(mi,i,-0.5,body); });
-  // 删：移除该条
-  $$('#mod-body [data-del]').forEach(x=>x.onclick=()=>{ const [mi,i]=x.dataset.del.split(':').map(Number);
-    const arr=STATE.meals[todayKey()]?.[mi]; if(!arr) return; arr.splice(i,1); save(); renderDiet(body); toast('已删除该条记录'); });
+  $$('#mod-body [data-resume-draft]').forEach(button=>button.onclick=()=>{const draft=FOOD_DRAFTS.find(row=>row.draftId===button.dataset.resumeDraft);if(draft){ACTIVE_FOOD_DRAFT=draft;openFoodSheet(draft.mealTypeIndex,body,null);}});
+  $$('#mod-body [data-meal-remove]').forEach(button=>button.onclick=async()=>{
+    const record=MEAL_RECORDS.find(row=>row.mealId===button.dataset.mealRemove);if(!record)return;
+    if(!confirm('移除这项已确认的饮食记录？'))return;
+    try{const items=record.items.filter((_,i)=>i!==+button.dataset.itemIndex);if(items.length){const updated=await BojiData.updateMealRecord(record.mealId,{items});MEAL_RECORDS=MEAL_RECORDS.map(row=>row.mealId===updated.mealId?updated:row);emitProductEvent('meal.updated',updated);}
+      else{await BojiData.deleteMealRecord(record.mealId,{confirmed:true});MEAL_RECORDS=MEAL_RECORDS.filter(row=>row.mealId!==record.mealId);}
+      renderDiet(body);toast('已更新饮食记录');
+    }catch(error){toast('记录未更新：'+(error.message||'本机存储不可用'));}
+  });
 }
-function addWater(ml,body){
-  const before=STATE.waterMl||0;
-  STATE.waterMl=Math.max(0, before+ml);
-  const goal=dailyGoal().water;
-  save(); renderDiet(body);
-  if(before<goal && STATE.waterMl>=goal) toast('今日饮水目标达成 💧 小练给你点赞！');
-}
-function changeQty(mi,i,d,body){
-  const arr=STATE.meals[todayKey()]?.[mi]; if(!arr || !arr[i]) return;
-  const q=Math.max(0.5, +(mealQty(arr[i])+d).toFixed(1));
-  arr[i].q=q; save(); renderDiet(body);
+async function addWater(ml,body){
+  const key=todayKey(),before=dailyWaterTotal(key),amount=ml<0?-Math.min(Math.abs(ml),before):Math.min(10000,Math.round(ml));
+  if(!amount){toast('当前没有可回退的饮水记录');return;}
+  try{const record=await BojiData.putWaterEntry({entryId:BojiData.makeId('water'),createdAt:Date.now(),localDateKey:key,timezoneContext:BojiData.timezoneContext(Date.now()),
+      amountMl:amount,entryType:amount>0?'INTAKE':'USER_CORRECTION',provenance:'USER_PROVIDED'});
+    WATER_ENTRIES.push(record);emitProductEvent('water.recorded',record);renderDiet(body);
+    const target=dailyGoal().water;if(target&&before<target&&dailyWaterTotal(key)>=target)toast('已记录饮水，当前达到估算目标');
+  }catch(error){toast('饮水未保存：'+(error.message||'本机存储不可用'));}
 }
 /* ============================================================
    拍照识别 ：拍照/相册 → 异步压缩 → 三级匹配识别（置信度）→ 结果页校正 → 确认添加
@@ -2898,44 +3019,34 @@ function compressImage(file, maxPx, cb, q){
             ③模型估算仍有误差（±15~30%），结果页强制可校正，绝不盲信。
    ============================================================ */
 const VISION_PROMPT =
-  '你是专业的营养估算助手。识别照片中的食物并估算营养（多为中式家常菜/快餐）。' +
-  '若图中有多样食物，合并为这一餐整体，name 写主要食物名（如"米饭+红烧肉"）。' +
-  '只输出一行 JSON，不要解释、不要 Markdown 代码块：' +
-  '{"name":"中文名20字内","grams":数字,"kcal":数字,"protein":蛋白克,"carb":碳水克,"fat":脂肪克,"confidence":0到1,"uncertain":false}\n' +
+  '你是营养估算助手。识别照片里的食物；一餐有主食、菜、饮品时分开列入 items 数组。' +
+  '只输出 JSON，不要解释、不要 Markdown：{"items":[{"name":"中文名","grams":150,"kcal":200,"protein":10,"carb":20,"fat":5,"confidence":0.6,"uncertain":false}]}。' +
   '规则：\n' +
-  '1. 数值是照片中这份食物的总量（不是每100g），按可食部分计（去壳/去骨/弃汤渣）。\n' +
-  '2. 参考常见份量：一碗米饭约200g、一碗汤面约500g（含汤）、一份盖饭约450-500g、一个鸡蛋约50g、一份炒菜约250-350g、一屉蒸饺约20只（每只约25g）、一个标准汉堡约200-220g、一份中包薯条约113g、一杯奶茶约500ml、整张12寸披萨约480g（若只有一块按块算）。\n' +
-  '3. kcal 要与宏量自洽：kcal ≈ protein*4 + carb*4 + fat*9，偏差控制在 ±20% 内。\n' +
-  '4. 以画面主体食物为准，背景里他人的食物、包装袋、餐具不计入；一餐含主食+菜时合并为一条（如"麻婆豆腐盖饭"）。\n' +
-  '5. 画面清晰可辨时 confidence 取 0.7-0.9；不是食物或看不清时 uncertain=true 且 confidence<=0.3。';
+  '1. grams 是图片估算总量，不是用户测量。\n' +
+  '2. 只给热量时不要编造宏量；只给宏量时允许后续据宏量计算热量。\n' +
+  '3. 不要为让热量与宏量一致而缩放字段；明显不一致时保留原值并标 uncertain=true。\n' +
+  '4. 只识别主体；看不清时 uncertain=true。confidence 是模型自评，不是校准概率。';
 const VISION_TIMEOUT = 18000, VISION_RETRY = 1;
-// 二次校验：模型可能返回离谱值 / 前后矛盾的宏量与热量，一律夹取 + 交叉验证
+function sanitizeVisionItem(o){
+  if(!o||typeof o!=='object')return null;
+  const num=v=>{const n=+v;return Number.isFinite(n)?n:0;};
+  const name=String(o.name==null?'':o.name).replace(/<[^>]*>/g,'').replace(/[\r\n]/g,' ').trim().slice(0,80)||'识别结果';
+  const grams=clamp(Math.round(num(o.grams))||150,10,2000),conf=clamp(num(o.confidence)||0.6,0,1);
+  const has=(key)=>o[key]!=null&&Number.isFinite(+o[key]);
+  const kcal=has('kcal')?clamp(Math.round(num(o.kcal)),0,5000):null;
+  const p=has('protein')?+clamp(num(o.protein),0,200).toFixed(1):null;
+  const c=has('carb')?+clamp(num(o.carb),0,300).toFixed(1):null;
+  const f=has('fat')?+clamp(num(o.fat),0,200).toFixed(1):null;
+  const hasAnyMacro=p!=null||c!=null||f!=null,allMacros=p!=null&&c!=null&&f!=null;
+  const macroEnergy=allMacros?Math.round(p*4+c*4+f*9):null;
+  if(kcal==null&&!hasAnyMacro)return null;
+  return {name,grams,kcal,p,c,f,conf,uncertain:!!o.uncertain||conf<0.35,
+    inconsistent:kcal!=null&&macroEnergy!=null&&Math.abs(kcal-macroEnergy)>Math.max(30,kcal*0.35),source:'ai'};
+}
 function sanitizeVision(o){
-  if(!o || typeof o !== 'object') return null;
-  const num = v => { const n = +v; return isFinite(n) ? n : 0; };
-  let name = String(o.name == null ? '' : o.name).replace(/<[^>]*>/g, '').replace(/[\r\n]/g, ' ').trim().slice(0, 24) || '识别结果';
-  let grams = clamp(Math.round(num(o.grams)) || 150, 10, 2000);
-  let kcal  = clamp(Math.round(num(o.kcal)), 0, 5000);
-  let p = clamp(num(o.protein), 0, 200), c = clamp(num(o.carb), 0, 300), f = clamp(num(o.fat), 0, 200);
-  let conf = clamp(num(o.confidence) || 0.6, 0, 1);
-  const uncertain = !!o.uncertain || conf < 0.35;
-  let adjusted = false;
-  // 互校：让「热量」与「宏量」自洽，用户改克数时才会线性缩放
-  const calc = p*4 + c*4 + f*9;
-  // 模型既没给热量也没给宏量 → 判定为无效结果，直接拒绝。
-  // 旧版会兜底成「150 kcal / 置信度 60%」并当成正常结果显示，属于典型的假识别。
-  if(kcal <= 0 && calc <= 0) return null;
-  if(kcal > 0 && calc > 0){
-    const k = kcal / calc;
-    if(k < 0.65 || k > 1.35){ kcal = Math.round(calc); conf = Math.min(conf, 0.7); adjusted = true; }
-    else { p *= k; c *= k; f *= k; }              // 以热量为准缩放宏量（偏差 ≤35% 时）
-  } else if(kcal > 0 && calc <= 0){                // 模型只给了热量：按 20/50/30 拆分宏量
-    p = kcal*0.20/4; c = kcal*0.50/4; f = kcal*0.30/9; adjusted = true;
-  } else { kcal = Math.round(calc); }               // 只给了宏量：反算热量（上面已排除两者都为 0）
-  p = +p.toFixed(1); c = +c.toFixed(1); f = +f.toFixed(1);
-  kcal = clamp(Math.round(kcal), 0, 5000);
-  if(uncertain) conf = Math.min(conf, 0.35);
-  return { name, grams, kcal, p, c, f, conf, uncertain, adjusted, source:'ai' };
+  if(!o||typeof o!=='object')return null;
+  if(Array.isArray(o.items)){const items=o.items.map(sanitizeVisionItem).filter(Boolean).slice(0,12);return items.length?{items,source:'ai'}:null;}
+  return sanitizeVisionItem(o);
 }
 function extractJSON(text){
   const s = String(text == null ? '' : text).trim().replace(/^```(?:json)?/i, '').replace(/```$/, '');
@@ -2943,10 +3054,14 @@ function extractJSON(text){
   if(a < 0 || b <= a) return null;
   try { return JSON.parse(s.slice(a, b + 1)); } catch(_){ return null; }
 }
-async function postJSON(url, headers, body, timeoutMs){
+async function postJSON(url, headers, body, timeoutMs, externalSignal){
   const ctl = (typeof AbortController === 'function') ? new AbortController() : null;
   const t = setTimeout(() => { try { ctl && ctl.abort(); } catch(_){} }, timeoutMs);
+  const relay=()=>{try{ctl&&ctl.abort();}catch(_){}};
+  if(externalSignal&&externalSignal.aborted)relay();
+  else if(externalSignal&&ctl)externalSignal.addEventListener('abort',relay,{once:true});
   try{
+    if(externalSignal&&externalSignal.aborted)return {ok:false,error:'已取消',retryable:false,cancelled:true};
     const r = await fetch(url, { method:'POST', headers, body:JSON.stringify(body), signal: ctl ? ctl.signal : undefined });
     const txt = await r.text();
     if(!r.ok) return { ok:false, error:'HTTP ' + r.status, retryable: r.status >= 500 };
@@ -2955,11 +3070,12 @@ async function postJSON(url, headers, body, timeoutMs){
   }catch(e){
     // 修复：旧版两个判断条件完全相同（笔误），超时会被误报成「网络错误」
     const aborted = e && (e.name === 'AbortError' || e.code === 20 || String(e && e.message || '').toLowerCase().indexOf('abort') >= 0);
+    if(externalSignal&&externalSignal.aborted)return {ok:false,error:'已取消',retryable:false,cancelled:true};
     return { ok:false, error: aborted ? '请求超时' : '网络错误', retryable:true };
-  }finally{ clearTimeout(t); }
+  }finally{ clearTimeout(t); if(externalSignal)externalSignal.removeEventListener('abort',relay); }
 }
 // 统一识别入口：返回 { ok, data|error }
-async function visionRecognize(base64){
+async function visionRecognize(base64, signal){
   const cfg = STATE.vision || {};
   if(cfg.mode !== 'proxy' && cfg.mode !== 'direct') return { ok:false, error:'AI 识别未开启' };
   if(!/^https?:\/\//i.test(cfg.endpoint || '')) return { ok:false, error:'识别服务地址无效' };
@@ -2977,8 +3093,8 @@ async function visionRecognize(base64){
   }
   let last = { ok:false, error:'未知错误' };
   for(let i = 0; i <= VISION_RETRY; i++){
-    const r = await postJSON(url, headers, req, VISION_TIMEOUT);
-    if(!r.ok){ last = { ok:false, error:r.error }; if(!r.retryable) break; continue; }
+    const r = await postJSON(url, headers, req, VISION_TIMEOUT, signal);
+    if(!r.ok){ if(r.cancelled)return {ok:false,error:'已取消',cancelled:true};last = { ok:false, error:r.error }; if(!r.retryable||signal&&signal.aborted) break; continue; }
     let raw = null;
     if(cfg.mode === 'proxy'){
       const j = r.json || {};
@@ -3004,7 +3120,85 @@ async function visionRecognize(base64){
 }
 /* ---------- 拍照 / 相册两个独立入口（修复：旧版写死 capture 导致相册入口不可用） ---------- */
 let _fsPhotoFile=null;   // 当前照片原文件（供条码检测用高清图；仅在面板存续期内持有）
-const _aiCache=new Map(); // AI 识别同图缓存（内存级：b64 → 结果），避免重开面板/重试重复消耗调用次数
+function cancelFoodWork(){
+  if(FOOD_SEARCH_TIMER)clearTimeout(FOOD_SEARCH_TIMER);FOOD_SEARCH_TIMER=null;
+  [FOOD_SEARCH_OWNER,FOOD_AI_OWNER,FOOD_BARCODE_OWNER].forEach(owner=>{try{owner&&owner.cancel();}catch(_){}});
+  FOOD_SEARCH_OWNER=FOOD_AI_OWNER=FOOD_BARCODE_OWNER=null;
+}
+const confidenceCategory=value=>value>=0.75?'HIGH':value>=0.45?'MEDIUM':value>0?'LOW':'UNASSESSED';
+const confidenceCategoryLabel=value=>({HIGH:'高',MEDIUM:'中',LOW:'低',UNASSESSED:'未评估'}[value]||'未评估');
+function foodDraftItemFromSelection(selection){
+  const s=selection,name=(($('#fe-name')&&$('#fe-name').value)||s.n||'').trim().slice(0,80);if(!name)return null;
+  const per100=!!s.per100,manualGrams=s.manual&&s.manualUnit==='g',quantity=manualGrams?Math.max(1,Math.min(2000,Math.round(+s.grams||100))):per100?Math.max(1,Math.min(2000,Math.round(+s.grams||100))):Math.max(0.1,Math.min(50,+(+s.q||1).toFixed(1)));
+  const unit=manualGrams||per100?'g':'serving',source=s.src==='ai'?'AI_ESTIMATED':s.src==='manual'||s.src==='history'?'USER_PROVIDED':'DATABASE';
+  const changedName=name!==String(_fsOriginalName||s.n||'').trim();
+  const nameSource=s.src==='manual'||changedName?'USER_PROVIDED':s.sourceProvenance&&s.sourceProvenance.name||source;
+  const quantitySource=s.src==='manual'||s.quantityTouched?'USER_PROVIDED':s.sourceProvenance&&s.sourceProvenance.quantity||source;
+  const nutrients={},provenance={name:nameSource,quantity:quantitySource};
+  const macroSpecs=[['protein','p',200],['carbohydrate','c',300],['fat','f',200]];
+  if(s.manual){
+    macroSpecs.forEach(([field,key,max])=>{const v=$('#fe-'+key);if(v&&v.value!==''&&Number.isFinite(+v.value)&&+v.value>=0){nutrients[field]={value:+(+v.value).toFixed(1),unit:'g'};provenance[field]='USER_PROVIDED';}});
+  }else if(s.nutrientOverrides){
+    macroSpecs.forEach(([field,key])=>{if(Object.prototype.hasOwnProperty.call(s.nutrientOverrides,key)){const v=+s.nutrientOverrides[key];if(Number.isFinite(v)&&v>=0){nutrients[field]={value:+v.toFixed(1),unit:'g'};provenance[field]='USER_PROVIDED';}}});
+    macroSpecs.forEach(([field,key])=>{if(Object.prototype.hasOwnProperty.call(s.nutrientOverrides,key))return;const raw=s[key]==null?null:+s[key];if(raw!=null&&Number.isFinite(raw)&&raw>=0&&((s.sourceNutrients&&s.sourceNutrients[key]!=null)||raw>0)){
+      const scaled=per100?raw*quantity/100:raw*quantity;nutrients[field]={value:+scaled.toFixed(1),unit:'g'};provenance[field]=s.sourceProvenance&&s.sourceProvenance[field]||source;}});
+  }else macroSpecs.forEach(([field,key])=>{const raw=s[key]==null?null:+s[key];if(raw!=null&&Number.isFinite(raw)&&raw>=0&&((s.sourceNutrients&&s.sourceNutrients[key]!=null)||raw>0)){
+    const scaled=per100?raw*quantity/100:raw*quantity;nutrients[field]={value:+scaled.toFixed(1),unit:'g'};provenance[field]=s.sourceProvenance&&s.sourceProvenance[field]||source;}});
+  const kcalInput=$('#fe-kfix'),manualKcal=kcalInput&&kcalInput.value!==''&&Number.isFinite(+kcalInput.value)&&+kcalInput.value>=0?+kcalInput.value:null;
+  const hasEnergy=s.kcal100!=null||s.energyKcal!=null;
+  const macroMap={p:'protein',c:'carbohydrate',f:'fat'},macroKeys=Object.values(macroMap),macrosComplete=macroKeys.every(field=>nutrients[field]);
+  const macroEnergy=macrosComplete?nutrients.protein.value*4+nutrients.carbohydrate.value*4+nutrients.fat.value*9:null;
+  const rawEnergy=s.energyKcal!=null?+s.energyKcal:(hasEnergy?+s.kcal100:macroEnergy);
+  const energy=manualKcal!=null?manualKcal:hasEnergy?rawEnergy*(per100?quantity/100:quantity):macroEnergy;
+  if(energy!=null){nutrients.energyKcal={value:Math.round(energy),unit:'kcal'};provenance.energyKcal=manualKcal!=null?'USER_PROVIDED':hasEnergy?(s.sourceProvenance&&s.sourceProvenance.energyKcal||source):'DERIVED';}
+  const modelConfidence=s.src==='ai'?+s.conf||0:0;
+  const identityConfidence=s.identityConfidence|| (s.src==='manual'?'UNASSESSED':confidenceCategory(modelConfidence||(+s.conf||0)));
+  return {name,quantity,unit,portionEvidence:s.quantityTouched?'USER_MEASURED':s.sourcePortionEvidence|| (s.src==='ai'?'PHOTO_ESTIMATE':'DEFAULT_PORTION'),
+    portionConfidence:s.portionConfidence|| (s.src==='ai'?confidenceCategory(modelConfidence):'UNASSESSED'),identityConfidence,provenance,nutrients,
+    nutritionSource:s.sourceNutrition||{type:source,reference:s.foodId||s.n||null,basisQuantity:s.manual?quantity:per100?100:1,basisUnit:s.manual?unit:per100?'g':'serving'},
+    identityEvidence:s.sourceIdentityEvidence||{source:s.src||'manual',modelSelfAssessment:s.src==='ai'?modelConfidence:null},
+    photoUsed:!!_fsPhotoFile};
+}
+function renderFoodDraft(list,mi){
+  const host=list.querySelector('#fs-draft');if(!host)return;
+  const draft=ACTIVE_FOOD_DRAFT;
+  if(!draft){host.innerHTML=FOOD_DRAFTS.some(x=>x.localDateKey===todayKey()&&x.mealTypeIndex===mi)?'<p class="fs-none">这餐有未完成草稿，可在下方继续。</p>':'';return;}
+  const items=(draft.items||[]).map((item,index)=>{
+    const kcal=nutritionField(item,'energyKcal'),portion=`${item.quantity} ${item.unit==='g'?'g':'份'}`;
+    const sources=Object.entries(item.provenance||{}).map(([key,value])=>`${key}:${value}`).join(' · ');
+    return `<div class="food-draft-row"><b>${esc(item.name)}</b><span>${portion}${kcal?' · '+Math.round(kcal)+' kcal':''}</span><small>${esc(sources)}</small><button type="button" data-draft-remove="${index}" aria-label="删除${esc(item.name)}">删除</button></div>`;
+  }).join('');
+  host.innerHTML=`<div class="fs-draft-card"><h4>待确认的${MEAL_NAMES[mi]}草稿 · ${draft.items.length} 项</h4>${items}<p>名称信心、份量来源和营养来源已分开记录。草稿还没有计入当天汇总。</p><div class="row-btns"><button class="btn-grad" id="fs-confirm-draft">核对后确认并记录</button><button class="ex-do" id="fs-discard-draft">丢弃草稿</button></div></div>`;
+  host.querySelectorAll('[data-draft-remove]').forEach(button=>button.onclick=async()=>{
+    try{const next=draft.items.filter((_,i)=>i!==+button.dataset.draftRemove);if(!next.length){await BojiData.deleteFoodDraft(draft.draftId);FOOD_DRAFTS=FOOD_DRAFTS.filter(x=>x.draftId!==draft.draftId);ACTIVE_FOOD_DRAFT=null;}
+      else ACTIVE_FOOD_DRAFT=await BojiData.updateFoodDraft(draft.draftId,{items:next});renderFoodDraft(list,mi);
+    }catch(error){toast('草稿更新失败：'+(error.message||'本机存储不可用'));}
+  });
+  const discard=host.querySelector('#fs-discard-draft');if(discard)discard.onclick=async()=>{
+    if(!confirm('丢弃这份尚未记录的餐点草稿？'))return;
+    try{await BojiData.deleteFoodDraft(draft.draftId);FOOD_DRAFTS=FOOD_DRAFTS.filter(x=>x.draftId!==draft.draftId);ACTIVE_FOOD_DRAFT=null;renderFoodDraft(list,mi);}
+    catch(error){toast('草稿未能删除：'+(error.message||'本机存储不可用'));}
+  };
+  const confirmButton=host.querySelector('#fs-confirm-draft');if(confirmButton)confirmButton.onclick=async()=>{
+    confirmButton.disabled=true;
+    try{
+      const meal=await BojiData.confirmFoodDraft(draft.draftId,{confirmed:true});
+      MEAL_RECORDS.push(meal);FOOD_DRAFTS=FOOD_DRAFTS.filter(x=>x.draftId!==draft.draftId);ACTIVE_FOOD_DRAFT=null;
+      emitProductEvent('meal.confirmed',meal);cancelFoodWork();navUIClose('food-sheet');_fsPhotoFile=null;_fsSel=null;renderDiet(document.getElementById('mod-body'));
+      toast(`已记录${MEAL_NAMES[mi]} ${meal.items.length} 项`);
+    }catch(error){confirmButton.disabled=false;toast('记录未提交：'+(error.message||'本机存储不可用'));}
+  };
+}
+async function addSelectedFoodToDraft(selection,mi,list,refreshEditor){
+  const item=foodDraftItemFromSelection(selection);if(!item){toast('请先填写食物名');return;}
+  let draft=ACTIVE_FOOD_DRAFT;
+  try{
+    if(draft)draft=await BojiData.updateFoodDraft(draft.draftId,{items:draft.items.concat(item)});
+    else draft=await BojiData.createFoodDraft({localDateKey:todayKey(),timezoneContext:BojiData.timezoneContext(Date.now()),mealTypeIndex:mi,
+      source:_fsPhotoFile?'PHOTO_AI':selection.src==='manual'?'MANUAL':'DATABASE',items:[item]});
+    ACTIVE_FOOD_DRAFT=draft;FOOD_DRAFTS=FOOD_DRAFTS.filter(x=>x.draftId!==draft.draftId).concat(draft);_fsSel=null;_fsOriginalName='';renderFoodDraft(list,mi);if(refreshEditor)refreshEditor();toast('已加入待确认草稿；确认前不会计入饮食记录');
+  }catch(error){toast('草稿未保存：'+(error.message||'本机存储不可用'));}
+}
 function openPhotoIntake(mi, body, camera){
   const inp=document.createElement('input');
   inp.type='file'; inp.accept='image/*';
@@ -3033,19 +3227,17 @@ const CONF_SRC_TXT = { barcode:'条码识别', ai:'AI 视觉识别', off:'在线
 function favFoods(){
   const stat={};
   try{
-    const days=STATE.meals||{};
-    Object.keys(days).forEach(k=>{
-      const day=days[k]; if(!day || typeof day!=='object') return;
-      MEAL_NAMES.forEach((_,m)=>{ const arr=day[m]; if(!Array.isArray(arr)) return;
-        arr.forEach(f=>{ if(!f || !f.n) return;
-          const nm=String(f.n).trim(); if(!nm) return;
-          const cur=stat[nm] || (stat[nm]={cnt:0, rec:null});
-          cur.cnt++;
-          if(!cur.rec) cur.rec={ n:nm, p:+f.p||0, c:+f.c||0, f:+f.f||0,
-            q:Math.max(0.5, +mealQty(f)||1), kcalFix:(+f.kcalFix>0)?+f.kcalFix:undefined };
-        });
-      });
-    });
+    MEAL_RECORDS.forEach(record=>(record.items||[]).forEach(item=>{
+      if(!item||!item.name)return;
+      const nm=String(item.name).trim(),cur=stat[nm]||(stat[nm]={cnt:0,rec:null});cur.cnt++;
+      if(cur.rec)return;
+      const q=Number.isFinite(+item.quantity)&&+item.quantity>0?+item.quantity:1,perGram=item.unit==='g'&&q>0;
+      const amount=field=>nutritionField(item,field),macro=field=>{const v=amount(field);return v==null?null:perGram?v*100/q:v;},kcal=amount('energyKcal');
+      cur.rec={n:nm,p:macro('protein'),c:macro('carbohydrate'),f:macro('fat'),q:1,per100:perGram,grams:perGram?q:undefined,
+        kcal100:perGram&&kcal!=null?kcal*100/q:null,energyKcal:!perGram&&kcal!=null?kcal:null,src:'history',conf:foodConfidence('history'),
+        sourceNutrients:{p:amount('protein'),c:amount('carbohydrate'),f:amount('fat')},sourceProvenance:item.provenance||{},identityConfidence:item.identityConfidence,
+        portionConfidence:item.portionConfidence,sourcePortionEvidence:item.portionEvidence,sourceNutrition:item.nutritionSource,sourceIdentityEvidence:item.identityEvidence};
+    }));
   }catch(_){}
   return Object.keys(stat)
     .map(nm=>Object.assign({ src:'history', conf:foodConfidence('history') }, stat[nm].rec, { cnt:stat[nm].cnt }))
@@ -3076,14 +3268,15 @@ let _fsSel=null;   // { n,p,c,f,q } 或 { n,p,c,f,per100:true,grams } + 可选 k
 function parseOFFList(d){
   return (d && Array.isArray(d.products) ? d.products : []).map(function(x){
     const nu=x.nutriments||{};
-    const kcal100 = +(nu['energy-kcal_100g'] != null ? nu['energy-kcal_100g']
-                      : (nu['energy_100g'] ? Math.round(nu['energy_100g']/4.184) : 0)) || 0;
+    const kcal100 = nu['energy-kcal_100g'] != null ? +nu['energy-kcal_100g']
+                      : (nu['energy_100g'] != null ? Math.round(+nu['energy_100g']/4.184) : null);
+    const p=nu.proteins_100g==null?null:+nu.proteins_100g,c=nu.carbohydrates_100g==null?null:+nu.carbohydrates_100g,f=nu.fat_100g==null?null:+nu.fat_100g;
     return { n:((x.product_name||'').trim() || '未命名商品') + (x.brands ? ' · ' + x.brands : ''),
-             p:+(nu.proteins_100g)||0, c:+(nu.carbohydrates_100g)||0, f:+(nu.fat_100g)||0,
-             kcal100:kcal100, per100:true, grams:100, q:1 };
+             p:Number.isFinite(p)?p:null, c:Number.isFinite(c)?c:null, f:Number.isFinite(f)?f:null,
+             kcal100:Number.isFinite(kcal100)?kcal100:null, per100:true, grams:100, q:1 };
   }).filter(function(x){ return x.kcal100 || x.p || x.c || x.f; }).slice(0,5);
 }
-function queryOFF(q, cb){
+function queryOFF(q, cb, externalSignal){
   if(typeof fetch!=='function'){ cb(new Error('当前环境不支持联网查询'), null); return; }
   const url=OFF_API + encodeURIComponent(q) + '&search_simple=1&action=process&json=1&page_size=5&fields=product_name,brands,nutriments';
   let tries=2, timer=null;                       // 首次 + 弱网自动重试 1 次
@@ -3092,21 +3285,25 @@ function queryOFF(q, cb){
     let ctl=null;
     try{
       ctl=(typeof AbortController==='function')?new AbortController():null;
+      const relay=()=>{try{ctl&&ctl.abort();}catch(e){}};
+      if(externalSignal&&externalSignal.aborted)relay();else if(externalSignal&&ctl)externalSignal.addEventListener('abort',relay,{once:true});
       timer=setTimeout(function(){ try{ if(ctl) ctl.abort(); }catch(e){} }, 7000);
       fetch(url, ctl?{ signal: ctl.signal }:undefined)
         .then(function(r){ if(!r || !r.ok) throw new Error('HTTP ' + (r && r.status)); return r.json(); })
-        .then(function(d){ clearTimeout(timer); cb(null, parseOFFList(d)); })
-        .catch(function(e){ clearTimeout(timer); if(tries>0){ setTimeout(run, 900); } else { cb(e, null); } });
-    }catch(e){ clearTimeout(timer); if(tries>0){ setTimeout(run, 900); } else { cb(e, null); } }
+        .then(function(d){ clearTimeout(timer);if(externalSignal)externalSignal.removeEventListener('abort',relay);cb(null, parseOFFList(d)); })
+        .catch(function(e){ clearTimeout(timer);if(externalSignal)externalSignal.removeEventListener('abort',relay);if(externalSignal&&externalSignal.aborted)return;if(tries>0){ setTimeout(run, 900); } else { cb(e, null); } });
+    }catch(e){ clearTimeout(timer); if(externalSignal&&externalSignal.aborted)return;if(tries>0){ setTimeout(run, 900); } else { cb(e, null); } }
   };
   run();
 }
-function fetchOFFBarcode(code, cb){
+function fetchOFFBarcode(code, cb, externalSignal){
   if(typeof fetch!=='function'){ cb(new Error('当前环境不支持联网查询'), null); return; }
   const url='https://world.openfoodfacts.org/api/v2/product/'+encodeURIComponent(String(code).trim())+'.json?fields=product_name,brands,nutriments';
   let ctl=null, timer=null;
   try{
     ctl=(typeof AbortController==='function')?new AbortController():null;
+    const relay=()=>{try{ctl&&ctl.abort();}catch(e){}};
+    if(externalSignal&&externalSignal.aborted)relay();else if(externalSignal&&ctl)externalSignal.addEventListener('abort',relay,{once:true});
     timer=setTimeout(function(){ try{ if(ctl) ctl.abort(); }catch(e){} }, 7000);
     fetch(url, ctl?{ signal: ctl.signal }:undefined)
       .then(function(r){ if(!r || !r.ok) throw new Error('HTTP ' + (r && r.status)); return r.json(); })
@@ -3114,34 +3311,47 @@ function fetchOFFBarcode(code, cb){
         const p=(d && d.status===1 && d.product) ? d.product : null;
         if(!p){ cb(null, null); return; }
         const nu=p.nutriments||{};
-        const kcal100 = +(nu['energy-kcal_100g'] != null ? nu['energy-kcal_100g']
-                          : (nu['energy_100g'] ? Math.round(nu['energy_100g']/4.184) : 0)) || 0;
+        const kcal100 = nu['energy-kcal_100g'] != null ? +nu['energy-kcal_100g']
+                          : (nu['energy_100g'] != null ? Math.round(+nu['energy_100g']/4.184) : null);
+        const protein=nu.proteins_100g==null?null:+nu.proteins_100g,carbohydrate=nu.carbohydrates_100g==null?null:+nu.carbohydrates_100g,fat=nu.fat_100g==null?null:+nu.fat_100g;
         cb(null, { n:((p.product_name||'').trim() || '未命名商品') + (p.brands ? ' · ' + p.brands : ''),
-                   p:+(nu.proteins_100g)||0, c:+(nu.carbohydrates_100g)||0, f:+(nu.fat_100g)||0,
-                   kcal100:kcal100, per100:true, grams:100, q:1,
+                   p:Number.isFinite(protein)?protein:null, c:Number.isFinite(carbohydrate)?carbohydrate:null, f:Number.isFinite(fat)?fat:null,
+                   kcal100:Number.isFinite(kcal100)?kcal100:null, per100:true, grams:100, q:1,
                    src:'barcode', conf:foodConfidence('barcode') });
       })
       .catch(function(e){ cb(e, null); })
-      .finally(function(){ if(timer) clearTimeout(timer); });
+      .finally(function(){ if(timer) clearTimeout(timer);if(externalSignal)externalSignal.removeEventListener('abort',relay); });
   }catch(e){ if(timer) clearTimeout(timer); cb(e, null); }
 }
-const selFactor = s => s.per100 ? (Math.max(1, +s.grams||100))/100 : Math.max(0.5, +s.q||1);
+const selFactor = s => s.per100 ? (Math.max(1, +s.grams||100))/100 : Math.max(0.1, +s.q||1);
+function selMacroTotal(s,key){
+  if(s.manual)return Number.isFinite(+s[key])?+s[key]:0;
+  if(s.nutrientOverrides&&Object.prototype.hasOwnProperty.call(s.nutrientOverrides,key))return +s.nutrientOverrides[key]||0;
+  return s[key]==null?0:(+s[key]||0)*selFactor(s);
+}
 function selKcal(s){
-  if(!s) return 0;
+  if(!s) return null;
   if(+s.kcalFix > 0) return Math.round(+s.kcalFix);          // 用户手动覆盖优先
-  const v=(s.p*4 + s.c*4 + s.f*9) * selFactor(s);
-  return isFinite(v) ? Math.round(v) : 0;
+  const base=s.energyKcal!=null?+s.energyKcal:(s.kcal100!=null?+s.kcal100:null);
+  if(base==null&&!['p','c','f'].every(key=>s.manual?s[key]!=null:s[key]!=null||s.nutrientOverrides&&Object.prototype.hasOwnProperty.call(s.nutrientOverrides,key)))return null;
+  const v=base!=null?base*selFactor(s):selMacroTotal(s,'p')*4+selMacroTotal(s,'c')*4+selMacroTotal(s,'f')*9;
+  return isFinite(v) ? Math.round(v) : null;
 }
 function selName(s){ return s.per100 ? s.n + ' ' + (s.grams||100) + 'g' : s.n; }
 /* ---------- 识别结果页（Keep 风：照片 → 匹配来源 → 结果卡含置信度 → 主行动按钮） ---------- */
 function openFoodSheet(mi, body, photo){
-  _fsSel=null;
-  if(!photo) _fsPhotoFile=null;   // 无照片路径不残留上次的原文件引用
+  cancelFoodWork();
+  FOOD_SEARCH_OWNER=BojiData.createRequestOwner('food-sheet');FOOD_AI_OWNER=BojiData.createRequestOwner('food-sheet');FOOD_BARCODE_OWNER=BojiData.createRequestOwner('food-sheet');
+  _fsSel=null;_fsOriginalName='';
+  if(!photo) _fsPhotoFile=null;
+  const resumed=ACTIVE_FOOD_DRAFT&&ACTIVE_FOOD_DRAFT.localDateKey===todayKey()&&ACTIVE_FOOD_DRAFT.mealTypeIndex===mi
+    ?ACTIVE_FOOD_DRAFT:FOOD_DRAFTS.find(x=>x.localDateKey===todayKey()&&x.mealTypeIndex===mi)||null;
+  ACTIVE_FOOD_DRAFT=resumed;
   const list=$('#food-list');
   const canBarcode = (typeof BarcodeDetector==='function') && !!photo;
   const photoHtml = photo
     ? `<div class="fs-hero"><img src="${photo}" alt="">
-        <div class="fs-hero-tip">📷 已拍摄留档 · 下方按 条码 / 历史 / 本地库 匹配并标注置信度，份量热量都可校正</div></div>`
+        <div class="fs-hero-tip">照片仅在当前识别期间使用；匹配信心、份量估算和营养来源分开显示。</div></div>`
     : `<div class="fs-photo no"><span>未带照片 · 从常见食物中选取，份量与热量都可改</span></div>`;
   list.innerHTML=`<input id="food-search" type="text" placeholder="搜索食物，如：鸡胸、米饭、饺子…" maxlength="30">
     ${photoHtml}
@@ -3149,49 +3359,64 @@ function openFoodSheet(mi, body, photo){
     <div id="fav-hits"></div>
     <div id="food-hits"></div>
     <div id="off-hits"></div>
-    <div id="food-editor"></div>`;
+    <div id="food-editor"></div><div id="fs-draft"></div>`;
+  renderFoodDraft(list,mi);
   // —— 结果卡（选中候选后出现）：名称 / 份量 / 宏量 / 置信度徽章 / 主行动按钮 ——
   const renderEditor=()=>{
     const ed=list.querySelector('#food-editor'); if(!ed) return;
-    if(!_fsSel){ ed.innerHTML=`<p class="fs-none">在上面选一个食物（或等条码/在线结果），再校正名称 / 份量 / 热量</p>`; return; }
+    if(!_fsSel){ ed.innerHTML=`<p class="fs-none">先选本地、历史、条码或在线结果；也可以手动填写食物和营养字段。</p><button class="ex-do" id="fe-manual" type="button">手动录入食物</button>`;
+      const manual=ed.querySelector('#fe-manual');if(manual)manual.onclick=()=>{_fsSel={n:'',p:null,c:null,f:null,q:1,src:'manual',conf:0,manual:true};_fsOriginalName='';renderEditor();};return; }
     const per100=!!_fsSel.per100, unit=per100?'克':'份', amt=per100?(_fsSel.grams||100):_fsSel.q;
     const conf=Math.max(0, Math.min(1, +_fsSel.conf||0));
     const [cl, cc]=confLabel(conf);
     const srcTxt=CONF_SRC_TXT[_fsSel.src] || '手动选择';
-    const hint = conf>=0.9 ? '' : conf>=0.6
-      ? `<div class="fs-warn">匹配依据：${srcTxt}。请核对份量后再确认。</div>`
-      : `<div class="fs-warn warn-lo">匹配度较低（依据：${srcTxt}）。请务必核对名称与份量，或直接覆盖热量。</div>`;
+    const hint = _fsSel.src==='manual'?'<div class="fs-warn">手动提供的身份、份量或营养字段会分别标记来源。</div>':conf>=0.75
+      ? `<div class="fs-warn">匹配信心档：${cl}（${srcTxt}）。请核对份量。</div>`
+      : `<div class="fs-warn warn-lo">匹配信心档：${cl}（${srcTxt}）。请核对名称与份量；模型信心不是校准概率。</div>`;
     ed.innerHTML=`<div class="fs-edit">
-      <div class="fs-conf"><span class="cf-badge ${cc}">${cl} ${Math.round(conf*100)}%</span><span class="cf-src">依据：${esc(srcTxt)}</span></div>
+      <div class="fs-conf"><span class="cf-badge ${cc}">${cl} 信心档</span><span class="cf-src">身份依据：${esc(srcTxt)}</span></div>
       ${hint}
-      <label>食物名（可改）<input id="fe-name" type="text" maxlength="40" value="${esc(_fsSel.n)}"></label>
-      <div class="fs-qrow">${unit}数
+      <label>食物名（可改）<input id="fe-name" type="text" maxlength="80" value="${esc(_fsSel.n)}"></label>
+      <div class="fs-qrow">${_fsSel.manual?'份量':unit+'数'}
         <button id="fe-dec" type="button">−</button>
-        <input id="fe-q" type="number" inputmode="decimal" min="${per100?'1':'0.5'}" step="${per100?'10':'0.5'}" value="${amt}">
+        <input id="fe-q" type="number" inputmode="decimal" min="${per100||(_fsSel.manual&&_fsSel.manualUnit==='g')?'1':'0.1'}" step="${per100||(_fsSel.manual&&_fsSel.manualUnit==='g')?'10':'0.5'}" value="${_fsSel.manual&&_fsSel.manualUnit==='g'?(_fsSel.grams||100):amt}">
         <button id="fe-inc" type="button">＋</button>
-        <span id="fe-kcal">约 <b>${selKcal(_fsSel)}</b> kcal</span></div>
-      <div class="fs-qrow">手动覆盖热量<input id="fe-kfix" type="number" inputmode="numeric" min="0" max="5000" step="10" placeholder="选填：这份实际 kcal" value="${_fsSel.kcalFix||''}"></div>
-      <button class="btn-grad ghost-btn" id="fe-off" type="button" style="margin-bottom:8px">🌐 在线查询「${esc((_fsSel.n||'').slice(0,10))}」</button>
-      <button class="btn-grad fs-cta" id="fe-add" type="button">✓ 确认添加到${MEAL_NAMES[mi]}</button></div>`;
-    const syncKcal=()=>{ const k=$('#fe-kcal'); if(k) k.innerHTML=`约 <b>${selKcal(_fsSel)}</b> kcal`; };
+        <span id="fe-kcal">${_fsSel.manual?'填写营养字段':selKcal(_fsSel)==null?'热量未提供':'约 '+selKcal(_fsSel)+' kcal'}</span></div>
+      ${_fsSel.manual?'<label>计量单位<select id="fe-unit"><option value="serving">份</option><option value="g">克（实测）</option></select></label>':''}
+      <label>蛋白质 g（当前份量）<input id="fe-p" type="number" min="0" max="2000" step="0.1" value="${_fsSel.manual?'':_fsSel.nutrientOverrides&&_fsSel.nutrientOverrides.p!=null?_fsSel.nutrientOverrides.p:_fsSel.p==null?'':(+(_fsSel.p*selFactor(_fsSel)).toFixed(1))}"></label>
+      <label>碳水 g（当前份量）<input id="fe-c" type="number" min="0" max="3000" step="0.1" value="${_fsSel.manual?'':_fsSel.nutrientOverrides&&_fsSel.nutrientOverrides.c!=null?_fsSel.nutrientOverrides.c:_fsSel.c==null?'':(+(_fsSel.c*selFactor(_fsSel)).toFixed(1))}"></label>
+      <label>脂肪 g（当前份量）<input id="fe-f" type="number" min="0" max="2000" step="0.1" value="${_fsSel.manual?'':_fsSel.nutrientOverrides&&_fsSel.nutrientOverrides.f!=null?_fsSel.nutrientOverrides.f:_fsSel.f==null?'':(+(_fsSel.f*selFactor(_fsSel)).toFixed(1))}"></label>
+      <div class="fs-qrow">${_fsSel.manual?'热量 kcal':'手动覆盖热量 kcal'}<input id="fe-kfix" type="number" inputmode="numeric" min="0" max="5000" step="10" placeholder="选填" value="${_fsSel.kcalFix||''}"></div>
+      ${_fsSel.manual?'':'<button class="btn-grad ghost-btn" id="fe-off" type="button" style="margin-bottom:8px">🌐 在线查询此名称</button>'}
+      <button class="btn-grad fs-cta" id="fe-add" type="button">加入待确认草稿</button></div>`;
+    const syncKcal=()=>{ const k=$('#fe-kcal');if(!k)return;const value=selKcal(_fsSel);k.innerHTML=value==null?'热量未提供':`约 <b>${value}</b> kcal`; };
     $('#fe-name').oninput=e=>{ _fsSel.n=e.target.value; };
-    const curAmt=()=> _fsSel.per100 ? _fsSel.grams : _fsSel.q;
+    const unitInput=$('#fe-unit');if(unitInput){unitInput.value=_fsSel.manualUnit||'serving';unitInput.onchange=e=>{_fsSel.manualUnit=e.target.value;_fsSel.quantityTouched=true;const input=$('#fe-q');input.value=e.target.value==='g'?(_fsSel.grams||100):(_fsSel.q||1);input.min=e.target.value==='g'?'1':'0.1';input.step=e.target.value==='g'?'10':'0.5';};}
+    const curAmt=()=> _fsSel.per100||(_fsSel.manual&&_fsSel.manualUnit==='g') ? _fsSel.grams : _fsSel.q;
     // 输入夹取（二次校验）：克 1–2000、份 0.5–50，非法输入回写规范化值
-    const setAmt=v=>{ if(_fsSel.per100) _fsSel.grams=Math.max(1, Math.min(2000, Math.round(+v||100)));
-      else _fsSel.q=Math.max(0.5, Math.min(50, +(+v).toFixed(1)||1)); delete _fsSel.kcalFix; syncKcal(); };
+    const setAmt=v=>{ if(_fsSel.per100||(_fsSel.manual&&_fsSel.manualUnit==='g')) _fsSel.grams=Math.max(1, Math.min(2000, Math.round(+v||100)));
+      else _fsSel.q=Math.max(0.1, Math.min(50, +(+v).toFixed(1)||1));_fsSel.quantityTouched=true;delete _fsSel.kcalFix;const kcal=$('#fe-kfix');if(kcal)kcal.value='';syncKcal(); };
     $('#fe-q').oninput=e=>setAmt(e.target.value);
     $('#fe-q').onchange=e=>{ setAmt(e.target.value); $('#fe-q').value=curAmt(); };
-    $('#fe-dec').onclick=()=>{ setAmt(curAmt() - (_fsSel.per100?50:0.5)); $('#fe-q').value=curAmt(); };
-    $('#fe-inc').onclick=()=>{ setAmt(curAmt() + (_fsSel.per100?50:0.5)); $('#fe-q').value=curAmt(); };
+    $('#fe-dec').onclick=()=>{ setAmt(curAmt() - (_fsSel.per100||(_fsSel.manual&&_fsSel.manualUnit==='g')?50:0.5)); $('#fe-q').value=curAmt(); };
+    $('#fe-inc').onclick=()=>{ setAmt(curAmt() + (_fsSel.per100||(_fsSel.manual&&_fsSel.manualUnit==='g')?50:0.5)); $('#fe-q').value=curAmt(); };
+    ['p','c','f'].forEach(key=>$('#fe-'+key).oninput=e=>{
+      if(_fsSel.manual){_fsSel[key]=e.target.value===''?null:+e.target.value;syncKcal();return;}
+      _fsSel.nutrientOverrides=_fsSel.nutrientOverrides||{};
+      if(e.target.value==='')delete _fsSel.nutrientOverrides[key];else if(Number.isFinite(+e.target.value)&&+e.target.value>=0)_fsSel.nutrientOverrides[key]=+e.target.value;syncKcal();
+    });
     $('#fe-kfix').oninput=e=>{ let v=+e.target.value;
       if(v>5000){ v=5000; e.target.value=5000; toast('热量覆盖值上限 5000 kcal，已为你夹取'); }
       if(v>0){ _fsSel.kcalFix=v; } else delete _fsSel.kcalFix; syncKcal(); };
-    $('#fe-off').onclick=()=>{
+    const offButton=$('#fe-off');if(offButton)offButton.onclick=()=>{
       const kw=(_fsSel.n||'').replace(/[（(].*?[)）]/g,'').trim() || '';
       if(!kw){ toast('先填个食物名再查询'); return; }
       const offEl=list.querySelector('#off-hits');
       offEl.innerHTML=`<div class="fs-off-t">在线结果（每 100g）</div><div class="fs-skel"><i></i><i></i><i></i></div>`;
+      if(FOOD_SEARCH_TIMER)clearTimeout(FOOD_SEARCH_TIMER);FOOD_SEARCH_TIMER=null;
+      const request=FOOD_SEARCH_OWNER.begin();
       queryOFF(kw, (err, rows)=>{
+        if(!FOOD_SEARCH_OWNER||!FOOD_SEARCH_OWNER.isCurrent(request,'food-sheet'))return;
         if(err || !rows || !rows.length){
           const why = err && /HTTP 4|HTTP 5/.test(String(err.message||err)) ? '在线库暂时不可用'
                     : err ? '网络不佳（已自动重试过 1 次）' : '该食物未被在线库收录';
@@ -3201,34 +3426,20 @@ function openFoodSheet(mi, body, photo){
         offEl.innerHTML=`<div class="fs-off-t">在线结果（每 100g）</div>` + rows.map((f,i)=>{
           const it=Object.assign({}, f, { src:'off', conf:foodConfidence('off') });
           return `<div class="food-row" data-off="${i}" data-conf="${it.conf}"><div class="fr-m"><b>${esc(f.n.slice(0,28))}</b>
-            <span>${Math.round(f.kcal100)} kcal · 蛋白 ${f.p}g · 碳水 ${f.c}g · 脂肪 ${f.f}g /100g</span></div>
+            <span>${f.kcal100==null?'热量未提供':Math.round(f.kcal100)+' kcal'} · 蛋白 ${f.p==null?'未提供':f.p+'g'} · 碳水 ${f.c==null?'未提供':f.c+'g'} · 脂肪 ${f.f==null?'未提供':f.f+'g'} /100g</span></div>
             <span class="lr-ar">选 ›</span></div>`; }).join('');
         offEl.querySelectorAll('[data-off]').forEach(r=>r.onclick=()=>{
-          _fsSel=Object.assign({}, rows[+r.dataset.off], { src:'off', conf:foodConfidence('off') });
-          renderEditor(); toast('已载入在线数据，默认按 100g 计');
+          const item=Object.assign({},rows[+r.dataset.off],{src:'off',conf:foodConfidence('off'),sourceNutrients:{p:rows[+r.dataset.off].p,c:rows[+r.dataset.off].c,f:rows[+r.dataset.off].f}});
+          selectCandidate(item);toast('已载入在线数据，默认按 100g 计');
         });
-      });
+      },request.signal);
     };
     $('#fe-add').onclick=()=>{
       const s=_fsSel; if(!s) return;
-      // 结果二次校验：单份热量异常高时拒绝写入，提示核对
-      const kcal=selKcal(s);
-      if(!(kcal>0) || kcal>4000){ toast('这份热量异常（' + kcal + ' kcal），请核对份量或手动覆盖热量'); return; }
-      const per100=!!s.per100;
-      const factor=per100 ? selFactor(s) : 1;      // 在线条目按克数折算；本地库保留“每份”基准
-      const amount=per100 ? 1 : selFactor(s);      // 本地库：份数即数量，后续还能 ±0.5 调整
-      const name=(s.n||'').trim() || '未知食物';
-      const rec={ n:selName(s), p:+(s.p*factor).toFixed(1), c:+(s.c*factor).toFixed(1), f:+(s.f*factor).toFixed(1),
-                  q:amount, photo:photo||null, cf:Math.max(0, Math.min(1, +s.conf||0)) };
-      if(+s.kcalFix>0) rec.kcalFix=Math.round((+s.kcalFix) / (per100 ? 1 : amount));   // 覆盖值按“每份”存，±份数时同步缩放
-      if(!(rec.p||rec.c||rec.f) && !rec.kcalFix) rec.kcalFix=kcal;
-      const key=todayKey();
-      STATE.meals[key]=STATE.meals[key]||{};
-      STATE.meals[key][mi]=STATE.meals[key][mi]||[];
-      STATE.meals[key][mi].push(rec);
-      save(); navUIClose('food-sheet'); _fsSel=null; _fsPhotoFile=null;
-      toast(`已记录 ${name} · ${kcal} kcal`);
-      if($('#module').classList.contains('open')) renderDiet(body);
+      if(s.manual){s.manualUnit=$('#fe-unit')&&$('#fe-unit').value||'serving';if(s.manualUnit==='g'){s.grams=Math.max(1,Math.min(2000,+$('#fe-q').value||100));}else{s.q=Math.max(0.1,Math.min(50,+$('#fe-q').value||1));}
+        s.p=$('#fe-p').value===''?null:+$('#fe-p').value;s.c=$('#fe-c').value===''?null:+$('#fe-c').value;s.f=$('#fe-f').value===''?null:+$('#fe-f').value;}
+      const item=foodDraftItemFromSelection(s);if(!item||(!Object.keys(item.nutrients).length)){toast('至少填写一个营养字段，或选择有营养数据的食物');return;}
+      addSelectedFoodToDraft(s,mi,list,renderEditor);
     };
   };
   // —— 本地库搜索（精确=中置信度，模糊=低置信度） ——
@@ -3243,20 +3454,24 @@ function openFoodSheet(mi, body, photo){
         <span class="lr-ar">选 ›</span></div>`; }).join('')
       || (q ? `<p class="fs-none warn-lo">本地库没有匹配项，可点「在线查询」试试，或选相近食物后改名字</p>` : '');
     hitsEl.querySelectorAll('[data-hit]').forEach(r=>r.onclick=()=>{
-      _fsSel=Object.assign({}, EST_LIB[+r.dataset.hit], { q:1, src:r.dataset.conf>=0.7?'lib':'fuzzy', conf:+r.dataset.conf });
+      const hit=EST_LIB[+r.dataset.hit];
+      _fsSel=Object.assign({},hit,{q:1,src:r.dataset.conf>=0.7?'lib':'fuzzy',conf:+r.dataset.conf,
+        sourceNutrients:{p:hit.p,c:hit.c,f:hit.f}});_fsOriginalName=String(hit.n||'');
       renderEditor();
     });
   };
+  const selectCandidate=(candidate)=>{_fsSel=Object.assign({},candidate);_fsOriginalName=String(candidate&&candidate.n||'');renderEditor();};
   // —— 历史高频（置信度依据：你的历史记录） ——
   const favs=favFoods();
   const favEl=list.querySelector('#fav-hits');
   if(favs.length){
     favEl.innerHTML=`<div class="fs-off-t">常吃的（依据你的历史记录）</div>` + favs.map((f,i)=>
       `<div class="food-row" data-fav="${i}" data-conf="${f.conf}"><div class="fr-m"><b>${esc(f.n)}</b>
-        <span>吃过 ${f.cnt} 次 · 蛋白 ${f.p}g · 碳水 ${f.c}g · 脂肪 ${f.f}g · 约 ${Math.round(f.p*4+f.c*4+f.f*9)} kcal/份</span></div>
+        <span>已确认记录 ${f.cnt} 次 · 营养来源和字段状态沿用原记录</span></div>
         <span class="lr-ar">选 ›</span></div>`).join('');
     favEl.querySelectorAll('[data-fav]').forEach(r=>r.onclick=()=>{
-      _fsSel=Object.assign({}, favs[+r.dataset.fav]); delete _fsSel.cnt; renderEditor();
+      const candidate=Object.assign({},favs[+r.dataset.fav]);delete candidate.cnt;
+      candidate.sourceNutrients=candidate.sourceNutrients||{p:candidate.p,c:candidate.c,f:candidate.f};selectCandidate(candidate);
     });
   } else favEl.innerHTML='';
   // —— 条码识别入口（设备支持才显示；识别失败有明确提示） ——
@@ -3268,18 +3483,21 @@ function openFoodSheet(mi, body, photo){
     act.querySelector('#fs-bc').onclick=()=>{
       const src=_fsPhotoFile || photo;
       const btn=act.querySelector('#fs-bc'); btn.disabled=true; btn.textContent='正在识别条码…';
+      const request=FOOD_BARCODE_OWNER.begin();
       const after=(du)=>{
+        if(!FOOD_BARCODE_OWNER||!FOOD_BARCODE_OWNER.isCurrent(request,'food-sheet'))return;
         if(!du){ bcFail('照片处理失败'); return; }
         detectBarcodePhoto(du, (err, code)=>{
+          if(!FOOD_BARCODE_OWNER||!FOOD_BARCODE_OWNER.isCurrent(request,'food-sheet'))return;
           if(err || !code){ bcFail(err ? '条码识别不可用' : '照片里没找到条码'); return; }
           fetchOFFBarcode(code, (e2, item)=>{
+            if(!FOOD_BARCODE_OWNER||!FOOD_BARCODE_OWNER.isCurrent(request,'food-sheet'))return;
             if(e2){ bcFail('条码已识别，但在线库查询失败'); return; }
             if(!item){ bcFail('在线库没有这个条码的商品'); return; }
-            _fsSel=Object.assign({}, item);
-            renderEditor();
+            item.sourceNutrients={p:item.p,c:item.c,f:item.f};selectCandidate(item);
             act.remove();
             toast('条码识别成功：' + (item.n||'').slice(0,16));
-          });
+          },request.signal);
         });
       };
       function bcFail(msg){ btn.disabled=false; btn.textContent='🔖 识别条码（对准包装条形码拍照效果最好）'; toast(msg + '，可手动选择食物'); }
@@ -3308,43 +3526,41 @@ function openFoodSheet(mi, body, photo){
       if(e==='网络错误') return '网络不可用——检查网络后重试';
       return String(e);
     };
-    const run=()=>{
+      const run=()=>{
+      const request=FOOD_AI_OWNER.begin();
       aiWait();
       (async ()=>{
         const du=await new Promise(r=>{ try{ compressImage(_fsPhotoFile, 512, r); }catch(_){ r(null); } });
+        if(!FOOD_AI_OWNER||!FOOD_AI_OWNER.isCurrent(request,'food-sheet'))return;
         const b64=(typeof du==='string' && du.indexOf(',')>0) ? du.slice(du.indexOf(',')+1) : '';
         if(!b64){ aiFail('图片处理失败'); return; }
-        // 同图缓存：同一次会话内重开面板/重试同一张照片，不重复消耗调用次数
         let r=null;
-        if(_aiCache.has(b64)){ r=_aiCache.get(b64); }
-        else{
-          try{ r=await visionRecognize(b64); }catch(_){ r={ ok:false, error:'识别请求异常' }; }
-          // 只缓存成功结果。旧版连失败一起缓存，导致「重新识别」点了还是拿到缓存里的失败，按钮形同虚设
-          if(r && r.ok){
-            if(_aiCache.size>12) _aiCache.delete(_aiCache.keys().next().value);   // 上限保护
-            _aiCache.set(b64, r);
-          }
-        }
+        try{ r=await visionRecognize(b64,request.signal); }catch(_){ r={ ok:false, error:'识别请求异常' }; }
+        if(!FOOD_AI_OWNER||!FOOD_AI_OWNER.isCurrent(request,'food-sheet'))return;
         if(!r || !r.ok){ aiFail(aiErrTip((r && r.error) || '识别失败'), true); return; }
         renderAiHit(r.data);
       })();
     };
     const renderAiHit=d=>{
-      const g=Math.max(10, d.grams);
-      const [cl, cc]=confLabel(d.conf);
-      aiBox.innerHTML=`<div class="fs-ai-title">🤖 AI 识别结果 <span class="cf-badge ${cc}">${cl} ${Math.round(d.conf*100)}%</span></div>
-        <div class="food-row ai" data-ai="1"><div class="fr-m"><b>${esc(d.name)}</b>
-          <span>${d.grams}g · 蛋白 ${d.p}g · 碳水 ${d.c}g · 脂肪 ${d.f}g · 约 ${d.kcal} kcal</span></div>
-          <span class="lr-ar">用这个 ›</span></div>
-        ${d.uncertain ? `<p class="fs-none warn-lo">模型不太确定这是食物（或画面不清）。建议换角度重拍，或手动选择相近食物。</p>`
-          : `<p class="fs-none">估算存在 ±15~30% 误差，点上方结果后可改克数与热量。</p>`}
+      const rows=Array.isArray(d.items)?d.items:[d];
+      const rowHtml=rows.map((item,index)=>{
+        const g=Math.max(10,item.grams||150), fields=[];
+        if(item.p!=null)fields.push(`蛋白 ${item.p}g`);if(item.c!=null)fields.push(`碳水 ${item.c}g`);if(item.f!=null)fields.push(`脂肪 ${item.f}g`);
+        if(item.kcal!=null)fields.push(`${item.kcal} kcal`);else if(fields.length)fields.push('热量按宏量计算');
+        const [cl,cc]=confLabel(item.conf);
+        return `<div class="food-row ai" data-ai="${index}"><div class="fr-m"><b>${esc(item.name)}</b><span>${g}g 估算 · ${esc(fields.join(' · ')||'营养字段未识别')} · ${cl}信心档</span></div><span class="lr-ar">选 ›</span></div>`;
+      }).join('');
+      aiBox.innerHTML=`<div class="fs-ai-title">🤖 AI 识别结果 · ${rows.length} 项</div>
+        ${rowHtml}
+        <p class="fs-none warn-lo">照片份量与营养是模型估算，请逐项核对。模型信心是描述档位，不是校准概率。${rows.some(item=>item.inconsistent)?'部分项目的热量与宏量明显不一致，原始字段已保留，请自行核对。':''}</p>
         <button class="btn-grad ghost-btn" id="ai-retry" type="button">🔄 重新识别这张照片</button>`;
-      const row=aiBox.querySelector('[data-ai]');
-      if(row) row.onclick=()=>{
-        _fsSel={ n:d.name, p:+(d.p*100/g).toFixed(1), c:+(d.c*100/g).toFixed(1), f:+(d.f*100/g).toFixed(1),
-                 kcal100:Math.round(d.kcal*100/g), per100:true, grams:g, q:1, src:'ai', conf:d.conf };
-        renderEditor(); toast('已采用 AI 结果，请核对克数');
-      };
+      aiBox.querySelectorAll('[data-ai]').forEach(row=>row.onclick=()=>{
+        const item=rows[+row.dataset.ai],g=Math.max(10,item.grams||150);
+        const selected={n:item.name,p:item.p==null?null:+(item.p*100/g).toFixed(2),c:item.c==null?null:+(item.c*100/g).toFixed(2),f:item.f==null?null:+(item.f*100/g).toFixed(2),
+          kcal100:item.kcal==null?null:+(item.kcal*100/g).toFixed(2),per100:true,grams:g,q:1,src:'ai',conf:item.conf,
+          sourceNutrients:{p:item.p,c:item.c,f:item.f},inconsistent:item.inconsistent};
+        selectCandidate(selected);toast('已采用 AI 项目估算，请核对克数与营养字段');
+      });
       const rb=aiBox.querySelector('#ai-retry');
       if(rb) rb.onclick=run;
     };
@@ -3358,11 +3574,23 @@ function openFoodSheet(mi, body, photo){
     run();
   }
   const searchEl=list.querySelector('#food-search');
-  searchEl.oninput=e=>renderHits(e.target.value);
+  searchEl.oninput=e=>{
+    const kw=e.target.value||'';renderHits(kw);
+    if(FOOD_SEARCH_TIMER)clearTimeout(FOOD_SEARCH_TIMER);
+    const request=FOOD_SEARCH_OWNER.begin(),offEl=list.querySelector('#off-hits');
+    if(kw.trim().length<2){offEl.innerHTML='';return;}
+    offEl.innerHTML='<div class="fs-off-t">在线搜索中…</div>';
+    FOOD_SEARCH_TIMER=setTimeout(()=>{if(!FOOD_SEARCH_OWNER||!FOOD_SEARCH_OWNER.isCurrent(request,'food-sheet'))return;queryOFF(kw.trim(),(err,rows)=>{
+      if(!FOOD_SEARCH_OWNER||!FOOD_SEARCH_OWNER.isCurrent(request,'food-sheet'))return;
+      if(err||!rows||!rows.length){offEl.innerHTML='<p class="fs-none">在线库没有匹配项，可选择本地结果或手动录入。</p>';return;}
+      offEl.innerHTML='<div class="fs-off-t">在线食物库</div>'+rows.map((f,i)=>`<div class="food-row" data-search-off="${i}"><div class="fr-m"><b>${esc(f.n.slice(0,40))}</b><span>${f.kcal100==null?'热量未提供':Math.round(f.kcal100)+' kcal'} /100g · 营养字段按来源保留</span></div><span class="lr-ar">选 ›</span></div>`).join('');
+      offEl.querySelectorAll('[data-search-off]').forEach(row=>row.onclick=()=>{const item=rows[+row.dataset.searchOff];item.src='off';item.conf=foodConfidence('off');item.sourceNutrients={p:item.p,c:item.c,f:item.f};selectCandidate(item);});
+    },request.signal);},350);
+  };
   searchEl.onkeydown=e=>{ if(e.key==='Enter'){ const first=list.querySelector('#food-hits [data-hit]'); if(first) first.click(); } };
   renderHits('');
   renderEditor();
-  $('#food-close').onclick=()=>{ navUIClose('food-sheet'); _fsPhotoFile=null; };
+  $('#food-close').onclick=()=>{ cancelFoodWork();navUIClose('food-sheet'); _fsPhotoFile=null; };
   $('#food-sheet').classList.add('show');
   $('#food-sheet').setAttribute('aria-hidden','false');
   navOpen('food-sheet');
@@ -3374,17 +3602,16 @@ function openFoodSheet(mi, body, photo){
         起始虚线基准 + 极值星标。空数据 / 单点 / 脏数据都有明确兜底。
    ============================================================ */
 function dateVal(s){ const p=String(s||'').split('-').map(Number); return (p[0]||0)*10000 + (p[1]||0)*100 + (p[2]||0); }
-// 记录当日体重（同日覆盖；脏数据直接丢弃，不进曲线）
-function logWeight(w){
-  const v=+w; if(!isFinite(v) || v<30 || v>200) return false;
-  if(!Array.isArray(STATE.bodyWeights)) STATE.bodyWeights=[];
-  const k=todayKey(), arr=STATE.bodyWeights;
-  const i=arr.findIndex(x=>x && x.d===k);
-  const rec={ d:k, w:+v.toFixed(1) };
-  if(i>=0){ if(arr[i].w===rec.w) return false; arr[i]=rec; } else arr.push(rec);
-  arr.sort((a,b)=>dateVal(a.d)-dateVal(b.d));
-  if(arr.length>365) arr.splice(0, arr.length-365);      // 上限保护：只留最近一年
-  save(); return true;
+// 记录当日体重（同日覆盖；写入成功后再更新曲线和事件）。
+async function logWeight(w,source){
+  const v=+w; if(!isFinite(v) || v<30 || v>200) throw new TypeError('体重需要在 30–200 kg 之间');
+  const k=todayKey(),value=+v.toFixed(1),prior=BODY_WEIGHT_RECORDS.find(row=>row.localDateKey===k);
+  if(prior&&prior.weightKg===value)return false;
+  const measuredAt=Date.now(),record=await BojiData.putBodyWeight({weightId:prior?prior.weightId:'weight-'+k,weightKg:value,measuredAt,localDateKey:k,
+    timezoneContext:BojiData.timezoneContext(measuredAt),provenance:'USER_PROVIDED',measurementSource:source||'DATA_ENTRY'});
+  BODY_WEIGHT_RECORDS=BODY_WEIGHT_RECORDS.filter(row=>row.weightId!==record.weightId).concat(record).sort((a,b)=>a.measuredAt-b.measuredAt);
+  STATE.bodyWeights=BODY_WEIGHT_RECORDS.map(row=>({d:row.localDateKey,w:row.weightKg})).sort((a,b)=>dateVal(a.d)-dateVal(b.d));
+  emitProductEvent('weight.recorded',record);save();return true;
 }
 function cleanWeights(){
   return (Array.isArray(STATE.bodyWeights) ? STATE.bodyWeights : [])
@@ -3562,13 +3789,15 @@ function renderData(body){
   const dl=$('#score-del'); if(dl) dl.onclick=()=>{ delete STATE.scores[dataScoreDay]; _scoreDraft={}; save(); renderData(body); toast('已清除该日评分'); };
   // 体重记录（夹取 30–200kg；非法输入不写入，只提示）
   const wtAdd=$('#wt-add');
-  if(wtAdd) wtAdd.onclick=()=>{
+  if(wtAdd) wtAdd.onclick=async()=>{
     const v=+$('#wt-in').value;
     if(!isFinite(v) || v<30 || v>200){ toast('请输入 30–200 之间的体重'); return; }
-    const ok=logWeight(v);
-    if(STATE.profile && isFinite(v)) { STATE.profile.weight=+v.toFixed(1); }
-    save(); renderData(body);
-    setMood('happy',1500); toast(ok?'已记录今日体重 ✨':'今日体重已更新');
+    try{
+      let nextProfile=STATE.profile;
+      if(STATE.profile){nextProfile=Object.assign({},STATE.profile,{weight:+v.toFixed(1)});await BojiData.putProfile(profileDomainRecord(nextProfile));STATE.profile=nextProfile;save();}
+      const ok=await logWeight(v,'DATA_PAGE');renderData(body);
+      setMood('happy',1500); toast(ok?'已记录今日体重 ✨':'今日体重已更新');
+    }catch(error){toast('体重未完全保存：'+(error.message||'本机存储不可用'));}
   };
 }
 
@@ -3676,8 +3905,12 @@ function renderProfile(body){
         <label>身高 cm<input id="pe-h" type="number" inputmode="decimal" value="${p?p.height:''}"></label>
         <label>体重 kg<input id="pe-w" type="number" inputmode="decimal" value="${p?p.weight:''}"></label>
         <label>单哑铃 kg<input id="pe-d" type="number" inputmode="decimal" value="${p?p.dumbbell:''}"></label>
+        <label>营养目标<select id="pe-intent"><option value="LOG_ONLY"${!p||!p.nutritionIntent||p.nutritionIntent==='LOG_ONLY'?' selected':''}>仅记录</option><option value="MAINTAIN"${p&&p.nutritionIntent==='MAINTAIN'?' selected':''}>维持估算</option><option value="GAIN"${p&&p.nutritionIntent==='GAIN'?' selected':''}>增重估算</option><option value="LOSE"${p&&p.nutritionIntent==='LOSE'?' selected':''}>减重估算</option><option value="CUSTOM"${p&&p.nutritionIntent==='CUSTOM'?' selected':''}>自定义</option></select></label>
+        <label>自定义热量 kcal<input id="pe-custom-kcal" type="number" inputmode="numeric" min="500" max="10000" value="${p&&p.customKcal||''}"></label>
+        <label>自定义蛋白质 g<input id="pe-custom-protein" type="number" inputmode="decimal" min="1" max="500" value="${p&&p.customProteinG||''}"></label>
+        <label>饮水目标 ml<input id="pe-water-goal" type="number" inputmode="numeric" min="250" max="10000" value="${p&&p.waterGoalMl||''}" placeholder="留空使用粗略估算"></label>
       </div>
-      <p style="font-size:11px;color:var(--faint);padding:4px 0 10px">体重/哑铃改动会即时影响：训练建议起始重量、每日蛋白/热量/饮水目标、体重趋势。</p>
+      <p style="font-size:11px;color:var(--faint);padding:4px 0 10px">维持、增重、减重及 35 ml/kg 饮水值是系统估算，可修改；仅记录模式不设营养目标。体重会在保存后写入体重趋势。</p>
     </div>
     <div class="card" style="padding:6px 14px">
       <h4 style="margin:8px 0 2px">训练方案 <span class="tag">${planSetMeta().name}</span></h4>
@@ -3689,8 +3922,8 @@ function renderProfile(body){
     </div>
     <div class="card" style="padding:6px 14px">
       <div class="list-row"><span class="lr-ic">🔥</span>连续打卡<b style="margin-left:auto">${streak()} 天</b></div>
-      <div class="list-row"><span class="lr-ic">💧</span>今日饮水<b style="margin-left:auto">${STATE.waterMl||0} ml / ${g.water} ml</b></div>
-      <div class="list-row"><span class="lr-ic">🎯</span>今日目标<b style="margin-left:auto">${g.protein}g 蛋白 · ${g.kcal} kcal</b></div>
+      <div class="list-row"><span class="lr-ic">💧</span>今日饮水<b style="margin-left:auto">${dailyWaterTotal(todayKey())} ml${g.water?' / 估算 '+g.water+' ml':''}</b></div>
+      <div class="list-row"><span class="lr-ic">🎯</span>今日目标<b style="margin-left:auto">${g.hasTargets?(g.protein==null?'蛋白未设':g.protein+'g 蛋白')+' · '+(g.kcal==null?'热量未设':g.kcal+' kcal'):'仅记录'}</b></div>
       <div class="list-row"><span class="lr-ic">📚</span>知识库<b style="margin-left:auto">${KB.length} 条</b></div>
       <div class="list-row" id="skin-row"><span class="lr-ic">🎨</span>桌宠形象与外观设置<b style="margin-left:auto"><span class="lr-ar">›</span></b></div>
       <p style="font-size:10.5px;color:var(--faint);padding:2px 0 8px">下方可更换：桌宠形象 / 桌面背景 / 教练名字与头像。</p>
@@ -3797,20 +4030,21 @@ function renderProfile(body){
         STATE.profile.avatar=du; if(saveSafe()){ renderProfile(body); toast('头像已更新 ✨'); } }); };
     inp.click();
   };
-  // 档案实时编辑：oninput 即保存（不整页重渲染，避免打字丢焦点）
-  const applyLive=()=>{
-    if(!STATE.profile) return;
-    const h=+$('#pe-h').value, w=+$('#pe-w').value, d=+$('#pe-d').value;
-    const name=($('#pe-name').value||'').trim().slice(0,12) || STATE.profile.name;
-    if(h>=140 && h<=220) STATE.profile.height=h;
-    if(w>=30 && w<=200) STATE.profile.weight=w;
-    if(d>0 && d<=100) STATE.profile.dumbbell=d;
-    STATE.profile.name=name;
-    if(w>=30 && w<=200) logWeight(w);      // 改体重自动记一笔到曲线（同日覆盖）
-    save();
-    $('#pf-name').textContent=name;
+  const saveProfileEdits=async()=>{
+    if(!STATE.profile)return;
+    const h=+$('#pe-h').value,w=+$('#pe-w').value,d=+$('#pe-d').value;
+    if(!Number.isFinite(h)||h<140||h>220||!Number.isFinite(w)||w<30||w>200||!Number.isFinite(d)||d<=0||d>100){toast('请核对身高 140–220、体重 30–200、哑铃 0–100 kg');return;}
+    const prefs=readNutritionPreferences('pe-',STATE.profile);if(!prefs.ok){toast(prefs.message);return;}
+    const name=($('#pe-name').value||'').trim().slice(0,12)||'训练者';
+    const next=Object.assign({},STATE.profile,{height:h,weight:+w.toFixed(1),dumbbell:d,name},prefs.value),weightChanged=STATE.profile.weight!==+w.toFixed(1);
+    try{
+      await BojiData.putProfile(profileDomainRecord(next));STATE.profile=next;save();
+      if(weightChanged)await logWeight(w,'PROFILE_EDIT');
+      renderProfile(body);toast('档案已保存');
+    }catch(error){toast('档案已部分保存，请检查体重记录：'+(error.message||'本机存储不可用'));}
   };
-  ['pe-name','pe-h','pe-w','pe-d'].forEach(id=>{ const n=$('#'+id); if(n) n.oninput=applyLive; });
+  const nameInput=$('#pe-name');if(nameInput)nameInput.oninput=()=>{const preview=$('#pf-name');if(preview)preview.textContent=(nameInput.value||'').trim().slice(0,12)||'训练者';};
+  ['pe-name','pe-h','pe-w','pe-d','pe-intent','pe-custom-kcal','pe-custom-protein','pe-water-goal'].forEach(id=>{const field=$('#'+id);if(field)field.onchange=saveProfileEdits;});
   // 教练与外观设置（教练名即时生效不重渲染防丢焦点；头像/背景/桌宠形象点选即换）
   const coName=$('#co-name');
   if(coName) coName.oninput=()=>{
@@ -3999,13 +4233,30 @@ function exportCSV(){
       wRows.push([k, t==='rest'?'-':PLANS[t].name, name, STATE.weights[k][i]]);
     });
   });
-  const mRows=[['日期','餐次','食物','份数','蛋白(g)','碳水(g)','脂肪(g)']];
-  Object.keys(STATE.meals||{}).sort().forEach(k=>{
-    Object.keys(STATE.meals[k]).forEach(mi=>{
-      (STATE.meals[k][mi]||[]).forEach(f=>{ const q=mealQty(f);
-        mRows.push([k, MEAL_NAMES[mi]||mi, f.n, q, +(f.p*q).toFixed(1), +(f.c*q).toFixed(1), +(f.f*q).toFixed(1)]); });
+  const mRows=[['日期','餐次','食物','数量','单位','蛋白(g)','蛋白来源','碳水(g)','碳水来源','脂肪(g)','脂肪来源','热量(kcal)','热量来源','名称来源','份量来源']];
+  const exportNutrient=(item,field)=>{
+    const nutrient=item&&item.nutrients&&item.nutrients[field];
+    return nutrient&&Number.isFinite(+nutrient.value)?nutrient.value:'';
+  };
+  if(PERSONAL_RECORDS_READY){
+    MEAL_RECORDS.slice().sort((a,b)=>String(a.localDateKey).localeCompare(String(b.localDateKey))).forEach(record=>{
+      const mi=Number.isInteger(record.mealTypeIndex)?record.mealTypeIndex:3;
+      (record.items||[]).forEach(item=>{
+        const p=item.provenance||{};
+        mRows.push([record.localDateKey,MEAL_NAMES[mi]||mi,item.name,item.quantity,item.unit,
+          exportNutrient(item,'protein'),p.protein||'',exportNutrient(item,'carbohydrate'),p.carbohydrate||'',
+          exportNutrient(item,'fat'),p.fat||'',exportNutrient(item,'energyKcal'),p.energyKcal||'',p.name||'',p.quantity||'']);
+      });
     });
-  });
+  }else{
+    Object.keys(STATE.meals||{}).sort().forEach(k=>Object.keys(STATE.meals[k]||{}).forEach(mi=>{
+      (STATE.meals[k][mi]||[]).forEach(f=>{
+        const q=mealQty(f),quantity=f.quantity!=null?f.quantity:q,unit=f.unit||'serving';
+        const scaled=value=>value==null||!Number.isFinite(+value)?'':+(+value*q).toFixed(1);
+        mRows.push([k,MEAL_NAMES[mi]||mi,f.n,quantity,unit,scaled(f.p),'LEGACY_UNKNOWN',scaled(f.c),'LEGACY_UNKNOWN',scaled(f.f),'LEGACY_UNKNOWN',foodKcal(f)==null?'':foodKcal(f),'LEGACY_UNKNOWN','LEGACY_UNKNOWN','LEGACY_UNKNOWN']);
+      });
+    }));
+  }
   const csv = ckRows.map(_csvRow).join('\r\n') + '\r\n\r\n' + wRows.map(_csvRow).join('\r\n') + '\r\n\r\n' + mRows.map(_csvRow).join('\r\n');
   downloadFile(`训练日记-记录-${todayKey()}.csv`, 'text/csv;charset=utf-8', '\ufeff' + csv);   // BOM：Excel 不乱码
   toast('已导出 CSV（打卡/重量/饮食三段）');
@@ -4133,11 +4384,17 @@ function pickLocalVideo(){
    ============================================================ */
 function toast(t){ const el=$('#toast'); el.textContent=t; el.classList.add('show'); clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove('show'),2200); }
 function showOnboard(){ if(STATE.isFirstLaunch){ $('#onboard').classList.add('show'); navOpen('onboard'); } }
-$('#ob-save') && ($('#ob-save').onclick=()=>{
+$('#ob-save') && ($('#ob-save').onclick=async()=>{
   const h=+$('#ob-h').value, w=+$('#ob-w').value, d=+$('#ob-d').value;
   if(h<140||h>220||w<30||w>200||!d){ toast('身高140-220、体重30-200、哑铃重量必填'); return; }
-  STATE.profile={height:h,weight:w,dumbbell:d,name:'训练者'}; STATE.isFirstLaunch=false; save();
-  navUIClose('onboard'); setMood('cheer',3000); toast(`开始和${coachName()}一起练吧！`); renderHome();
+  const prefs=readNutritionPreferences('ob-',{});if(!prefs.ok){toast(prefs.message);return;}
+  const profile=Object.assign({height:h,weight:+w.toFixed(1),dumbbell:d,name:'训练者'},prefs.value);
+  try{
+    await BojiData.putProfile(profileDomainRecord(profile));
+    await logWeight(w,'ONBOARDING');
+    STATE.profile=profile;STATE.isFirstLaunch=false;if(!save())throw new Error('本机应用状态保存失败');
+    navUIClose('onboard');setMood('cheer',3000);toast(`开始和${coachName()}一起练吧！`);renderHome();
+  }catch(error){toast('档案未完整保存：'+(error.message||'本机存储不可用'));}
 });
 $('#done-ok') && ($('#done-ok').onclick=()=>navUIClose('done-modal'));
 
@@ -4175,6 +4432,15 @@ async function boot(){
     TRAINING_CATALOG = await BojiData.loadTrainingCatalog();
     const persisted = await BojiData.loadState();
     if(persisted) hydrateState(persisted);
+    const canonicalProfile=(await BojiData.listProfiles()).find(row=>row.profileId==='profile-primary');
+    if(canonicalProfile)STATE.profile=Object.assign({},STATE.profile||{},{
+      name:canonicalProfile.displayName||STATE.profile&&STATE.profile.name||'训练者',
+      height:canonicalProfile.heightMeters!=null?canonicalProfile.heightMeters*100:STATE.profile&&STATE.profile.height,
+      weight:canonicalProfile.weightKg!=null?canonicalProfile.weightKg:STATE.profile&&STATE.profile.weight,
+      dumbbell:canonicalProfile.availableDumbbellMaxKg!=null?canonicalProfile.availableDumbbellMaxKg:STATE.profile&&STATE.profile.dumbbell,
+      nutritionIntent:canonicalProfile.nutritionIntent||STATE.profile&&STATE.profile.nutritionIntent||'LOG_ONLY',
+      customKcal:canonicalProfile.customKcal,customProteinG:canonicalProfile.customProteinG,waterGoalMl:canonicalProfile.waterGoalMl});
+    await refreshPersonalRecords();
     indexWorkoutHistory(await BojiData.listWorkoutHistory());
     ACTIVE_WORKOUT = (await BojiData.listActiveWorkouts())[0] || null;
     DATA_READY = true;
@@ -4227,8 +4493,13 @@ function bindUI(){
   const vpM=$('#video-pop'); if(vpM) vpM.onclick=e=>{ if(e.target===vpM) closeVideo(); };
   // 视频同款：切后台说 bye，回来说 hi（wave 求偶池含 hi 台词）
   document.addEventListener('visibilitychange', ()=>{
-    if(document.hidden){ petRoundBubble('bye'); voicePause(); }
-    else { petWake(); if(!$('#pet').classList.contains('mood-sleep')){ petGreet(); setMood('wave', 2200); } voiceResume(); }
+    if(document.hidden){
+      petRoundBubble('bye');voicePause();
+      if(RUN.active){if(RUN.watchId!=null&&navigator.geolocation)try{navigator.geolocation.clearWatch(RUN.watchId);}catch(_){}RUN.watchId=null;RUN.gapPending=true;RUN.gaps++;updateRunStatus('应用进入后台，GPS 前台记录已暂停；返回后从新测量点继续。');}
+    }else{
+      petWake();if(!$('#pet').classList.contains('mood-sleep')){petGreet();setMood('wave',2200);}voiceResume();
+      if(RUN.active){attachRunGeolocation();updateRunStatus('应用回到前台，等待新的 GPS 测量点；中断路段不会连接。');}
+    }
   });
   window.addEventListener('pagehide', releaseLocalVideoObjectUrl);
 }

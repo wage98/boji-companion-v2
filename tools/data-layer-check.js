@@ -118,6 +118,8 @@ async function main() {
     assert.equal(runRows[0].distanceMeters, 1200);
     assert.equal(runRows[0].durationSeconds, 600);
     assert.equal(runRows[0].startedAt, null, 'date-only input must not invent a start time');
+    assert.equal(runRows[0].routeSegments[0].length,2,'legacy measured coordinate pairs are retained as a route segment');
+    assert.equal(runRows[0].routeStatus,'LEGACY_UNKNOWN','legacy route certainty is labeled unknown');
     assert.equal((await Data.counts()).mealRecords, 0, 'unverified legacy food is not committed as a meal fact');
     assert.equal((await Data.counts()).sessions, 0, 'ambiguous numeric check-ins are not guessed into sessions');
     assert.equal((await Data.counts()).quarantine > 0, true);
@@ -350,6 +352,22 @@ async function main() {
     owner.cancel();
     assert.equal(owner.isCurrent(newest, 'food-search'), false);
   });
+  await check('personal profile, weight, water and run facts keep canonical units and local time context', async () => {
+    const at=Date.now(),date=Data.localDateKey(at),timezone=Data.timezoneContext(at);
+    const profile=await Data.putProfile({profileId:'profile-g4-test',displayName:'G4',heightMeters:1.7,weightKg:68,availableDumbbellMaxKg:20,
+      nutritionIntent:'CUSTOM',customKcal:2200,customProteinG:120,waterGoalMl:1800,updatedAt:at});
+    assert.equal(profile.nutritionIntent,'CUSTOM');
+    const weight=await Data.putBodyWeight({weightId:'weight-g4-test',weightKg:68,measuredAt:at,localDateKey:date,timezoneContext:timezone,provenance:'USER_PROVIDED'});
+    const water=await Data.putWaterEntry({entryId:'water-g4-test',createdAt:at,localDateKey:date,timezoneContext:timezone,amountMl:250,entryType:'INTAKE',provenance:'USER_PROVIDED'});
+    const run=await Data.putRun({runId:'run-g4-test',startedAt:at-900000,endedAt:at,localDateKey:date,timezoneContext:timezone,distanceMeters:3000,durationSeconds:900,
+      distanceProvenance:'USER_PROVIDED',durationProvenance:'USER_PROVIDED',routeSegments:[],routeStatus:'MANUAL',calorieEstimate:{energyKcal:180,provenance:'DERIVED',method:'ACSM',label:'estimated'}});
+    assert.equal(weight.weightKg,68);assert.equal(water.amountMl,250);assert.equal(run.distanceMeters,3000);
+    assert.equal((await Data.listBodyWeights()).some(row=>row.weightId===weight.weightId),true);
+    assert.equal((await Data.listWaterEntries({localDateKey:date})).some(row=>row.entryId===water.entryId),true);
+    assert.equal((await Data.listRuns()).some(row=>row.runId===run.runId&&row.calorieEstimate.provenance==='DERIVED'),true);
+    await assert.rejects(Data.putProfile({profileId:'profile-invalid-custom',nutritionIntent:'CUSTOM'}),/requires both custom targets/);
+    await assert.rejects(Data.putRun({runId:'run-invalid',distanceMeters:10,durationSeconds:20,routeSegments:[[{lat:91,lon:0}]]}),/routeSegments/);
+  });
   await check('knowledge claims cannot use unsupported formal evidence labels', async () => {
     const source = await Data.putKnowledgeSource({ sourceId: 'src-demo', title: 'Demo source', url: 'https://example.com', reviewStatus: 'VERIFIED', verifiedAt: 1 });
     assert.equal(source.reviewStatus, 'UNVERIFIED');
@@ -517,6 +535,74 @@ async function main() {
     await waitFor(() => toast.textContent.includes('本组已写入'));
     assert.equal(w.eval('ACTIVE_WORKOUT.session.currentSetId'), nextSetId, 'UI advances only after committed set result returns');
     assert.ok(w.eval('ACTIVE_WORKOUT.session.activeRestEndAt') > Date.now(), 'rest timer stores a future wall-clock end');
+
+    await w.eval('(async()=>await refreshPersonalRecords())()');
+    const importedProfile=(await w.BojiData.listProfiles()).find(row=>row.profileId==='profile-primary');
+    w.eval('STATE.isFirstLaunch=false;STATE.profile='+JSON.stringify({name:importedProfile.displayName,height:importedProfile.heightMeters*100,weight:importedProfile.weightKg,
+      dumbbell:importedProfile.availableDumbbellMaxKg,nutritionIntent:'LOG_ONLY'})+';');
+    const productEvents=[];w.addEventListener('boji:product-event',event=>productEvents.push(event.detail));
+    w.goModule('diet');
+    w.eval('openFoodSheet')(0,w.document.querySelector('#mod-body'),null);
+    w.document.querySelector('#fe-manual').click();
+    w.document.querySelector('#fe-name').value='汤品（热量字段）';
+    w.document.querySelector('#fe-kfix').value='180';
+    w.document.querySelector('#fe-add').click();
+    assert.ok(await waitFor(async()=> (await w.BojiData.listFoodDrafts({status:'DRAFT'})).length===1),'manual food is durably stored as a FoodDraft');
+    w.document.querySelector('#fe-manual').click();
+    w.document.querySelector('#fe-name').value='杂粮碗（宏量字段）';
+    w.document.querySelector('#fe-p').value='8';w.document.querySelector('#fe-c').value='42';w.document.querySelector('#fe-f').value='4';
+    w.document.querySelector('#fe-add').click();
+    assert.ok(await waitFor(async()=> (await w.BojiData.listFoodDrafts({status:'DRAFT'}))[0].items.length===2),'mixed meal keeps separate itemized draft components');
+    const foodDraft=(await w.BojiData.listFoodDrafts({status:'DRAFT'}))[0];
+    assert.deepEqual(Object.keys(foodDraft.items[0].nutrients),['energyKcal'],'calories-only entry has no generated macros');
+    assert.equal(foodDraft.items[1].provenance.energyKcal,'DERIVED','macro-derived energy has explicit derived provenance');
+    assert.equal((await w.BojiData.listMealRecords()).length,0,'FoodDraft does not count as a confirmed meal');
+    const confirmFood=w.BojiData.confirmFoodDraft.bind(w.BojiData);
+    w.BojiData=Object.assign({},w.BojiData,{confirmFoodDraft:(...args)=>new Promise((resolve,reject)=>setTimeout(()=>confirmFood(...args).then(resolve,reject),80))});
+    w.document.querySelector('#toast').textContent='';w.document.querySelector('#fs-confirm-draft').click();
+    await new Promise(resolve=>setTimeout(resolve,15));
+    assert.equal((await w.BojiData.listMealRecords()).length,0,'meal is not committed while confirmation transaction is delayed');
+    assert.equal(w.document.querySelector('#toast').textContent.includes('已记录'),false,'meal acknowledgement waits for the transaction');
+    assert.ok(await waitFor(async()=> (await w.BojiData.listMealRecords()).length===1),'explicit confirmation commits the complete MealRecord');
+    assert.equal(productEvents.some(event=>event.type==='meal.confirmed'),true,'meal event emits after commit');
+
+    const profilePage=()=>w.goModule('profile');profilePage();
+    const intent=w.document.querySelector('#pe-intent');
+    assert.deepEqual(Array.from(intent.options).map(option=>option.value),['LOG_ONLY','MAINTAIN','GAIN','LOSE','CUSTOM'],'profile exposes all five nutrition intents');
+    intent.value='CUSTOM';intent.dispatchEvent(new w.Event('change',{bubbles:true}));
+    w.document.querySelector('#pe-custom-kcal').value='2200';w.document.querySelector('#pe-custom-kcal').dispatchEvent(new w.Event('change',{bubbles:true}));
+    w.document.querySelector('#pe-custom-protein').value='125';w.document.querySelector('#pe-custom-protein').dispatchEvent(new w.Event('change',{bubbles:true}));
+    assert.ok(await waitFor(async()=>{const rows=await w.BojiData.listProfiles();return rows.some(row=>row.profileId==='profile-primary'&&row.nutritionIntent==='CUSTOM'&&row.customKcal===2200&&row.customProteinG===125);}),
+      'nutrition intent and editable custom estimates persist to the canonical profile');
+    assert.equal(w.eval('dailyGoal().kcal'),2200,'custom nutrition estimate is used by the UI after persistence');
+    const weightAt=Date.now();await w.eval('(async()=>await logWeight(75,"G4_TEST"))()');
+    assert.ok(await waitFor(async()=> (await w.BojiData.listBodyWeights()).some(row=>row.weightKg===75&&row.measuredAt>=weightAt)),
+      'body weight is recorded with measured time after the database write');
+    assert.ok(productEvents.some(event=>event.type==='weight.recorded'),'body weight event emits after commit');
+
+    w.goModule('diet');await w.eval('(async()=>await addWater(250,document.querySelector("#mod-body")))()');
+    assert.ok((await w.BojiData.listWaterEntries({localDateKey:w.BojiData.localDateKey(Date.now())})).some(row=>row.amountMl===250),
+      'water intake is a date-keyed canonical fact');
+    assert.ok(productEvents.some(event=>event.type==='water.recorded'),'water event emits after commit');
+
+    w.goModule('run');const baselineRuns=(await w.BojiData.listRuns()).length;
+    const putRun=w.BojiData.putRun.bind(w.BojiData);
+    w.BojiData=Object.assign({},w.BojiData,{putRun:record=>new Promise((resolve,reject)=>setTimeout(()=>putRun(record).then(resolve,reject),80))});
+    w.document.querySelector('#run-manual-distance').value='3000';w.document.querySelector('#run-manual-duration').value='900';
+    w.document.querySelector('#toast').textContent='';w.document.querySelector('#run-manual-save').click();
+    await new Promise(resolve=>setTimeout(resolve,15));
+    assert.equal((await w.BojiData.listRuns()).length,baselineRuns,'manual run is not acknowledged before durable save');
+    assert.equal(w.document.querySelector('#toast').textContent.includes('已记录'),false,'run success message waits for the transaction');
+    assert.ok(await waitFor(async()=> (await w.BojiData.listRuns()).length===baselineRuns+1),'manual run is committed');
+    const manualRun=(await w.BojiData.listRuns())[0];
+    assert.equal(manualRun.routeStatus,'MANUAL');assert.equal(manualRun.distanceProvenance,'USER_PROVIDED');assert.equal(manualRun.calorieEstimate.provenance,'DERIVED');
+    assert.ok(productEvents.some(event=>event.type==='run.recorded'),'run event emits after commit');
+    const routePoints=Array.from({length:1200},(_,index)=>({lat:31+index/100000,lon:121+(index%2)/10000,recordedAt:index}));
+    const simplified=w.eval('simplifyRunRoute')([routePoints],400);
+    assert.ok(simplified.reduce((sum,segment)=>sum+segment.length,0)<=400,'route simplification respects the 400-point bound');
+    assert.deepEqual(simplified[0][0],routePoints[0]);assert.deepEqual(simplified[simplified.length-1].slice(-1)[0],routePoints[routePoints.length-1]);
+    assert.equal(w.eval('String(startRunTicker).includes("renderModule")'),false,'one-second ticker updates metrics without a full module rerender');
+
     w.BojiData.close();
     w.close();
 

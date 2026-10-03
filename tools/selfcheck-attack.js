@@ -5,7 +5,7 @@ const { JSDOM } = require('jsdom');
 const PROJ = path.join(__dirname, '..');
 const HTML = fs.readFileSync(path.join(PROJ, 'index.html'), 'utf8').replace('<script src="app.js"></script>', '');
 const APP = fs.readFileSync(path.join(PROJ, 'app.js'), 'utf8');
-const APP_FOR_TESTS = APP.replace("document.addEventListener('DOMContentLoaded', boot);", "document.addEventListener('DOMContentLoaded', ()=>{ if(window.__TEST_V2_STATE__) hydrateState(window.__TEST_V2_STATE__); DATA_READY=true; bootUI(); });");
+const APP_FOR_TESTS = APP.replace("document.addEventListener('DOMContentLoaded', boot);", "document.addEventListener('DOMContentLoaded', ()=>{ if(window.__TEST_V2_STATE__) hydrateState(window.__TEST_V2_STATE__); DATA_READY=true; PERSONAL_RECORDS_READY=true; bootUI(); });");
 
 let pass = 0, fail = 0;
 const results = [];
@@ -28,8 +28,10 @@ function check(name, fn) {
 function boot(raw) {
   const dom = new JSDOM(HTML, { url: 'http://localhost/', runScripts: 'dangerously', pretendToBeVisual: true });
   const w = dom.window;
+  const testRecords={drafts:[],meals:[],weights:[],water:[]};
+  w.__TEST_RECORDS=testRecords;
   w.BojiData = { localDateKey(date){ const d = date instanceof Date ? date : new Date(date == null ? Date.now() : date); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; },
-    makeId(prefix){return prefix+'-attack-'+Math.random().toString(36).slice(2,8);},
+    makeId(prefix){return prefix+'-attack-'+Math.random().toString(36).slice(2,8);}, timezoneContext(at){const d=new Date(at||Date.now());return{timezoneOffsetMinutes:-d.getTimezoneOffset(),timeZone:'Test/Local'};}, putBodyWeight(row){testRecords.weights=testRecords.weights.filter(x=>x.weightId!==row.weightId).concat(row);return Promise.resolve(row);}, listBodyWeights(){return Promise.resolve(testRecords.weights.slice());}, putWaterEntry(row){testRecords.water.push(row);return Promise.resolve(row);}, listWaterEntries(){return Promise.resolve(testRecords.water.slice());}, putProfile(row){return Promise.resolve(row);}, createRequestOwner(ownerView){let generation=0,controller=null;return{begin(){if(controller)controller.abort();controller=new w.AbortController();return{generation:++generation,signal:controller.signal,ownerView};},cancel(){generation++;if(controller)controller.abort();},isCurrent(request,view){return !!request&&request.generation===generation&&request.ownerView===(view||ownerView)&&!request.signal.aborted;}};}, createFoodDraft(input){const row=Object.assign({draftId:this.makeId('draft'),createdAt:Date.now(),status:'DRAFT',items:[]},JSON.parse(JSON.stringify(input)));testRecords.drafts.push(row);return Promise.resolve(JSON.parse(JSON.stringify(row)));}, updateFoodDraft(id,changes){const row=testRecords.drafts.find(x=>x.draftId===id);Object.assign(row,JSON.parse(JSON.stringify(changes)));return Promise.resolve(JSON.parse(JSON.stringify(row)));}, listFoodDrafts(options){return Promise.resolve(testRecords.drafts.filter(x=>!options||!options.status||x.status===options.status));}, deleteFoodDraft(id){testRecords.drafts=testRecords.drafts.filter(x=>x.draftId!==id);return Promise.resolve(true);}, confirmFoodDraft(id,confirmation){if(!confirmation||confirmation.confirmed!==true)return Promise.reject(new Error('confirmation required'));const row=testRecords.drafts.find(x=>x.draftId===id&&x.status==='DRAFT');if(!row)return Promise.reject(new Error('missing draft'));const at=Date.now(),meal={mealId:this.makeId('meal'),createdAt:at,localDateKey:row.localDateKey,timezoneContext:row.timezoneContext,mealTypeIndex:row.mealTypeIndex,items:JSON.parse(JSON.stringify(row.items)),confirmation:{confirmedByUser:true,confirmedAt:at}};row.status='COMMITTED';testRecords.meals.push(meal);return Promise.resolve(JSON.parse(JSON.stringify(meal)));}, listMealRecords(){return Promise.resolve(testRecords.meals.slice());},
     saveState(){return Promise.resolve(true);}, putCustomExercise(){return Promise.resolve(true);}, deleteCustomExercise(){return Promise.resolve(true);} };
   if (raw !== null) {
     try { w.__TEST_V2_STATE__ = JSON.parse(raw); }
@@ -63,6 +65,9 @@ function boot(raw) {
   return w;
 }
 const J = o => JSON.stringify(o);
+const domainMealItem=(name,p,c,f,quantity=1,unit='serving')=>({name,quantity,unit,provenance:{name:'DATABASE',quantity:'DATABASE',protein:'DATABASE',carbohydrate:'DATABASE',fat:'DATABASE'},nutritionSource:{type:'DATABASE'},identityConfidence:'HIGH',portionConfidence:'HIGH',nutrients:{protein:{value:p,unit:'g'},carbohydrate:{value:c,unit:'g'},fat:{value:f,unit:'g'}}});
+const seedCanonicalMeals=(w,rows)=>w.eval('MEAL_RECORDS = '+JSON.stringify(rows)+'; PERSONAL_RECORDS_READY = true;');
+const waitForTest=async(predicate,timeoutMs=5000)=>{const deadline=Date.now()+timeoutMs;while(Date.now()<deadline){if(predicate())return true;await new Promise(resolve=>setTimeout(resolve,10));}return predicate();};
 const dateKey = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 
 /* ---------- A. 脏数据（localStorage 被写坏） ---------- */
@@ -73,32 +78,36 @@ check('A4 localStorage 存字符串字面量', () => boot('"hello"').document.qu
 check('A5 checkins 是字符串', () => { const w = boot(J({ checkins: 'bad', profile: { weight: 70, height: 170, dumbbell: 10 } })); w.goModule('data'); return true; });
 check('A6 meals 是数组（应为对象）', () => { const w = boot(J({ meals: [{ n: 'x', p: 1, c: 1, f: 1, q: 1 }], profile: { weight: 70 } })); w.goModule('diet'); return true; });
 check('A7 scores 是字符串', () => { const w = boot(J({ scores: 'bad', checkins: {}, profile: { weight: 70 } })); w.goModule('data'); return typeof w.__S.scores === 'object'; });
-check('A8 profile 缺失字段', () => { const w = boot(J({ profile: { name: 'x' } })); w.goModule('diet'); w.goModule('profile'); return w.dailyGoal().protein === 120; });
+check('A8 incomplete profile defaults to log-only without invented nutrition goals', () => {
+  const w = boot(J({ profile: { name: 'x' } })); w.goModule('diet'); w.goModule('profile');
+  const goal=w.dailyGoal(); return goal.intent==='LOG_ONLY' && goal.protein===null && goal.kcal===null;
+});
 check('A9 water 为字符串数字', () => { const w = boot(J({ water: '5' })); return w.__S.waterMl === 1250; });
 check('A10 checkins 含非法日期键', () => { const w = boot(J({ checkins: { abc: { ex: { 0: true } }, 'x-y-z': {} }, profile: { weight: 70 } })); w.goModule('data'); return true; });
-check('A11 体重为极小/极大值仍给出合理目标', () => {
-  const w1 = boot(J({ profile: { weight: -5, height: 170, dumbbell: 10 } }));
-  const w2 = boot(J({ profile: { weight: 100000, height: 170, dumbbell: 10 } }));
-  return w1.dailyGoal().protein > 0 && w2.dailyGoal().protein < 10000;
+check('A11 extreme imported weights yield bounded gain estimates', () => {
+  const w1 = boot(J({ profile: { weight: -5, height: 170, dumbbell: 10, nutritionIntent:'GAIN' } }));
+  const w2 = boot(J({ profile: { weight: 100000, height: 170, dumbbell: 10, nutritionIntent:'GAIN' } }));
+  return w1.dailyGoal().protein===54 && w2.dailyGoal().protein===360 && w2.dailyGoal().kcal===6600;
 });
 check('A12 selDate 为非法字符串', () => { const w = boot(J({ selDate: 'abc', profile: { weight: 70 } })); w.goModule('training'); return true; });
 
 /* ---------- B. 异常输入（用户输入越界 / XSS / 超长） ---------- */
 check('B1 搜索含正则特殊字符', () => { const w = boot(J({ profile: { weight: 70 } })); w.goModule('diet'); w.openFoodSheet(0, w.document.querySelector('#mod-body'), null);
   const s = w.document.querySelector('#food-search'); s.value = '.*(?:)|[\\]'; w.__input(s); return true; });
-check('B2 食物名含 HTML 脚本不被执行', () => { const w = boot(J({ profile: { weight: 70 } })); w.goModule('diet'); w.openFoodSheet(0, w.document.querySelector('#mod-body'), null);
+check('B2 food names stay escaped as text', async () => { const w = boot(J({ profile: { weight: 70 } })); w.goModule('diet'); w.openFoodSheet(0, w.document.querySelector('#mod-body'), null);
   w.__click(w.document.querySelector('#food-hits [data-hit]'));
   const n = w.document.querySelector('#fe-name'); n.value = '<img src=x onerror=alert(1)>'; w.__input(n);
   w.__click(w.document.querySelector('#fe-add'));
-  const html = w.document.querySelector('#mod-body').innerHTML;
-  // 转义后字面量仍在文本里，关键是它没有变成真的 DOM 节点/属性
-  return html.indexOf('&lt;img') >= 0 && w.document.querySelectorAll('img[src="x"]').length === 0 && w.document.querySelectorAll('[onerror]').length === 0; });
-check('B3 份数输入 0 / -5 / 1e9 不崩且被夹取', () => { const w = boot(J({ profile: { weight: 70 } })); w.goModule('diet'); w.openFoodSheet(0, w.document.querySelector('#mod-body'), null);
+  const stored=await waitForTest(()=>w.__TEST_RECORDS.drafts.length===1&&!!w.document.querySelector('#fs-draft .food-draft-row'));
+  const html = w.document.body.innerHTML;
+  return stored && html.indexOf('&lt;img') >= 0 && w.document.querySelectorAll('img[src="x"]').length === 0 && w.document.querySelectorAll('[onerror]').length === 0; });
+check('B3 serving input is bounded and never renders NaN', () => { const w = boot(J({ profile: { weight: 70 } })); w.goModule('diet'); w.openFoodSheet(0, w.document.querySelector('#mod-body'), null);
   w.__click(w.document.querySelector('#food-hits [data-hit]'));
-  const q = w.document.querySelector('#fe-q'); q.value = '-5'; w.__input(q); q.dispatchEvent(new w.Event('change', { bubbles: true }));
-  const ok1 = +w.document.querySelector('#fe-q').value >= 0.5;
-  q.value = '1000000000'; w.__input(q); q.dispatchEvent(new w.Event('change', { bubbles: true }));
-  return ok1 && w.document.querySelector('#fe-kcal').textContent.indexOf('NaN') < 0; });
+  let q = w.document.querySelector('#fe-q'); q.value = '-5'; w.__input(q); q.dispatchEvent(new w.Event('change', { bubbles: true }));
+  const low = +w.document.querySelector('#fe-q').value;
+  q = w.document.querySelector('#fe-q'); q.value = '1000000000'; w.__input(q); q.dispatchEvent(new w.Event('change', { bubbles: true }));
+  const high=+w.document.querySelector('#fe-q').value;
+  return low >= 0.1 && low <= 50 && high <= 50 && w.document.querySelector('#fe-kcal').textContent.indexOf('NaN') < 0; });
 check('B4 手动覆盖热量为负数 → 忽略', () => { const w = boot(J({ profile: { weight: 70 } })); w.goModule('diet'); w.openFoodSheet(0, w.document.querySelector('#mod-body'), null);
   w.__click(w.document.querySelector('#food-hits [data-hit]'));
   const k = w.document.querySelector('#fe-kfix'); k.value = '-100'; w.__input(k);
@@ -138,8 +147,13 @@ check('C2 闰年 2 月有 29 天', () => { const w = boot(J({ profile: { weight:
 check('C3 平年 2 月有 28 天', () => { const w = boot(J({ profile: { weight: 70 } })); w.goModule('data');
   w.eval('dataMonth = { y: 2023, m: 1 };'); w.renderData(w.document.querySelector('#mod-body'));
   return w.document.querySelectorAll('#mod-body .cal-day:not(.empty)').length === 28; });
-check('C4 饮水减到 0 不为负', () => { const w = boot(J({ waterMl: 50, profile: { weight: 70 } })); w.goModule('diet');
-  w.__click(w.document.querySelector('#water-sub')); w.__click(w.document.querySelector('#water-sub')); return w.__S.waterMl === 0; });
+check('C4 water corrections stop at zero on canonical local-date totals', async () => { const w = boot(J({ waterMl: 50, profile: { weight: 70 } }));
+  const key=w.eval('todayKey()'); w.eval('WATER_ENTRIES = [{entryId:"seed-water",localDateKey:'+JSON.stringify(key)+',amountMl:50}];'); w.goModule('diet');
+  w.__click(w.document.querySelector('#water-sub'));
+  const reached=await waitForTest(()=>w.eval('dailyWaterTotal(todayKey())')===0);
+  w.__click(w.document.querySelector('#water-sub'));
+  await new Promise(resolve=>setTimeout(resolve,20));
+  return reached && w.eval('dailyWaterTotal(todayKey())')===0 && w.__S.waterMl===50; });
 check('C5 份量减到 0.5 不再减小', () => { const w = boot(J({ profile: { weight: 70 } })); w.goModule('diet'); w.openFoodSheet(0, w.document.querySelector('#mod-body'), null);
   w.__click(w.document.querySelector('#food-hits [data-hit]'));
   w.__click(w.document.querySelector('#fe-dec')); w.__click(w.document.querySelector('#fe-dec')); w.__click(w.document.querySelector('#fe-dec'));
@@ -202,7 +216,7 @@ async function asyncChecks() {
   });
   check('D3 空结果 → 兜底文案', () => d3Ready);
 
-  // D4 正常结果可选取并写入（每 100g 计）
+  // D4: online itemization remains a draft until explicit confirmation.
   const w4 = boot(J({ profile: { weight: 70 } }));
   w4.fetch = () => Promise.resolve({ ok: true, json: () => Promise.resolve({ products: [
     { product_name: 'Test Chicken', brands: 'BrandX', nutriments: { 'energy-kcal_100g': 165, proteins_100g: 31, carbohydrates_100g: 0, fat_100g: 3.6 } } ] } ) });
@@ -211,15 +225,20 @@ async function asyncChecks() {
   w4.__click(w4.document.querySelector('#fe-off'));
   const d4Ready = await waitForCondition(() => w4.document.querySelectorAll('#off-hits [data-off]').length === 1);
   const rows = w4.document.querySelectorAll('#off-hits [data-off]');
-  check('D4 在线结果渲染', () => d4Ready && rows.length === 1);
+  check('D4 online result renders for correction', () => d4Ready && rows.length === 1);
   if (rows.length) {
     w4.__click(rows[0]);
     const q = w4.document.querySelector('#fe-q');
-    check('D5 在线条目按克计（默认 100g）', () => +q.value === 100);
+    check('D5 online result exposes its per-100g quantity', () => +q.value === 100);
     w4.__click(w4.document.querySelector('#fe-add'));
-    const key = new Date(); const tk = dateKey(key);
-    const rec = (w4.__S.meals[tk] || {})[1] || [];
-    check('D6 在线条目写入且宏量按 100g 换算', () => rec.length === 1 && Math.abs(rec[0].p - 31) < 0.2 && Math.abs(rec[0].f - 3.6) < 0.2);
+    const draftReady = await waitForCondition(() => w4.__TEST_RECORDS.drafts.length === 1 && !!w4.document.querySelector('#fs-confirm-draft'));
+    check('D6 food selection persists as an uncommitted draft', () => draftReady && w4.__TEST_RECORDS.meals.length === 0);
+    if (draftReady) {
+      w4.__click(w4.document.querySelector('#fs-confirm-draft'));
+      const mealReady = await waitForCondition(() => w4.__TEST_RECORDS.meals.length === 1 && w4.document.querySelector('.food-record-row'));
+      const item = w4.__TEST_RECORDS.meals[0] && w4.__TEST_RECORDS.meals[0].items[0];
+      check('D7 explicit confirmation commits normalized nutrients', () => mealReady && item && item.quantity === 100 && item.unit === 'g' && item.nutrients.protein.value === 31 && Math.abs(item.nutrients.fat.value - 3.6) < 0.2);
+    }
   }
 
   // D7 照片压缩失败（compressImage 回调 null）→ 仍能手动校正
@@ -237,6 +256,30 @@ async function asyncChecks() {
   check('D8 无 fetch 环境不崩', () => w6.document.querySelector('#food-sheet').classList.contains('show'));
 }
 
+check('D9 过期食物搜索结果与关闭面板后的响应均被丢弃', async () => {
+  const w=boot(J({profile:{weight:70}})),pending=[];
+  w.fetch=(url,options)=>new Promise(resolve=>pending.push({resolve,signal:options&&options.signal}));
+  w.goModule('diet');w.openFoodSheet(0,w.document.querySelector('#mod-body'),null);
+  const search=w.document.querySelector('#food-search');
+  const response=name=>({ok:true,json:()=>Promise.resolve({products:[{product_name:name,nutriments:{proteins_100g:12}}]})});
+  search.value='first query';w.__input(search);
+  if(!await waitForTest(()=>pending.length===1,2500))return false;
+  search.value='latest query';w.__input(search);
+  if(!await waitForTest(()=>pending.length===2,2500))return false;
+  pending[0].resolve(response('STALE_RESULT'));
+  await new Promise(resolve=>setTimeout(resolve,20));
+  const off=w.document.querySelector('#off-hits');
+  if(off.textContent.includes('STALE_RESULT'))return false;
+  pending[1].resolve(response('LATEST_RESULT'));
+  if(!await waitForTest(()=>off.textContent.includes('LATEST_RESULT'),1000))return false;
+  search.value='closing query';w.__input(search);
+  if(!await waitForTest(()=>pending.length===3,2500))return false;
+  w.__click(w.document.querySelector('#food-close'));
+  pending[2].resolve(response('CLOSED_RESULT'));
+  await new Promise(resolve=>setTimeout(resolve,20));
+  return !w.document.querySelector('#food-sheet').classList.contains('show')&&!off.textContent.includes('CLOSED_RESULT');
+});
+
 /* ---------- E. 助手（知识库 / 多轮上下文） ---------- */
 check('E1 知识库条目数 ≥ 38', () => boot(null).__KB.length >= 38);
 check('E2 提问命中知识库', () => { const w = boot(J({ profile: { weight: 70 } })); return w.nahidaReply('蛋白质吃多少').indexOf('1.6') >= 0; });
@@ -244,6 +287,12 @@ check('E3 追问“再详细点”接上下文', () => {
   const w = boot(J({ profile: { weight: 70 } }));
   w.nahidaReply('蛋白质吃多少'); const r = w.nahidaReply('再详细点');
   return r.indexOf('接着【') >= 0 && r.length > 30; });
+check('E4 部分蛋白记录不推算目标缺口', () => {
+  const w=boot(J({profile:{weight:70,nutritionIntent:'GAIN'}}));
+  seedCanonicalMeals(w,[{mealId:'meal-partial-protein',localDateKey:dateKey(new Date()),mealTypeIndex:0,items:[{name:'Energy only',quantity:1,unit:'serving',provenance:{name:'DATABASE',quantity:'DATABASE',energyKcal:'DATABASE'},nutrients:{energyKcal:{value:400,unit:'kcal'}}}]}]);
+  const reply=w.nahidaReply('吃什么');
+  return reply.includes('部分合计')&&!reply.includes('推荐：鸡胸');
+});
 check('E4 无上下文追问不误触发', () => { const w = boot(J({ profile: { weight: 70 } })); const r = w.nahidaReply('再详细点'); return r.indexOf('接着【') < 0; });
 check('E5 结合数据：今天练什么', () => { const w = boot(J({ profile: { weight: 70 } })); const r = w.nahidaReply('今天练什么'); return r.indexOf('今天练【') >= 0 || r.indexOf('休息日') >= 0; });
 check('E6 结合数据：我蛋白够吗', () => { const w = boot(J({ profile: { weight: 70 } })); const r = w.nahidaReply('我蛋白够吗'); return r.indexOf('目标') >= 0; });
@@ -264,7 +313,10 @@ check('F2 月历打卡标记：完成打卡（含 at）才显示 ✓，部分勾
   const w2 = boot(J({ profile: { weight: 70 }, checkins: { [k]: { ex: { 0: true } } } })); w2.goModule('data');
   const partialNotDone = w2.document.querySelectorAll('#mod-body .cal-day.done').length === 0;
   return fullDone && partialNotDone; });
-check('F3 饮水 ml 计量仍在', () => { const w = boot(J({ waterMl: 300, profile: { weight: 70 } })); w.goModule('diet'); w.__click(w.document.querySelector('#water-250')); return w.__S.waterMl === 550; });
+check('F3 water adds a dated record and leaves the legacy scalar untouched', async () => { const w = boot(J({ waterMl: 300, profile: { weight: 70 } })); w.goModule('diet');
+  w.__click(w.document.querySelector('#water-250'));
+  const committed=await waitForTest(()=>w.eval('dailyWaterTotal(todayKey())')===250);
+  return committed && w.__S.waterMl===300 && w.__TEST_RECORDS.water.length===1; });
 check('F4 休息计时按 wall-clock end timestamp 渲染且支持持久化跳过入口', () => {
   const w = boot(J({ profile: { weight: 70 } })), end = Date.now() + 45000;
   w.eval('ACTIVE_WORKOUT = { session: { sessionId: "test-session", activeRestEndAt: '+end+' } }');
@@ -287,12 +339,16 @@ check('G2 confLabel 四档正确', () => { const w = boot(J({ profile: { weight:
   return L(0.95)[0] === '高' && L(0.75)[0] === '中' && L(0.45)[0] === '低' && L(0)[0] === '无'; });
 check('G3 favFoods 空 meals 不崩返回空数组', () => { const w = boot(J({ profile: { weight: 70 } })); const f = w.favFoods();
   return Array.isArray(f) && f.length === 0; });
-check('G4 favFoods 脏 meals 结构不崩且只收数组餐项', () => { const w = boot(J({ profile: { weight: 70 },
-    meals: { a: 'x', b: { 0: 'not-array' }, c: { 0: [{ n: '鸡胸肉(150g)', p: 35, c: 0, f: 6, q: 1 }] } } }));
-  const f = w.favFoods(); return Array.isArray(f) && f.length === 1 && f[0].cnt === 1; });
-check('G5 favFoods 按频次排序且历史置信度 0.75', () => { const w = boot(J({ profile: { weight: 70 },
-    meals: { '2026-9-27': { 0: [{ n: '鸡蛋(1个)', p: 6, c: 1, f: 5, q: 1 }, { n: '鸡蛋(1个)', p: 6, c: 1, f: 5, q: 2 }], 1: [{ n: '鸡胸肉(150g)', p: 35, c: 0, f: 6, q: 1 }] } } }));
-  const f = w.favFoods(); return f[0].n === '鸡蛋(1个)' && f[0].cnt === 2 && Math.abs(f[0].conf - 0.75) < 0.001; });
+check('G4 malformed canonical meal items are ignored and legacy meals stay unverified', () => {
+  const w = boot(J({ profile: { weight: 70 }, meals: { c: { 0: [{ n:'Legacy', p:1,c:1,f:1,q:1 }] } } }));
+  seedCanonicalMeals(w,[{mealId:'meal-safe',localDateKey:'2026-09-27',mealTypeIndex:0,items:[null,{},'bad',domainMealItem('Chicken',35,0,6)]}]);
+  const f=w.favFoods(); return Array.isArray(f)&&f.length===1&&f[0].n==='Chicken'&&f[0].cnt===1;
+});
+check('G5 canonical favorites sort by frequency and retain history confidence', () => {
+  const w=boot(J({profile:{weight:70}}));
+  seedCanonicalMeals(w,[{mealId:'meal-history',localDateKey:'2026-09-27',mealTypeIndex:0,items:[domainMealItem('Egg',6,1,5),domainMealItem('Egg',6,1,5,2),domainMealItem('Chicken',35,0,6)]}]);
+  const f=w.favFoods(); return f[0].n==='Egg'&&f[0].cnt===2&&Math.abs(f[0].conf-0.75)<0.001;
+});
 check('G6 detectBarcodePhoto 无 BarcodeDetector → 错误回调不崩', () => { const w = boot(J({ profile: { weight: 70 } }));
   let called = false, er = null;
   w.detectBarcodePhoto('data:image/jpeg;base64,AAAA', (e, c) => { called = true; er = e; });
@@ -308,12 +364,12 @@ check('G9 低置信度（模糊匹配）结果显示警示条', () => { const w 
   const s = w.document.querySelector('#food-search'); s.value = '鸡胸'; w.__input(s);
   w.__click(w.document.querySelector('#food-hits [data-hit]'));
   return w.document.querySelector('#food-editor .fs-warn.warn-lo') !== null; });
-check('G10 历史推荐选中显示「中」置信度徽章', () => { const w = boot(J({ profile: { weight: 70 },
-    meals: { '2026-9-27': { 0: [{ n: '鸡蛋(1个)', p: 6, c: 1, f: 5, q: 1 }] } } }));
-  w.goModule('diet'); w.openFoodSheet(0, w.document.querySelector('#mod-body'), null);
-  const fav = w.document.querySelector('#fav-hits [data-fav]'); if (!fav) return false;
-  w.__click(fav);
-  return w.document.querySelector('#food-editor .cf-badge.cf-mid') !== null; });
+check('G10 canonical history recommendation displays its confidence band', () => {
+  const w=boot(J({profile:{weight:70}})); seedCanonicalMeals(w,[{mealId:'meal-history',localDateKey:'2026-09-27',mealTypeIndex:0,items:[domainMealItem('Egg',6,1,5)]}]);
+  w.goModule('diet'); w.openFoodSheet(0,w.document.querySelector('#mod-body'),null);
+  const fav=w.document.querySelector('#fav-hits [data-fav]'); if(!fav)return false; w.__click(fav);
+  return w.document.querySelector('#food-editor .cf-badge')!==null;
+});
 check('G11 热量覆盖 99999 被夹取到 5000', () => { const w = boot(J({ profile: { weight: 70 } })); w.goModule('diet');
   w.openFoodSheet(0, w.document.querySelector('#mod-body'), null);
   w.__click(w.document.querySelector('#food-hits [data-hit]'));
@@ -338,40 +394,43 @@ check('G13 拍照/相册入口分离（相册 input 无 capture、拍照 input �
   return created.length === 2 && !created[0].hasAttribute('capture') && created[1].hasAttribute('capture'); });
 
 /* ---------- H. v7.8 新增：AI 识别校验 / 体重曲线 / 自定义动作 / 自绘形象 ---------- */
-check('H1 AI 结果离谱值被夹取（克 99999→2000、热量 -5→0、蛋白 1e6→200）', () => {
+check('H1 sanitizer bounds and finite values', () => {
   const w = boot(J({ profile: { weight: 70 } })); const sv = w.eval('sanitizeVision');
   const r = sv({ name: 'x'.repeat(80), grams: 99999, kcal: -5, protein: 1e6, carb: -3, fat: 999, confidence: 5 });
-  return r.grams === 2000 && r.kcal >= 0 && r.p <= 200 && r.c >= 0 && r.f <= 200 && r.conf <= 1 && r.name.length <= 24;
+  return r.grams === 2000 && r.kcal === 0 && r.p === 200 && r.c === 0 && r.f === 200 && r.conf === 1 && r.name.length === 80;
 });
-check('H2 AI 热量与宏量矛盾 >35% → 以宏量为准并降置信度', () => {
+check('H2 inconsistent AI energy remains explicit and unchanged', () => {
   const w = boot(J({ profile: { weight: 70 } })); const sv = w.eval('sanitizeVision');
-  const r = sv({ name: '饭', grams: 200, kcal: 5000, protein: 5, carb: 58, fat: 1, confidence: 0.9 });
-  return r.kcal === Math.round(5*4 + 58*4 + 1*9) && r.conf <= 0.7 && r.adjusted === true;
+  const r = sv({ name: 'meal', grams: 200, kcal: 5000, protein: 5, carb: 58, fat: 1, confidence: 0.9 });
+  return r.kcal === 5000 && r.p === 5 && r.c === 58 && r.f === 1 && r.inconsistent === true && r.conf === 0.9;
 });
-check('H3 AI 只给热量 → 自动拆出宏量且自洽', () => {
+check('H3 calories-only AI results do not invent macros', () => {
   const w = boot(J({ profile: { weight: 70 } })); const sv = w.eval('sanitizeVision');
-  const r = sv({ name: '饭', grams: 150, kcal: 300, confidence: 0.8 });
-  return Math.abs((r.p*4 + r.c*4 + r.f*9) - r.kcal) <= 3;
+  const r = sv({ name: 'meal', grams: 150, kcal: 300, confidence: 0.8 });
+  return r.kcal === 300 && r.p === null && r.c === null && r.f === null;
 });
-check('H4 extractJSON：```json 包裹可解析 / 垃圾文本返回 null', () => {
+check('H4 extractJSON handles fenced JSON and invalid input', () => {
   const w = boot(J({ profile: { weight: 70 } })); const ex = w.eval('extractJSON');
-  return ex('```json\n{"a":1}\n```').a === 1 && ex('抱歉我无法识别') === null && ex('') === null && ex(null) === null;
+  return ex('\x60\x60\x60json\n{"a":1}\n\x60\x60\x60').a === 1 && ex('') === null && ex(null) === null;
 });
-check('H5 logWeight 脏数据不写入（abc / 500 / 10 / null）', () => {
+check('H5 invalid weights reject without writing', async () => {
   const w = boot(J({ profile: { weight: 70 } })); const lw = w.eval('logWeight');
-  ['abc', 500, 10, null, undefined, NaN, {}].forEach(v => lw(v));
-  return w.__S.bodyWeights.length === 0;
+  const results = await Promise.all(['abc', 500, 10, null, undefined, NaN, {}].map(v => Promise.resolve().then(() => lw(v)).then(() => false, () => true)));
+  const rows = JSON.parse(w.eval('JSON.stringify(STATE.bodyWeights)'));
+  return results.every(Boolean) && rows.length === 0;
 });
-check('H6 logWeight 同日覆盖、跨日追加且按日期排序', () => {
-  const w = boot(J({ profile: { weight: 70 }, bodyWeights: [
-    { d: '2026-10-2', w: 70 }, { d: '2026-9-3', w: 72 }, { d: '2026-9-20', w: 71 } ] }));
-  const lw = w.eval('logWeight');
-  lw(69.5);                                     // 今日
-  const arr = w.__S.bodyWeights;
-  const today = dateKey(new Date());
+check('H6 canonical weight writes preserve same-day identity and sorted projection', async () => {
+  const w = boot(J({ profile: { weight: 70 } })); const lw = w.eval('logWeight'), today = dateKey(new Date());
+  const prior = [
+    {weightId:'w-yesterday', weightKg:72, localDateKey:'2026-10-02', measuredAt:1},
+    {weightId:'w-today', weightKg:70, localDateKey:today, measuredAt:2},
+    {weightId:'w-earlier', weightKg:71, localDateKey:'2026-09-20', measuredAt:0}
+  ];
+  w.eval('BODY_WEIGHT_RECORDS = '+JSON.stringify(prior));
+  const saved = await lw(69.5), rows = JSON.parse(w.eval('JSON.stringify(STATE.bodyWeights)'));
   const dv = w.eval('dateVal');
-  let sorted = true; for (let i = 1; i < arr.length; i++) if (dv(arr[i].d) < dv(arr[i-1].d)) sorted = false;
-  return sorted && arr.filter(x => x.d === today).length === 1 && arr.filter(x => x.d === today)[0].w === 69.5;
+  let sorted = true; for (let i = 1; i < rows.length; i++) if (dv(rows[i].d) < dv(rows[i-1].d)) sorted = false;
+  return saved === true && sorted && rows.filter(x => x.d === today).length === 1 && rows.filter(x => x.d === today)[0].w === 69.5;
 });
 check('H7 体重曲线：空数据有兜底文案、单点无 NaN、多点生成路径', () => {
   const w = boot(J({ profile: { weight: 70 } })); const g = w.eval('weightChartSVG'), cw = w.eval('cleanWeights');
@@ -447,16 +506,14 @@ check('H13 myEx 脏数据（非数组 / 缺 id 项）不影响训练页渲染', 
   const w2 = boot(J({ profile: { weight: 70 }, myEx: [{ name: '无id动作' }, null, 42] })); w2.goModule('training');
   return Array.isArray(w1.__S.myEx) && w1.__S.myEx.length === 0 && w2.document.querySelector('#mx-add') !== null;
 });
-check('H14 体重录入越界被拒绝（25 / 500 / 空）', () => {
-  const d = new Date(); const tk = dateKey(d);
+check('H14 weight input rejects out-of-range values and commits valid canonical facts', async () => {
   const w = boot(J({ profile: { weight: 70 } })); w.goModule('data');
-  const inp = w.document.querySelector('#wt-in');
-  inp.value = '25'; w.__click(w.document.querySelector('#wt-add'));
-  const a = w.__S.bodyWeights.length;
-  inp.value = '500'; w.__click(w.document.querySelector('#wt-add'));
-  const b = w.__S.bodyWeights.length;
-  inp.value = '68.5'; w.__click(w.document.querySelector('#wt-add'));
-  return a === 0 && b === 0 && w.__S.bodyWeights.length === 1 && w.__S.bodyWeights[0].w === 68.5 && w.__S.profile.weight === 68.5;
+  const inp=w.document.querySelector('#wt-in');
+  inp.value='25';w.__click(w.document.querySelector('#wt-add'));const a=w.__TEST_RECORDS.weights.length;
+  inp.value='500';w.__click(w.document.querySelector('#wt-add'));const b=w.__TEST_RECORDS.weights.length;
+  inp.value='68.5';w.__click(w.document.querySelector('#wt-add'));
+  const committed=await waitForTest(()=>w.__TEST_RECORDS.weights.length===1);
+  return committed&&a===0&&b===0&&w.__TEST_RECORDS.weights[0].weightKg===68.5&&w.__TEST_RECORDS.weights[0].provenance==='USER_PROVIDED'&&w.eval('STATE.profile.weight')===68.5;
 });
 check('H15 AI 设置：非 https 地址被拒绝且提示', () => {
   const w = boot(J({ profile: { weight: 70 } })); w.goModule('profile');
@@ -544,7 +601,11 @@ async function aiChecks() {
   {
     const w = boot(J({ profile: { weight: 70 } })); const sv = w.eval('sanitizeVision');
     const r = sv({ name: '不清楚', grams: 100, kcal: 200, protein: 5, carb: 20, fat: 5, confidence: 0.9, uncertain: true });
-    check('V9 模型标 uncertain → 置信度强制降到 0.35 以下', () => r.uncertain === true && r.conf <= 0.35);
+    check('V9 uncertain AI identity remains uncertain without rewriting the model score', () => {
+    const w=boot(J({profile:{weight:70}})),sv=w.eval('sanitizeVision');
+    const r=sv({name:'unclear',grams:100,kcal:200,protein:5,carb:20,fat:5,confidence:0.9,uncertain:true});
+    return r.uncertain===true&&r.conf===0.9;
+  });
   }
 }
 
@@ -556,7 +617,7 @@ asyncChecks().then(() => aiChecks()).then(() => v79Checks()).then(() => v710Chec
 });
 
 // ===== v7.9 增量：桌宠 Q 版形象 / 眨眼 / 彩蛋 / 知识库扩充 / 数据化回答 / 复制上一餐 =====
-function v79Checks() {
+async function v79Checks() {
   // I1 形象：10 情绪 + 眨眼帧全部输出有效 SVG
   {
     const w = boot(J({ profile: { weight: 70 } }));
@@ -588,27 +649,22 @@ function v79Checks() {
   }
   // I6–I8 数据化回答（优先级与兜底）
   {
-    const w = boot(J({ profile: { weight: 70 } }));
+    const w = boot(J({ profile: { weight: 70, nutritionIntent:'GAIN' } }));
     const dr = w.eval('dataReply');
     check('I6 体重趋势（有档案无曲线）→ 引导记录而非档案文案', () => dr('最近体重趋势如何').indexOf('还没有体重曲线') >= 0);
     check('I7 本周统计回答含天数且不报错', () => dr('本周练了几次').indexOf('本周') >= 0);
-    check('I8 吃什么建议（无记录）→ 结合蛋白缺口给推荐', () => dr('今天吃什么').indexOf('蛋白还差') >= 0);
+    const query=String.fromCharCode(0x4eca,0x5929,0x5403,0x4ec0,0x4e48),marker=String.fromCharCode(0x86cb,0x767d,0x8fd8,0x5dee);
+    check('I8 nutrition recommendation uses the selected gain estimate', () => dr(query).indexOf(marker) >= 0);
   }
-  // I9/I10 一键复制上一餐
+  // History copy creates a draft; confirmation is a separate user action.
   {
-    const yst = new Date(); yst.setDate(yst.getDate() - 1);
-    const yk = dateKey(yst);
-    const w = boot(J({ profile: { weight: 70 },
-      meals: { [yk]: { 0: [{ n:'鸡胸', p:35, c:0, f:3, q:1, photo:'data:image/jpeg;base64,AAAA' }] } } }));
-    w.goModule('diet');
-    const row = w.document.querySelector('[data-rep]');
-    check('I9 该餐今天为空且有历史 → 显示一键复制行', () => !!row && row.textContent.indexOf('鸡胸') >= 0);
-    if (row) {
-      w.__click(row);
-      const tk = w.eval('todayKey')();
-      const arr = w.__S.meals[tk] && w.__S.meals[tk][0];
-      check('I10 点击复制 → 条目新增且照片已去除', () => !!arr && arr.length === 1 && arr[0].n === '鸡胸' && !arr[0].photo);
-    }
+    const yst=new Date();yst.setDate(yst.getDate()-1);const yk=dateKey(yst);
+    const w=boot(J({profile:{weight:70},meals:{[yk]:{0:[{n:'Legacy chicken',p:35,c:0,f:3,q:1,photo:'data:image/jpeg;base64,AAAA'}]}}}));
+    seedCanonicalMeals(w,[{mealId:'meal-prior',localDateKey:yk,createdAt:Date.now()-1000,mealTypeIndex:0,items:[domainMealItem('Chicken',35,0,3)]}]);
+    w.goModule('diet');const copy=w.document.querySelector('[data-rep="0"]');
+    check('I9 canonical prior meal offers an explicit draft copy action',()=>!!copy);
+    if(copy){w.__click(copy);const ready=await waitForCondition(()=>w.__TEST_RECORDS.drafts.length===1&&!!w.document.querySelector('#fs-confirm-draft'));
+      check('I10 copied history is a draft and does not create a meal before confirmation',()=>ready&&w.__TEST_RECORDS.meals.length===0&&!('photo' in w.__TEST_RECORDS.drafts[0].items[0]));}
   }
 }
 
@@ -681,9 +737,10 @@ function v710Checks() {
     const lib = w.eval('window.__S') && null; // noop
     const has = w.eval('EST_LIB.some(x=>x.n.indexOf("蒸饺")>=0)') && w.eval('EST_LIB.some(x=>x.n.indexOf("寿司")>=0)') && w.eval('EST_LIB.some(x=>x.n.indexOf("薯条")>=0)');
     check('J12 EST_LIB 新增蒸饺/寿司/薯条（测试集驱动）', () => !!has);
-    check('J13 生产 prompt 含盖饭/份量锚点/背景忽略规则', () => {
-      const p = w.eval('VISION_PROMPT');
-      return p.indexOf('盖饭') >= 0 && p.indexOf('主体') >= 0 && p.indexOf('113g') >= 0;
+    check('J13 vision prompt identifies itemized estimates and uncertainty', () => {
+      const p=w.eval('VISION_PROMPT');
+      return p.indexOf('items')>=0&&p.indexOf('grams')>=0&&p.indexOf('uncertain=true')>=0;
+
     });
   }
   {
@@ -908,11 +965,11 @@ function v80Checks() {
     const w = boot(J({ profile: { weight: 70 } }));
     const sv = w.eval('sanitizeVision');
     check('L12 模型空响应 → 返回 null，不再兜底成「150 kcal」假结果', () => sv({}) === null && sv(null) === null);
-    check('L13 只给热量 → 按 20/50/30 拆宏量且热量守恒', () => {
-      const d = sv({ name: '炒饭', grams: 400, kcal: 600 });
-      return !!d && Math.abs((d.p * 4 + d.c * 4 + d.f * 9) - d.kcal) <= 2;
+    check('L13 calories-only estimates preserve missing macros', () => {
+      const d=sv({name:'Rice',grams:400,kcal:600});
+      return !!d&&d.kcal===600&&d.p===null&&d.c===null&&d.f===null;
     });
-    check('L14 extractJSON 能剥离 markdown 代码块', () => {
+check('L14 extractJSON 能剥离 markdown 代码块', () => {
       const j = w.eval('extractJSON')('```json\n{"name":"米饭","kcal":260}\n```');
       return !!j && j.name === '米饭';
     });
@@ -1091,14 +1148,15 @@ function v110bChecks() {
       const one = f([{ lat: 39.9, lon: 116.4 }], 320, 190);
       return two.indexOf('run-tile') >= 0 && two.indexOf('<path') >= 0 && one === '';
     });
-    check('P10 地图底图默认关闭（离线优先），开启后走瓦片分支', () => {
-      const w3 = boot(J({ profile: { weight: 70 }, runs: [{ date: '2026-9-29', dist: 1200, ms: 420000, kcal: 90, pts: [{ lat: 39.9, lon: 116.4 }, { lat: 39.905, lon: 116.408 }] }] }));
-      w3.eval('renderRun')(w3.document.getElementById('mod-body'));
-      const off = w3.document.getElementById('mod-body').innerHTML.indexOf('run-tile') < 0;
-      w3.__S.settings.runMap = true;
-      w3.eval('renderRun')(w3.document.getElementById('mod-body'));
-      const on = w3.document.getElementById('mod-body').innerHTML.indexOf('run-tile') >= 0;
-      return off && on;
+    check('P10 map tiles are opt-in for canonical measured routes', () => {
+      const w3=boot(J({profile:{weight:70}}));
+      w3.eval('RUN_RECORDS = '+JSON.stringify([{runId:'run-map-check',localDateKey:'2026-09-29',distanceMeters:1200,durationSeconds:420,routeStatus:'MEASURED',routeSegments:[[{lat:39.9,lon:116.4},{lat:39.905,lon:116.408}]]}])+';');
+      w3.eval('STATE.settings.runMap = false'); w3.eval('renderRun')(w3.document.getElementById('mod-body'));
+      const off=w3.document.getElementById('mod-body').innerHTML.indexOf('run-tile')<0;
+      w3.eval('STATE.settings.runMap = true'); w3.eval('renderRun')(w3.document.getElementById('mod-body'));
+      const on=w3.document.getElementById('mod-body').innerHTML.indexOf('run-tile')>=0;
+      return off&&on;
+
     });
   }
 }
@@ -1122,9 +1180,11 @@ function v120Checks() {
       w.eval('hideBoot')();
       return w.__READY === true && b.classList.contains('done');
     });
-    check('Q3 Service Worker 改为缓存优先 + 版本号升到 boji-1-2-0', () => {
+    check('Q3 Service Worker 使用 V2 RC 缓存命名空间并只清理自有缓存', () => {
       const sw = fs.readFileSync(path.join(PROJ, 'sw.js'), 'utf8');
-      return /CACHE\s*=\s*'boji-1-2-0'/.test(sw)
+      return /CACHE\s*=\s*'boji-v2-rc-3'/.test(sw)
+        && sw.indexOf("'boji-v2-rc-'") >= 0
+        && sw.indexOf("'boji-v2-prod-'") >= 0
         && sw.indexOf('c.match(req)') >= 0
         && sw.indexOf('staleWhileRevalidate') >= 0
         && sw.indexOf("c.match('./index.html')") >= 0;

@@ -20,9 +20,9 @@
   const PRODUCT_STORES = Object.freeze(['exercises', 'programs', 'templates', 'equipmentProfiles', 'knowledgeClaims', 'knowledgeSources']);
   const USER_STORES = Object.keys(STORE_KEYS).filter(name => !['snapshots', 'metadata'].includes(name) && !PRODUCT_STORES.includes(name));
   const VERSION = Object.freeze({
-    PRODUCT_VERSION: '2.0.0-pre.2',
+    PRODUCT_VERSION: '2.0.0-pre.3',
     SCHEMA_VERSION: 2,
-    APP_CACHE_VERSION: 'boji-v2-rc-2',
+    APP_CACHE_VERSION: 'boji-v2-rc-3',
     FEATURE_MANIFEST_VERSION: 2,
     EXERCISE_DATA_VERSION: 2,
     KNOWLEDGE_VERSION: 1
@@ -416,6 +416,11 @@
       }
       seen.add(stableFingerprint);
       const at = null;
+      const route = Array.isArray(item.pts) ? item.pts.map(point => {
+        if (Array.isArray(point) && point.length >= 2 && point.slice(0, 2).every(Number.isFinite)) return { lat: point[0], lon: point[1] };
+        if (isObject(point) && validNumber(point.lat, -90, 90) && validNumber(point.lon, -180, 180)) return { lat: point.lat, lon: point.lon, recordedAt: validNumber(point.t, 0, Number.MAX_SAFE_INTEGER) ? point.t : null };
+        return null;
+      }).filter(Boolean) : [];
       records.push({
         runId: `run-legacy-${stableFingerprint.slice(0, 32)}`,
         startedAt: at,
@@ -424,7 +429,7 @@
         timezoneContext: null,
         distanceMeters: item.dist,
         durationSeconds: item.ms / 1000,
-        route: Array.isArray(item.pts) ? item.pts.filter(p => Array.isArray(p) && p.length >= 2 && p.slice(0, 2).every(Number.isFinite)).map(p => p.slice(0, 2)) : [],
+        route, routeSegments: route.length ? [route] : [], routeStatus: route.length > 1 ? 'LEGACY_UNKNOWN' : 'UNAVAILABLE',
         calorieEstimate: validNumber(item.kcal, 0, 100000) ? { energyKcal: item.kcal, provenance: 'DERIVED', label: 'legacy estimate; formula unavailable' } : null,
         legacySource: { store: LEGACY_KEY, indexForAuditOnly: index }
       });
@@ -657,6 +662,8 @@
   function validateDomainRecord(storeName, record) {
     if (!STORE_KEYS[storeName] || !isObject(record)) return { ok: false, reason: 'unknown store or non-object record' };
     if (record[STORE_KEYS[storeName]] == null || String(record[STORE_KEYS[storeName]]) === '') return { ok: false, reason: `missing stable ${STORE_KEYS[storeName]}` };
+    const validDateKey=value=>typeof value==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(value)&&dateEpoch(value)!==null;
+    const validTimezoneContext=value=>value==null||(isObject(value)&&Number.isInteger(value.timezoneOffsetMinutes)&&Math.abs(value.timezoneOffsetMinutes)<=840&&(value.timeZone==null||typeof value.timeZone==='string'));
     if (storeName === 'setRecords') {
       if (record.weightKg != null && !validNumber(record.weightKg, 0, 2000)) return { ok: false, reason: 'weightKg must be a finite canonical kilogram value' };
       if (record.reps != null && (!Number.isInteger(record.reps) || record.reps < 0 || record.reps > 1000)) return { ok: false, reason: 'reps must be a non-negative integer' };
@@ -664,11 +671,38 @@
     }
     if (storeName === 'runs') {
       if (!validNumber(record.distanceMeters, 0, 1000000) || !validNumber(record.durationSeconds, 0, 604800)) return { ok: false, reason: 'run must use distanceMeters and durationSeconds' };
+      if (record.startedAt != null && !validNumber(record.startedAt, 0, Number.MAX_SAFE_INTEGER)) return { ok: false, reason: 'run startedAt must be epoch milliseconds' };
+      if (record.endedAt != null && !validNumber(record.endedAt, 0, Number.MAX_SAFE_INTEGER)) return { ok: false, reason: 'run endedAt must be epoch milliseconds' };
+      if(record.localDateKey!=null&&!validDateKey(record.localDateKey))return {ok:false,reason:'run localDateKey is invalid'};
+      if(!validTimezoneContext(record.timezoneContext))return {ok:false,reason:'run timezone context is invalid'};
+      if (record.route != null && (!Array.isArray(record.route) || record.route.some(point => !isObject(point) || !validNumber(point.lat, -90, 90) || !validNumber(point.lon, -180, 180)))) return { ok: false, reason: 'run route must contain valid measured points' };
+      if(record.routeSegments!=null&&(!Array.isArray(record.routeSegments)||record.routeSegments.some(segment=>!Array.isArray(segment)||segment.some(point=>!isObject(point)||!validNumber(point.lat,-90,90)||!validNumber(point.lon,-180,180)))))return {ok:false,reason:'run routeSegments must contain measured point segments'};
+      if (record.routeStatus != null && !['MEASURED', 'PARTIAL', 'MANUAL', 'UNAVAILABLE', 'LEGACY_UNKNOWN'].includes(record.routeStatus)) return { ok: false, reason: 'run route status is invalid' };
+      if (record.distanceProvenance != null && !['MEASURED', 'USER_PROVIDED'].includes(record.distanceProvenance)) return { ok: false, reason: 'run distance provenance is invalid' };
+      if (record.durationProvenance != null && !['MEASURED', 'USER_PROVIDED'].includes(record.durationProvenance)) return { ok: false, reason: 'run duration provenance is invalid' };
+      if (record.calorieEstimate != null && (!isObject(record.calorieEstimate) || !validNumber(record.calorieEstimate.energyKcal, 0, 100000) || record.calorieEstimate.provenance !== 'DERIVED')) return { ok: false, reason: 'run calorie estimate must be labeled DERIVED' };
     }
-    if (storeName === 'bodyWeights' && !validNumber(record.weightKg, 20, 400)) return { ok: false, reason: 'weightKg is invalid' };
+    if (storeName === 'bodyWeights') {
+      if (!validNumber(record.weightKg, 20, 400)) return { ok: false, reason: 'weightKg is invalid' };
+      if (record.measuredAt != null && !validNumber(record.measuredAt, 0, Number.MAX_SAFE_INTEGER)) return { ok: false, reason: 'body weight measuredAt must be epoch milliseconds' };
+      if(record.localDateKey!=null&&!validDateKey(record.localDateKey))return {ok:false,reason:'body weight localDateKey is invalid'};
+      if(record.timezoneContext!=null&&!validTimezoneContext(record.timezoneContext))return {ok:false,reason:'body weight timezone context is invalid'};
+      if(record.provenance!=null&&!PROVENANCE.includes(record.provenance))return {ok:false,reason:'body weight provenance is invalid'};
+    }
+    if (storeName === 'waterEntries') {
+      if (!Number.isInteger(record.amountMl) || record.amountMl === 0 || Math.abs(record.amountMl) > 10000) return { ok: false, reason: 'water entry amountMl is invalid' };
+      if (!validNumber(record.createdAt, 0, Number.MAX_SAFE_INTEGER) || !validDateKey(record.localDateKey)) return { ok: false, reason: 'water entry needs an epoch time and local date key' };
+      if(!validTimezoneContext(record.timezoneContext))return {ok:false,reason:'water timezone context is invalid'};
+      if(record.provenance!=null&&!PROVENANCE.includes(record.provenance))return {ok:false,reason:'water provenance is invalid'};
+    }
     if (storeName === 'profiles') {
       if (record.weightKg != null && !validNumber(record.weightKg, 20, 400)) return { ok: false, reason: 'profile weightKg is invalid' };
       if (record.heightMeters != null && !validNumber(record.heightMeters, 0.5, 2.5)) return { ok: false, reason: 'heightMeters is invalid' };
+      if (record.nutritionIntent != null && !['LOG_ONLY', 'MAINTAIN', 'GAIN', 'LOSE', 'CUSTOM'].includes(record.nutritionIntent)) return { ok: false, reason: 'profile nutrition intent is invalid' };
+      if(record.customKcal!=null&&!validNumber(record.customKcal,500,10000))return {ok:false,reason:'customKcal must be between 500 and 10000'};
+      if(record.customProteinG!=null&&!validNumber(record.customProteinG,1,500))return {ok:false,reason:'customProteinG must be between 1 and 500'};
+      if(record.waterGoalMl!=null&&!validNumber(record.waterGoalMl,250,10000))return {ok:false,reason:'waterGoalMl must be between 250 and 10000'};
+      if(record.nutritionIntent==='CUSTOM'&&(record.customKcal==null||record.customProteinG==null))return {ok:false,reason:'custom nutrition intent requires both custom targets'};
     }
     if (storeName === 'sessions') {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(record.localDateKey || '')) return { ok: false, reason: 'session needs a localDateKey' };
@@ -938,6 +972,8 @@
   function validateFoodDraft(draft) {
     if (!isObject(draft) || typeof draft.draftId !== 'string' || !draft.draftId || !Array.isArray(draft.items) || draft.items.length === 0) return { ok: false, reason: 'FoodDraft needs a stable draftId and at least one item.' };
     if (draft.status !== 'DRAFT' || draft.confirmedAt != null) return { ok: false, reason: 'FoodDraft cannot start in a committed or confirmed state.' };
+    if (draft.mealTypeIndex != null && (!Number.isInteger(draft.mealTypeIndex) || draft.mealTypeIndex < 0 || draft.mealTypeIndex > 3)) return { ok: false, reason: 'FoodDraft meal type is invalid.' };
+    if (draft.localDateKey != null && !/^\d{4}-\d{2}-\d{2}$/.test(draft.localDateKey)) return { ok: false, reason: 'FoodDraft local date is invalid.' };
     for (const item of draft.items) {
       if (!isObject(item) || typeof item.name !== 'string' || !item.name.trim()) return { ok: false, reason: 'Each food item needs an identity name.' };
       if (item.provenance && Object.values(item.provenance).some(value => !PROVENANCE.includes(value))) return { ok: false, reason: 'Food fields must use the frozen provenance vocabulary.' };
@@ -959,6 +995,43 @@
     await transaction('foodDrafts', 'readwrite', tx => tx.objectStore('foodDrafts').add(draft));
     return draft;
   }
+  async function listFoodDrafts(options) {
+    const opts = options || {}, db = await open(), rows = await readAll(db, 'foodDrafts');
+    return rows.filter(row => (!opts.status || row.status === opts.status) && (!opts.localDateKey || row.localDateKey === opts.localDateKey))
+      .sort((a,b)=>(b.updatedAt||b.createdAt||0)-(a.updatedAt||a.createdAt||0));
+  }
+  async function listMealRecords(options) {
+    const opts = options || {}, db = await open(), rows = await readAll(db, 'mealRecords');
+    return rows.filter(row => !opts.localDateKey || row.localDateKey === opts.localDateKey).sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
+  }
+  async function updateFoodDraft(draftId, changes) {
+    const db = await open();
+    let updated = null;
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction('foodDrafts', 'readwrite'), store = tx.objectStore('foodDrafts'), request = store.get(draftId);
+      request.onsuccess = () => {
+        const draft = request.result;
+        if (!draft || draft.status !== 'DRAFT') { try { tx.abort(); } catch (_) {} reject(new Error('FoodDraft is missing or already committed.')); return; }
+        const next = Object.assign({}, draft, clone(changes || {}), { draftId, status: 'DRAFT', confirmedAt: null, updatedAt: now() });
+        const check = validateFoodDraft(next);
+        if (!check.ok) { try { tx.abort(); } catch (_) {} reject(new TypeError(check.reason)); return; }
+        store.put(next); updated = next;
+      };
+      request.onerror = () => { try { tx.abort(); } catch (_) {} reject(request.error || new Error('FoodDraft read failed')); };
+      tx.oncomplete = () => resolve();
+      tx.onabort = () => reject(tx.error || new Error('FoodDraft update aborted'));
+      tx.onerror = () => {};
+    });
+    return updated;
+  }
+  async function deleteFoodDraft(draftId) {
+    let deleted = false;
+    await transaction('foodDrafts', 'readwrite', tx => {
+      const store = tx.objectStore('foodDrafts'), request = store.get(draftId);
+      request.onsuccess = () => { if (request.result && request.result.status === 'DRAFT') { store.delete(draftId); deleted = true; } };
+    });
+    return deleted;
+  }
   async function confirmFoodDraft(draftId, confirmation) {
     if (!confirmation || confirmation.confirmed !== true) throw new Error('MealRecord requires explicit user confirmation.');
     const db = await open();
@@ -977,6 +1050,7 @@
         const meal = {
           mealId: makeId('meal'), createdAt: confirmedAt, localDateKey: draft.localDateKey || localDateKey(confirmedAt),
           timezoneContext: draft.timezoneContext || timezoneContext(confirmedAt), source: draft.source || 'MANUAL',
+          mealTypeIndex: draft.mealTypeIndex == null ? null : draft.mealTypeIndex,
           items, confirmation: { confirmedByUser: true, confirmedAt }, draftId: draft.draftId
         };
         tx.objectStore('mealRecords').add(meal);
@@ -990,6 +1064,66 @@
       tx.onerror = () => {};
     });
     return committed;
+  }
+  async function putProfile(record) {
+    const value = clone(record || {}), checked = validateDomainRecord('profiles', value);
+    if (!checked.ok) throw new TypeError(checked.reason);
+    await transaction('profiles', 'readwrite', tx => tx.objectStore('profiles').put(value));
+    return value;
+  }
+  async function listProfiles() {
+    const db=await open();return readAll(db,'profiles');
+  }
+  async function updateMealRecord(mealId, changes) {
+    const db = await open();let updated=null;
+    await new Promise((resolve,reject)=>{
+      const tx=db.transaction('mealRecords','readwrite'),store=tx.objectStore('mealRecords'),request=store.get(mealId);
+      request.onsuccess=()=>{
+        const prior=request.result;if(!prior||!prior.confirmation||prior.confirmation.confirmedByUser!==true){try{tx.abort();}catch(_){}reject(new Error('Confirmed MealRecord is missing.'));return;}
+        const next=Object.assign({},prior,clone(changes||{}),{mealId,updatedAt:now()});
+        const checked=validateDomainRecord('mealRecords',next);if(!checked.ok){try{tx.abort();}catch(_){}reject(new TypeError(checked.reason));return;}
+        store.put(next);updated=next;
+      };
+      request.onerror=()=>{try{tx.abort();}catch(_){}reject(request.error||new Error('MealRecord read failed'));};
+      tx.oncomplete=()=>resolve();tx.onabort=()=>reject(tx.error||new Error('MealRecord update aborted'));tx.onerror=()=>{};
+    });
+    return updated;
+  }
+  async function deleteMealRecord(mealId, confirmation) {
+    if(!confirmation||confirmation.confirmed!==true)throw new Error('MealRecord deletion requires explicit user confirmation.');
+    let deleted=false;
+    await transaction('mealRecords','readwrite',tx=>{const store=tx.objectStore('mealRecords'),request=store.get(mealId);request.onsuccess=()=>{if(request.result){store.delete(mealId);deleted=true;}};});
+    return deleted;
+  }
+  async function listBodyWeights() {
+    const db = await open();
+    return (await readAll(db, 'bodyWeights')).sort((a,b)=>(a.measuredAt||0)-(b.measuredAt||0));
+  }
+  async function putBodyWeight(record) {
+    const value = clone(record || {}), checked = validateDomainRecord('bodyWeights', value);
+    if (!checked.ok) throw new TypeError(checked.reason);
+    await transaction('bodyWeights', 'readwrite', tx => tx.objectStore('bodyWeights').put(value));
+    return value;
+  }
+  async function listWaterEntries(options) {
+    const opts = options || {}, db = await open(), rows = await readAll(db, 'waterEntries');
+    return rows.filter(row => !opts.localDateKey || row.localDateKey === opts.localDateKey).sort((a,b)=>a.createdAt-b.createdAt);
+  }
+  async function putWaterEntry(record) {
+    const value = clone(record || {}), checked = validateDomainRecord('waterEntries', value);
+    if (!checked.ok) throw new TypeError(checked.reason);
+    await transaction('waterEntries', 'readwrite', tx => tx.objectStore('waterEntries').put(value));
+    return value;
+  }
+  async function listRuns() {
+    const db = await open();
+    return (await readAll(db, 'runs')).sort((a,b)=>(b.startedAt||0)-(a.startedAt||0));
+  }
+  async function putRun(record) {
+    const value = clone(record || {}), checked = validateDomainRecord('runs', value);
+    if (!checked.ok) throw new TypeError(checked.reason);
+    await transaction('runs', 'readwrite', tx => tx.objectStore('runs').put(value));
+    return value;
   }
   function createRequestOwner(ownerView) {
     let generation = 0;
@@ -1049,7 +1183,9 @@
     exportBackup, validateBackup, restoreBackup, counts, clearV2Data, validateDomainRecord,
     seedTrainingCatalog, loadTrainingCatalog, putCustomExercise, deleteCustomExercise, loadWorkoutSession, listActiveWorkouts,
     listWorkoutHistory, startWorkout, completeWorkoutSet, finishWorkout, clearWorkoutRest, suggestProgression,
-    createFoodDraft, confirmFoodDraft, validateFoodDraft, createRequestOwner, putKnowledgeSource, putKnowledgeClaim, seedKnowledgeRegistry,
+    createFoodDraft, listFoodDrafts, listMealRecords, updateFoodDraft, deleteFoodDraft, confirmFoodDraft, validateFoodDraft,
+    putProfile, listProfiles, updateMealRecord, deleteMealRecord, listBodyWeights, putBodyWeight, listWaterEntries, putWaterEntry, listRuns, putRun,
+    createRequestOwner, putKnowledgeSource, putKnowledgeClaim, seedKnowledgeRegistry,
     close() { if (dbPromise) dbPromise.then(db => db.close()).catch(() => {}); dbPromise = null; }
   });
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
