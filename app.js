@@ -1698,7 +1698,8 @@ const NAV = { stack:[], g:0, suppress:0, lastExit:0 };   // g = 由我们压入�
 const CLOSERS = {
   assistant:   ()=>{ const p=$('#assistant'); p.classList.remove('open'); p.setAttribute('aria-hidden','true'); },
   module:      ()=>{ const p=$('#module');    p.classList.remove('open'); p.setAttribute('aria-hidden','true'); },
-  onboard:     ()=>{ $('#onboard').classList.remove('show'); },
+  onboard:     ()=>{ const el=$('#onboard'); el.classList.remove('show'); el.setAttribute('aria-hidden','true');
+    const target=$('#dock [aria-current="page"]')||$('#hc-go'); if(target&&target.focus)target.focus({preventScroll:true}); },
   'done-modal':()=>{ $('#done-modal').classList.remove('show'); },
   'food-sheet':()=>{ cancelFoodWork(); _fsPhotoFile=null; const s=$('#food-sheet'); s.classList.remove('show'); s.setAttribute('aria-hidden','true'); },
   // v1.2 视频弹层：关闭时务必清空 iframe/video，释放解码资源
@@ -4083,7 +4084,7 @@ function showStorageStatus(){
   const notice=$('#critical-storage-error');if(!notice)return;
   notice.textContent=DATA_ERROR||'';notice.hidden=!DATA_ERROR;
 }
-function showOnboard(){ if(STATE.isFirstLaunch){ $('#onboard').classList.add('show'); navOpen('onboard'); } }
+function showOnboard(){ if(STATE.isFirstLaunch){ const el=$('#onboard'); el.classList.add('show'); el.setAttribute('aria-hidden','false'); navOpen('onboard'); el.focus({preventScroll:true}); } }
 $('#ob-save') && ($('#ob-save').onclick=async()=>{
   const h=+$('#ob-h').value, w=+$('#ob-w').value, d=+$('#ob-d').value;
   if(h<140||h>220||w<30||w>200||!d){ toast('身高140-220、体重30-200、哑铃重量必填'); return; }

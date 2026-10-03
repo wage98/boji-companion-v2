@@ -957,6 +957,17 @@ function g5SurfaceChecks() {
   const onboarding = boot(J({ isFirstLaunch: true, profile: null }));
   check('G5 onboarding collects goal, experience, equipment, and duration', () =>
     ['#ob-goal','#ob-experience','#ob-equipment','#ob-session-minutes'].every(q => !!onboarding.document.querySelector(q)));
+  check('G5 onboarding opens as a labelled accessible dialog and returns focus on close', () => {
+    onboarding.eval('showOnboard')();
+    const modal=onboarding.document.querySelector('#onboard'),title=onboarding.document.querySelector('#onboard-title');
+    const opened=modal.getAttribute('role')==='dialog'&&modal.getAttribute('aria-modal')==='true'
+      &&modal.getAttribute('aria-hidden')==='false'&&modal.getAttribute('aria-labelledby')==='onboard-title'
+      &&onboarding.document.activeElement===modal;
+    onboarding.eval('navUIClose')('onboard');
+    return opened&&modal.getAttribute('aria-hidden')==='true'
+      &&onboarding.document.activeElement===onboarding.document.querySelector('#dock [aria-current="page"]')
+      &&!!title;
+  });
   check('G5 onboarding explains existing presets and has no generated-program control', () =>
     onboarding.document.querySelector('#onboard').textContent.includes(String.fromCharCode(0x4e0d,0x4f1a,0x636e,0x6b64,0x81ea,0x52a8,0x751f,0x6210))
       && !onboarding.document.querySelector('#onboard [data-generate-program]'));
