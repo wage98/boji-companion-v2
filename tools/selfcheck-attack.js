@@ -1084,13 +1084,20 @@ function v110Checks() {
       return a && b && c && !pet.classList.contains('pet-walking');
     });
   }
-  // N4 语音：不支持时静默降级，不抛错
+  // N4 语音：不支持时明确降级，文字功能仍在
   {
     const w = boot(J({ profile: { weight: 70 } }));
-    check('N4 petSpeak 在无 speechSynthesis 环境下返回 false 且不抛', () => {
-      let r = null, threw = false;
-      try { r = w.eval('petSpeak')('你好'); } catch (e) { threw = true; }
-      return !threw && (r === false || r === true || r == null);
+    check('N4 unsupported speech stays disabled, explains fallback, and keeps text companion', () => {
+      Object.defineProperty(w,'speechSynthesis',{configurable:true,value:undefined});
+      Object.defineProperty(w,'SpeechSynthesisUtterance',{configurable:true,value:undefined});
+      const body=w.document.querySelector('#mod-body');
+      w.eval('renderProfile')(body);
+      const toggle=body.querySelector('#pet-voice-tg'); if(!toggle)return false;
+      toggle.click();
+      return w.eval('STATE').settings.petVoice===false
+        &&body.querySelector('#pet-voice-tg').textContent.includes('语音：关')
+        &&w.document.querySelector('#toast').textContent.includes('当前浏览器不支持语音')
+        &&w.document.querySelector('#pet');
     });
   }
   // N5–N6 照片桌宠
@@ -1270,6 +1277,22 @@ function v120Checks() {
       m.classList.add('open'); const a = w.eval('voiceOnHome')();
       m.classList.remove('open'); const b = w.eval('voiceOnHome')();
       return a === false && b === true;
+    });
+    check('V7 visibility lifecycle pauses and resumes voice; explicit off cancels it', () => {
+      let pauses=0,resumes=0,cancels=0;
+      w.speechSynthesis.pause=()=>{pauses++;w.speechSynthesis.paused=true;};
+      w.speechSynthesis.resume=()=>{resumes++;w.speechSynthesis.paused=false;};
+      w.speechSynthesis.cancel=()=>{cancels++;};
+      const started=w.eval('petSpeak')('今天练胸！加油？慢慢来…');
+      Object.defineProperty(w.document,'hidden',{configurable:true,value:true});
+      w.document.dispatchEvent(new w.Event('visibilitychange'));
+      const paused=pauses===1;
+      Object.defineProperty(w.document,'hidden',{configurable:true,value:false});
+      w.document.dispatchEvent(new w.Event('visibilitychange'));
+      const resumed=resumes===1;
+      const before=w.eval('VOICE').seq;
+      w.eval('stopVoice')('off');
+      return started&&paused&&resumed&&cancels>=2&&w.eval('VOICE').seq>before&&!w.eval('VOICE').speaking;
     });
   }
   // —— ③ 动作视频 ——
