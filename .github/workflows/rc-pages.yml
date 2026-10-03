@@ -1,0 +1,65 @@
+name: Qualify and deploy Boji V2 RC
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: boji-v2-pages
+  cancel-in-progress: false
+
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22.13.0
+          package-manager-cache: false
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 11.16.0
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Require the reviewed G7 checkpoint
+        run: >-
+          node -e "const s=require('./PROJECT_STATE.json');const g=require('./evidence/G7/gate.json');
+          if(s.status!=='RC_READY_FOR_REVIEW'||s.current_gate!=='G7'||s.last_completed_gate!=='G7'||g.status!=='PASS')process.exit(1)"
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+      - name: Check syntax
+        run: pnpm run check:syntax
+      - name: Run required regression and attack suite
+        run: pnpm test
+      - name: Build RC only
+        run: node tools/build-rc.js
+      - name: Scan source, build, evidence and release
+        run: pnpm run audit:release
+      - name: Require clean release scans
+        run: >-
+          node -e "const s=require('./evidence/G7/secret-scan.json');const a=require('./evidence/G7/asset-scan.json');
+          if(s.status!=='PASS'||a.status!=='PASS')process.exit(1)"
+      - name: Upload the project Pages tree
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: qualify
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy the qualified RC tree
+        id: deployment
+        uses: actions/deploy-pages@v4

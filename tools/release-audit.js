@@ -90,6 +90,20 @@ function main() {
     .map(rule => ({ file: rel(file), rule: rule.id })));
   const identities = JSON.parse(fs.readFileSync(path.join(root, 'release-identities.json'), 'utf8'));
   const rc = identities.channels && identities.channels.rc;
+  const releaseWorkflowPath = path.join(root, '.github', 'workflows', 'rc-pages.yml');
+  const releaseWorkflow = fs.existsSync(releaseWorkflowPath) ? fs.readFileSync(releaseWorkflowPath, 'utf8') : '';
+  const workflowChecks = [
+    ['manual-dispatch-only', /workflow_dispatch:/.test(releaseWorkflow) && !/^\s{2}(?:push|pull_request):/m.test(releaseWorkflow)],
+    ['requires-reviewed-g7', /RC_READY_FOR_REVIEW/.test(releaseWorkflow) && /gate\.json/.test(releaseWorkflow)],
+    ['locked-runtime-and-package-manager', /actions\/setup-node@v7/.test(releaseWorkflow) && /node-version: 22\.13\.0/.test(releaseWorkflow) && /pnpm\/action-setup@v6/.test(releaseWorkflow) && /version: 11\.16\.0/.test(releaseWorkflow) && /pnpm install --frozen-lockfile/.test(releaseWorkflow)],
+    ['syntax-before-deploy', /pnpm run check:syntax/.test(releaseWorkflow)],
+    ['regression-before-deploy', /pnpm test/.test(releaseWorkflow)],
+    ['scan-before-deploy', /pnpm run audit:release/.test(releaseWorkflow)],
+    ['scan-results-gate', /Require clean release scans/.test(releaseWorkflow) && /secret-scan\.json/.test(releaseWorkflow) && /asset-scan\.json/.test(releaseWorkflow)],
+    ['rc-only-build', /node tools\/build-rc\.js/.test(releaseWorkflow) && /path: dist\s/.test(releaseWorkflow)],
+    ['deploy-waits-for-qualification', /deploy:\s*\n\s+needs: qualify/.test(releaseWorkflow) && /actions\/deploy-pages@v4/.test(releaseWorkflow)]
+  ];
+  const workflowFailures = workflowChecks.filter(([, passed]) => !passed).map(([name]) => name);
   const builtManifestPath = path.join(rcDir, 'manifest.json');
   const artifactErrors = [];
   let manifest = null;
@@ -97,6 +111,11 @@ function main() {
   if (!fs.existsSync(path.join(rcDir, 'index.html'))) artifactErrors.push('dist/rc/index.html is missing');
   if (!fs.existsSync(builtManifestPath)) artifactErrors.push('dist/rc/manifest.json is missing');
   if (fs.existsSync(path.join(dist, 'prod'))) artifactErrors.push('automated build produced a dist/prod directory');
+  if (workflowFailures.length) artifactErrors.push(`RC Pages workflow failed structural checks: ${workflowFailures.join(', ')}`);
+  const staticApp = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+  if (/mode\s*===?\s*['"]direct['"]|api\.openai\.com|OpenAI 兼容直连/.test(staticApp)) {
+    artifactErrors.push('static app contains a provider-direct AI path');
+  }
   if (rc && fs.existsSync(builtManifestPath)) {
     manifest = JSON.parse(fs.readFileSync(builtManifestPath, 'utf8'));
     for (const key of ['id', 'start_url', 'scope', 'name', 'short_name']) {
@@ -134,6 +153,7 @@ function main() {
     filesScanned: allScannedFiles.length,
     sourceFilesScanned: sourceFiles.length,
     distFilesScanned: distFiles.length,
+    backupFilesFound: allScannedFiles.filter(file => /(?:^|\/)(?:backup|backups)(?:\/|$)|\.(?:bak|backup)$/i.test(rel(file))).length,
     symlinksNotFollowed: [...sourceSymlinks, ...distSymlinks],
     findings: secretFindings
   };
@@ -146,6 +166,7 @@ function main() {
     releaseFilesScanned: distFiles.length,
     forbiddenNameFindings: forbiddenFindings,
     artifactErrors,
+    releaseWorkflowChecks: Object.fromEntries(workflowChecks.map(([name, passed]) => [name, passed ? 'PASS' : 'FAIL'])),
     symlinksNotFollowed: [...sourceSymlinks, ...distSymlinks],
     reviewBoundary: 'Filename checks do not establish copyright or originality. Review the G5 asset provenance record and retain AUTH-004 owner approval as pending.'
   };
@@ -162,7 +183,7 @@ function main() {
       return { path: rel(file), sizeBytes: bytes.length, sha256: sha256(bytes) };
     }).sort((a, b) => a.path.localeCompare(b.path)),
     manifest: manifest && { id: manifest.id, start_url: manifest.start_url, scope: manifest.scope, name: manifest.name, short_name: manifest.short_name, display: manifest.display },
-    deployment: { status: 'NOT_DEPLOYED', url: null, reason: 'No verified deployment URL or allowed external deployment workflow is available in this qualification run.' },
+    deployment: { status: 'NOT_DEPLOYED', url: null, reason: 'The gated workflow is manual and was not executed; no deployment URL was verified in this qualification run.' },
     qr: { status: 'NOT_GENERATED', reason: 'REL-012 requires an actual verified deployment URL.' },
     productionArtifact: { status: fs.existsSync(path.join(dist, 'prod')) ? 'UNEXPECTED' : 'NOT_BUILT' }
   };

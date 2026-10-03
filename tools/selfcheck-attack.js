@@ -511,6 +511,12 @@ check('H15 AI 设置：非 https 地址被拒绝且提示', () => {
   w.__click(w.document.querySelector('#vs-save'));
   return w.__S.vision.mode !== 'proxy' && w.document.querySelector('#vs-tip').innerHTML.indexOf('https') >= 0;
 });
+check('H16 legacy direct-provider settings are disabled and their credential is cleared', () => {
+  const w = boot(J({ profile: { weight: 70 }, vision: { mode: 'direct', endpoint: 'https://provider.example', token: 'provider-secret', model: 'm' } }));
+  w.goModule('profile');
+  return w.eval('STATE.vision.mode') === 'off' && !w.eval('STATE.vision.token')
+    && !w.document.querySelector('#vs-mode option[value="direct"]');
+});
 
 /* ---------- AI 识别链路（异步，mock 模型服务） ---------- */
 const TINY = 'x'.repeat(300);
@@ -535,16 +541,19 @@ async function aiChecks() {
     const r2 = await w2.eval('visionRecognize')(TINY);
     const w3 = boot(J({ profile: { weight: 70 }, vision: { mode: 'proxy', endpoint: 'https://x.dev/recognize', token: 't', model: 'm' } }));
     const r3 = await w3.eval('visionRecognize')('ab');
-    check('V2 地址非 http / 缺凭据 / 图片过短 → 均被前置拦截', () =>
-      r.error.indexOf('地址无效') >= 0 && r2.error.indexOf('凭据') >= 0 && r3.error.indexOf('图片数据异常') >= 0);
+    check('V2 non-HTTPS proxy, missing credential and short image are rejected before fetch', () =>
+      r.error.indexOf('HTTPS') >= 0 && r2.error.indexOf('凭据') >= 0 && r3.error.indexOf('图片数据异常') >= 0);
   }
   // V3 proxy 成功
   {
     const w = boot(J({ profile: { weight: 70 }, vision: { mode: 'proxy', endpoint: 'https://x.dev/recognize', token: 't', model: 'glm-4v-flash' } }));
-    w.fetch = () => Promise.resolve({ ok: true, text: () => Promise.resolve(JSON.stringify({ ok: true, data: { name: '米饭', grams: 200, kcal: 260, protein: 5, carb: 58, fat: 1, confidence: 0.8 } })) });
+    let request = null;
+    w.fetch = (_url, options) => { request = options; return Promise.resolve({ ok: true, text: () => Promise.resolve(JSON.stringify({ ok: true, data: { name: '米饭', grams: 200, kcal: 260, protein: 5, carb: 58, fat: 1, confidence: 0.8 } })) }); };
     const r = await w.eval('visionRecognize')(TINY);
-    check('V3 代理模式成功 → 返回结构化结果且经过二次校验', () =>
-      r.ok === true && r.data.name === '米饭' && r.data.grams === 200 && r.data.kcal > 0 && r.data.conf <= 0.88);
+    const body = request && JSON.parse(request.body);
+    check('V3 proxy success validates output and sends proxy auth outside the request body', () =>
+      r.ok === true && r.data.name === '米饭' && r.data.grams === 200 && r.data.kcal > 0 && r.data.conf <= 0.88
+        && request.headers.Authorization === 'Bearer t' && body.token === undefined);
   }
   // V4 服务 500 → 自动重试 1 次后失败（不抛异常）
   {
@@ -570,20 +579,21 @@ async function aiChecks() {
     await w.eval('visionRecognize')(TINY);
     check('V6 401 口令错误 → 不重试（避免刷额度）', () => calls === 1);
   }
-  // V7 直连 OpenAI 兼容格式（模型输出被 ```json 包裹）
+  // V7 Legacy provider-direct configuration must never issue a browser request.
   {
     const w = boot(J({ profile: { weight: 70 }, vision: { mode: 'direct', endpoint: 'https://api.example.com/v1/chat/completions', token: 'k', model: 'glm-4v-flash' } }));
-    w.fetch = () => Promise.resolve({ ok: true, text: () => Promise.resolve(JSON.stringify({
-      choices: [{ message: { content: '```json\n{"name":"番茄炒蛋","grams":250,"kcal":330,"protein":18,"carb":12,"fat":22,"confidence":0.75}\n```' } }] })) });
+    let calls = 0;
+    w.fetch = () => { calls++; return Promise.resolve({ ok: true, text: () => Promise.resolve('{}') }); };
     const r = await w.eval('visionRecognize')(TINY);
-    check('V7 直连模式：剥掉代码块后正确解析', () => r.ok === true && r.data.name === '番茄炒蛋' && r.data.grams === 250 && r.data.kcal === 330);
+    check('V7 legacy direct-provider mode is disabled without a network request', () =>
+      r.ok === false && calls === 0 && w.eval('STATE.vision.mode') === 'off');
   }
-  // V8 模型返回无法解析 → 明确错误
+  // V8 A proxy acknowledgement is not a food result.
   {
-    const w = boot(J({ profile: { weight: 70 }, vision: { mode: 'direct', endpoint: 'https://api.example.com/v1/chat/completions', token: 'k', model: 'm' } }));
-    w.fetch = () => Promise.resolve({ ok: true, text: () => Promise.resolve(JSON.stringify({ choices: [{ message: { content: '我看不出来' } }] })) });
+    const w = boot(J({ profile: { weight: 70 }, vision: { mode: 'proxy', endpoint: 'https://proxy.example/recognize', token: 'proxy-token', model: 'm' } }));
+    w.fetch = () => Promise.resolve({ ok: true, text: () => Promise.resolve(JSON.stringify({ ok: true })) });
     const r = await w.eval('visionRecognize')(TINY);
-    check('V8 模型返回非 JSON → 返回「无法解析」', () => r.ok === false && r.error.indexOf('无法解析') >= 0);
+    check('V8 proxy acknowledgement without data is rejected as a result', () => r.ok === false && r.error.indexOf('数据为空') >= 0);
   }
   // V9 uncertain → 置信度被打到 ≤0.35（不假装确定）
   {

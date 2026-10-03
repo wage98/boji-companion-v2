@@ -892,6 +892,7 @@ function normalizeState(){
   if(!Array.isArray(STATE.bodyWeights)) STATE.bodyWeights = [];
   if(!Array.isArray(STATE.runs)) STATE.runs = [];
   if(!STATE.vision || typeof STATE.vision !== 'object' || Array.isArray(STATE.vision)) STATE.vision = { mode:'off', endpoint:'', token:'', model:'glm-4v-flash' };
+  if(!['off','proxy'].includes(STATE.vision.mode)) STATE.vision = { mode:'off', endpoint:'', token:'', model:String(STATE.vision.model||'glm-4v-flash').slice(0,40) };
   if(!STATE.knowledge.read || typeof STATE.knowledge.read !== 'object') STATE.knowledge.read = {};
   if(typeof STATE.ctxLimit !== 'number' || STATE.ctxLimit < 0) STATE.ctxLimit = 0;
   if(STATE.waterMl == null && +STATE.water > 0) STATE.waterMl = Math.round(+STATE.water * 250);
@@ -2916,12 +2917,12 @@ function compressImage(file, maxPx, cb, q){
   }catch(_){ legacy(); }
 }
 /* ============================================================
-   AI 图像识别（真·识别，可插拔）
-   架构：前端拍照 → 512px 压缩 → 识别服务（自建代理 或 OpenAI 兼容直连）→ 视觉大模型
+   AI 图像识别（仅经用户控制的 HTTPS 服务端代理）
+   架构：前端拍照 → 512px 压缩 → 自建服务端代理 → 视觉大模型
         → 结构化 JSON → 二次校验 → 结果页（标注 AI 来源与置信度）→ 用户确认
-   诚实边界：①需要视觉大模型 API（默认关闭，未配置时明确降级为本地匹配，不做假识别）；
-            ②Key 仅保存在当前设备的 V2 本机数据中，不上传仓库；推荐走自建代理，避免 Key 暴露在前端；
-            ③模型估算仍有误差（±15~30%），结果页强制可校正，绝不盲信。
+   诚实边界：①默认关闭；未配置代理时明确降级为本地匹配；
+            ②浏览器不直连模型供应商；代理访问凭据只发送给配置的代理且不进入本地备份；
+            ③模型估算仍有误差，结果页可校正，不能当作测量事实。
    ============================================================ */
 const VISION_PROMPT =
   '你是营养估算助手。识别照片里的食物；一餐有主食、菜、饮品时分开列入 items 数组。' +
@@ -2932,6 +2933,12 @@ const VISION_PROMPT =
   '3. 不要为让热量与宏量一致而缩放字段；明显不一致时保留原值并标 uncertain=true。\n' +
   '4. 只识别主体；看不清时 uncertain=true。confidence 是模型自评，不是校准概率。';
 const VISION_TIMEOUT = 18000, VISION_RETRY = 1;
+function extractJSON(text){
+  const s = String(text == null ? '' : text).trim().replace(/^```(?:json)?/i, '').replace(/```$/, '');
+  const a = s.indexOf('{'), b = s.lastIndexOf('}');
+  if(a < 0 || b <= a) return null;
+  try { return JSON.parse(s.slice(a, b + 1)); } catch(_){ return null; }
+}
 function sanitizeVisionItem(o){
   if(!o||typeof o!=='object')return null;
   const num=v=>{const n=+v;return Number.isFinite(n)?n:0;};
@@ -2952,12 +2959,6 @@ function sanitizeVision(o){
   if(!o||typeof o!=='object')return null;
   if(Array.isArray(o.items)){const items=o.items.map(sanitizeVisionItem).filter(Boolean).slice(0,12);return items.length?{items,source:'ai'}:null;}
   return sanitizeVisionItem(o);
-}
-function extractJSON(text){
-  const s = String(text == null ? '' : text).trim().replace(/^```(?:json)?/i, '').replace(/```$/, '');
-  const a = s.indexOf('{'), b = s.lastIndexOf('}');
-  if(a < 0 || b <= a) return null;
-  try { return JSON.parse(s.slice(a, b + 1)); } catch(_){ return null; }
 }
 async function postJSON(url, headers, body, timeoutMs, externalSignal){
   const ctl = (typeof AbortController === 'function') ? new AbortController() : null;
@@ -2982,41 +2983,25 @@ async function postJSON(url, headers, body, timeoutMs, externalSignal){
 // 统一识别入口：返回 { ok, data|error }
 async function visionRecognize(base64, signal){
   const cfg = STATE.vision || {};
-  if(cfg.mode !== 'proxy' && cfg.mode !== 'direct') return { ok:false, error:'AI 识别未开启' };
-  if(!/^https?:\/\//i.test(cfg.endpoint || '')) return { ok:false, error:'识别服务地址无效' };
+  if(cfg.mode !== 'proxy') return { ok:false, error:'AI 识别未开启；仅支持服务端代理' };
+  if(!/^https:\/\//i.test(cfg.endpoint || '')) return { ok:false, error:'代理地址必须使用 HTTPS' };
   if(!cfg.token) return { ok:false, error:'缺少访问凭据' };
   if(!base64 || base64.length < 200) return { ok:false, error:'图片数据异常' };
   const model = (cfg.model || 'glm-4v-flash').trim();
-  let req, url = cfg.endpoint, headers = { 'Content-Type':'application/json' };
-  if(cfg.mode === 'proxy'){
-    req = { token: cfg.token, image: base64, model };
-  } else {
-    headers['Authorization'] = 'Bearer ' + cfg.token;
-    req = { model, temperature: 0.2, messages: [{ role:'user', content: [
-      { type:'image_url', image_url:{ url: 'data:image/jpeg;base64,' + base64 } },
-      { type:'text', text: VISION_PROMPT } ] }] };
-  }
+  const req = { image: base64, model }, url = cfg.endpoint;
+  const headers = { 'Content-Type':'application/json', 'Authorization':'Bearer ' + cfg.token };
   let last = { ok:false, error:'未知错误' };
   for(let i = 0; i <= VISION_RETRY; i++){
     const r = await postJSON(url, headers, req, VISION_TIMEOUT, signal);
     if(!r.ok){ if(r.cancelled)return {ok:false,error:'已取消',cancelled:true};last = { ok:false, error:r.error }; if(!r.retryable||signal&&signal.aborted) break; continue; }
-    let raw = null;
-    if(cfg.mode === 'proxy'){
-      const j = r.json || {};
-      if(j.ok === false) return { ok:false, error: String(j.error || '识别服务返回失败') };
-      // 旧版 raw = j.data || j.result || j —— 代理只回 {ok:true} 时把整个响应当成识别结果，
-      // 于是 sanitizeVision 拿 {ok:true} 造出一个「识别结果 150kcal」的假答案。现在严格取字段，取不到就报错。
-      raw = (j.data && typeof j.data === 'object') ? j.data
-          : (j.result && typeof j.result === 'object') ? j.result
-          : (typeof j.name === 'string' || typeof j.kcal === 'number' || typeof j.grams === 'number') ? j
-          : null;
-      if(!raw) return { ok:false, error:'识别服务返回的数据为空' };
-    } else {
-      const content = r.json && r.json.choices && r.json.choices[0] && r.json.choices[0].message && r.json.choices[0].message.content;
-      const parsed = extractJSON(typeof content === 'string' ? content : (Array.isArray(content) ? content.map(x=>x.text||'').join('') : ''));
-      if(!parsed) return { ok:false, error:'模型返回无法解析' };
-      raw = parsed;
-    }
+    const j = r.json || {};
+    if(j.ok === false) return { ok:false, error: String(j.error || '识别服务返回失败') };
+    // A proxy must return a concrete result; an acknowledgement alone is never food data.
+    const raw = (j.data && typeof j.data === 'object') ? j.data
+        : (j.result && typeof j.result === 'object') ? j.result
+        : (typeof j.name === 'string' || typeof j.kcal === 'number' || typeof j.grams === 'number') ? j
+        : null;
+    if(!raw) return { ok:false, error:'识别服务返回的数据为空' };
     const data = sanitizeVision(raw);
     if(!data) return { ok:false, error:'识别结果为空' };
     return { ok:true, data };
@@ -3415,7 +3400,7 @@ function openFoodSheet(mi, body, photo){
   }
   // —— AI 视觉识别 ——
   const vcfg=STATE.vision||{};
-  if(photo && (vcfg.mode==='proxy' || vcfg.mode==='direct') && _fsPhotoFile){
+  if(photo && vcfg.mode==='proxy' && _fsPhotoFile){
     const resEl=list.querySelector('#fs-result');
     const aiBox=document.createElement('div');
     aiBox.className='fs-ai';
@@ -3425,7 +3410,7 @@ function openFoodSheet(mi, body, photo){
       <p class="fs-none">正在调用视觉大模型（约 3–15 秒）。失败会自动降级为本地匹配，不会卡住。</p>`; };
     // 错误分类：给可操作的下一步，而不是一句干巴巴的「失败」
     const aiErrTip=e=>{
-      if(/HTTP 401|HTTP 403/.test(e)) return '访问凭据无效——到「我的 → AI 食物识别」核对口令/Key';
+      if(/HTTP 401|HTTP 403/.test(e)) return '访问凭据无效——到「我的 → AI 食物识别」核对代理访问凭据';
       if(/HTTP 429/.test(e)) return '请求太频繁或额度用尽，稍等再试';
       if(/HTTP 5\d\d/.test(e)) return '识别服务暂时不可用（服务器错误），稍后再试';
       if(e==='请求超时') return '请求超时——网络慢或服务未响应';
@@ -3858,14 +3843,14 @@ function renderProfile(body){
     </div>
     <div class="card" style="padding:6px 14px">
       <h4 style="margin:8px 0 2px">AI 食物识别 <span class="tag" id="vs-state">${(STATE.vision&&STATE.vision.mode&&STATE.vision.mode!=='off')?'已开启':'未开启'}</span></h4>
-      <p style="font-size:11px;color:var(--faint);line-height:1.6">开启后拍照会调用视觉大模型做真识别。关闭时拍照仍可用（条码/在线库/历史/本地匹配）。<b>凭据只存在你本机，不会进仓库</b>；建议用「自建代理」模式，避免 Key 暴露。</p>
+      <p style="font-size:11px;color:var(--faint);line-height:1.6">AI 拍照识别仅通过你控制的 HTTPS 服务端代理；此静态应用不会直接连接模型供应商。请在代理端限制允许来源、模型、请求大小、超时和频率，关闭图片正文日志并清理错误信息。代理访问凭据只保留在当前页面内存中，通过 Authorization 发送，且不会进入本地备份。关闭 AI 后仍可使用条码、在线库、历史和本地匹配。</p>
       <div class="pf-edit">
         <label>模式<select id="vs-mode">
           <option value="off">关闭（本地匹配）</option>
-          <option value="proxy">自建代理（推荐）</option>
-          <option value="direct">直连 OpenAI 兼容接口</option></select></label>
+          <option value="proxy">自建服务端代理</option>
+        </select></label>
         <label>服务地址<input id="vs-ep" type="text" maxlength="120" placeholder="https://xxx.workers.dev/recognize"></label>
-        <label>访问凭据<input id="vs-tk" type="password" maxlength="200" placeholder="代理口令 或 API Key" autocomplete="off"></label>
+        <label>代理访问凭据<input id="vs-tk" type="password" maxlength="200" placeholder="此代理的访问令牌" autocomplete="off"></label>
         <label>模型<input id="vs-md" type="text" maxlength="40" placeholder="glm-4v-flash"></label>
       </div>
       <div class="row-btns" style="margin-top:8px">
@@ -4026,7 +4011,7 @@ function renderProfile(body){
   const vs=$('#vs-mode'), vep=$('#vs-ep'), vtk=$('#vs-tk'), vmd=$('#vs-md'), vtip=$('#vs-tip');
   if(vs){
     const cfg=STATE.vision||{};
-    vs.value=(cfg.mode==='proxy'||cfg.mode==='direct')?cfg.mode:'off';
+    vs.value=cfg.mode==='proxy'?'proxy':'off';
     if(vep) vep.value=cfg.endpoint||'';
     if(vtk) vtk.value=cfg.token||'';
     if(vmd) vmd.value=cfg.model||'glm-4v-flash';
