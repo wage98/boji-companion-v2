@@ -1,9 +1,11 @@
-﻿G1 HARNESS QUALIFICATION — IN PROGRESS
+﻿G1 PASS — BOOTSTRAP & PORTABLE TEST FOUNDATION
 
-Imported V1 source is limited to the allowed-import manifest and matches the verified V1 live HEAD. The V1 .git directory was not copied. The two known official game assets, stale V1 install QR and derivative character preview are excluded with per-file reasons; V1 asset credits are preserved as audit evidence.
+The verified V1 live HEAD was imported through an 18-file allowlist with source hashes; the other 32 tracked files are accounted for in the exclusion manifest. V1 Git metadata was not copied. Third-party official character files, a derivative preview and the stale V1 QR are excluded. The contract and PRE-LUNA evidence remain on main.
 
-The first harness run reproduced the two qualified clean-clone failures: J15 and K8 had no generated reports. The harness now pins jsdom 28.1.0 and qrcode 1.5.4, removes machine-specific NODE_PATH, creates eval-set/ in both generators, and runs those generators explicitly before regression tests. F1/F2 select an actually seeded visible date. D1–D4 wait for observable states, with a 5 second D1 ceiling against the PRE-LUNA 983ms probe.
+The harness pins jsdom 28.1.0 and qrcode 1.5.4 in package.json and pnpm-lock.yaml, removes hardcoded NODE_PATH, prepares the ignored eval reports explicitly, chooses a seeded visible calendar date for F1/F2, and waits for D1 observable fallback state with 25ms polling and a 5 second evidence-based ceiling.
 
-Five repeated local full-suite runs passed 251/251: three on local calendar day 2 via Pacific/Honolulu and two on local day 3 via Asia/Shanghai. Both generated report hashes were identical in each run. A fresh disposable clone install and test run remains required before G1 PASS.
+Five local full regression runs passed 251/251 across local-day-2 and ordinary-day environments. The fresh disposable clone began without node_modules or eval-set, installed from the frozen lockfile with NODE_PATH empty, passed syntax checks, then passed 251/251 on both day 2 and the ordinary day. Evaluation report SHA256 values were stable across all runs.
 
-Legacy product expectations remain unchanged during this harness-only gate. The H3 calories-to-macros expectation is classified as a legacy bug expectation for G4. Legacy Nahida/spider identity checks are obsolete under the frozen Boji identity; new tests must preserve the valid companion interaction classes and Photo Pet capability.
+No production behavior was modified during G1. H3's calories-to-macros expectation is classified as LEGACY_BUG_EXPECTATION for G4. Legacy Nahida/spider identity tests are OBSOLETE_WITH_REASON under the frozen Boji direction; companion interactions and Photo Pet remain valid parity obligations.
+
+Next allowed gate: G2 — Data Foundation & Migration.

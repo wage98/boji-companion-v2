@@ -1,29 +1,33 @@
 ﻿{
-  \"current_gate\": \"G1\",
-  \"last_completed_gate\": \"G0\",
-  \"status\": \"IN_PROGRESS\",
-  \"branch\": \"v2-implementation\",
-  \"head\": \"62121c299ebf9161ec5bb9a935a1f9153b145c7c\",
-  \"baseline_tree\": \"0293dce49fb3f0b1500c82eef947c6a6bd1d372e\",
-  \"known_unknowns\": [
-    \"G1 fresh disposable clone install and regression are pending.\",
-    \"Final production character asset approval remains pending.\",
-    \"Physical mobile/PWA behavior remains unknown until post-Luna qualification.\",
-    \"Independent release qualification and production approval remain pending.\"
+  "current_gate": "G1",
+  "last_completed_gate": "G1",
+  "status": "PASS",
+  "branch": "v2-implementation",
+  "head": "fcdd0092545e1d3364f9175dcc73167649122b1b",
+  "baseline_tree": "f6f25b4a591dc14b29ec6efd6934ef29fcd92b4d",
+  "known_unknowns": [
+    "G2 data foundation and migration are not qualified.",
+    "G3 training truth is not qualified.",
+    "G4 personal-system truth is not qualified.",
+    "G5 UX and companion direction is not qualified; final character asset approval remains pending.",
+    "G6 PWA and platform behavior is not qualified; physical-device behavior remains unknown.",
+    "G7 release qualification and independent review remain pending."
   ],
-  \"forbidden_next_actions\": [
-    \"Do not modify V1.\",
-    \"Do not change product behavior before G1 passes.\",
-    \"Do not claim physical-device qualification or production approval.\"
+  "forbidden_next_actions": [
+    "Do not modify V1.",
+    "Do not skip G2 or work ahead of a blocked gate.",
+    "Do not deploy or claim RC readiness before G7.",
+    "Do not claim physical-device behavior or production approval."
   ],
-  \"requirements\": {
-    \"AUTH-001\": \"PASS\",
-    \"AUTH-003\": \"PASS\",
-    \"TST-001\": \"PASS\",
-    \"TST-002\": \"PASS\",
-    \"TST-003\": \"PASS\",
-    \"TST-004\": \"PASS\",
-    \"TST-005\": \"PASS\",
-    \"TST-006\": \"IN_PROGRESS\"
+  "requirements": {
+    "AUTH-001": "PASS",
+    "AUTH-003": "PASS",
+    "AUTH-004": "PENDING",
+    "TST-001": "PASS",
+    "TST-002": "PASS",
+    "TST-003": "PASS",
+    "TST-004": "PASS",
+    "TST-005": "PASS",
+    "TST-006": "PASS"
   }
 }

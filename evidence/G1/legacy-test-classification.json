@@ -1,0 +1,13 @@
+﻿{
+  "schemaVersion": 1,
+  "classificationVocabulary": ["VALID_REQUIREMENT", "LEGACY_BUG_EXPECTATION", "OBSOLETE_WITH_REASON"],
+  "items": [
+    {"reference":"tools/selfcheck-functional.js scenario 18-20 calendar score edit/delete/current-day persistence","classification":"VALID_REQUIREMENT","reason":"These calendar and score behaviors remain valid. The harness selects a seeded, visible non-today key; production code is unchanged."},
+    {"reference":"tools/selfcheck-attack.js J15 and K8 generated evaluation reports","classification":"VALID_REQUIREMENT","reason":"The report checks remain valid. TST-003 runs deterministic generators before the suites and each creates eval-set/ idempotently."},
+    {"reference":"tools/selfcheck-attack.js D1 fetch failure retry and fallback","classification":"VALID_REQUIREMENT","reason":"The fallback remains valid. TST-005 waits for the visible state with polling rather than assuming a fixed 1350ms delay."},
+    {"reference":"tools/selfcheck-attack.js H3 calories-only AI output automatically expanded into macros","classification":"LEGACY_BUG_EXPECTATION","reason":"Conflicts with FOOD-004, which forbids fabricating macros from calories. G1 leaves production unchanged; G4 must replace this expectation."},
+    {"reference":"tools/selfcheck-attack.js J1/J2/J3/J4/J11b/K1/K1b/K7 legacy Nahida, spider-hero, official wallpaper/skin identities","classification":"OBSOLETE_WITH_REASON","reason":"Conflicts with SEC-010, the frozen original adult Boji direction and G1 asset exclusions. Preserve interaction classes with original V2 identities and assets."},
+    {"reference":"tools/selfcheck-attack.js K3 appearance changes preserve dock/emotion state; N6 Photo Pet renders","classification":"VALID_REQUIREMENT","reason":"Appearance-state continuity and separate Photo Pet personalization remain valid parity obligations and need V2 identity-based tests."},
+    {"reference":"tools/selfcheck-attack.js D1 initial callback placeholder that unconditionally passed","classification":"OBSOLETE_WITH_REASON","reason":"The placeholder asserted nothing. Replaced by a real fallback-control check plus the asynchronous D1 fallback behavior check."}
+  ]
+}

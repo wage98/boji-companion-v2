@@ -1,0 +1,152 @@
+﻿{
+    "gate":  "G1",
+    "status":  "PASS",
+    "preHead":  "62121c299ebf9161ec5bb9a935a1f9153b145c7c",
+    "postHead":  "fcdd0092545e1d3364f9175dcc73167649122b1b",
+    "preTree":  "5245b7970a4138a4e88eedb29adc8f62bf9f175a",
+    "postTree":  "f6f25b4a591dc14b29ec6efd6934ef29fcd92b4d",
+    "authorizedChanges":  [
+                              "Bootstrap the verified V1 allowlist on v2-implementation without V1 Git metadata.",
+                              "Add the portable V1 regression dependencies and repair only test harness setup/timing/fixture behavior.",
+                              "Record allowed imports, exclusions, classifications and gate evidence."
+                          ],
+    "changedFiles":  [
+                         "app.js",
+                         "assets/icon.svg",
+                         "assets/icon-192.png",
+                         "assets/icon-512.png",
+                         "assets/maskable-512.png",
+                         "evidence/G1/allowed-import-manifest.json",
+                         "evidence/G1/exclusion-manifest.json",
+                         "evidence/G1/gate.json",
+                         "evidence/G1/legacy-test-classification.json",
+                         "evidence/G1/logs/fresh-clone-day2.txt",
+                         "evidence/G1/logs/fresh-clone-normal-day.txt",
+                         "evidence/G1/logs/harness-iteration-1.txt",
+                         "evidence/G1/logs/harness-iteration-2.txt",
+                         "evidence/G1/logs/pre-repair-baseline.txt",
+                         "evidence/G1/logs/repaired-day2-run-1.txt",
+                         "evidence/G1/logs/repaired-day2-run-2.txt",
+                         "evidence/G1/logs/repaired-day2-run-3.txt",
+                         "evidence/G1/logs/repaired-normal-run-1.txt",
+                         "evidence/G1/logs/repaired-normal-run-2.txt",
+                         "evidence/G1/summary.md",
+                         "evidence/G1/test-qualification.json",
+                         "evidence/G1/V1_ASSET_CREDITS.md",
+                         "index.html",
+                         "manifest.json",
+                         "package.json",
+                         "pnpm-lock.yaml",
+                         "PROJECT_STATE.json",
+                         "server/README.md",
+                         "server/worker.js",
+                         "styles.css",
+                         "sw.js",
+                         "tools/build-offline.js",
+                         "tools/eval-simulate.js",
+                         "tools/eval-vision.js",
+                         "tools/selfcheck.js",
+                         "tools/selfcheck-attack.js",
+                         "tools/selfcheck-functional.js"
+                     ],
+    "checksRun":  [
+                      "Verified all 50 V1 tracked paths are accounted for by 18 allowed imports and 32 explicit exclusions.",
+                      "Verified source blob hashes for each allowed V1 import and confirmed no V1 .git metadata was copied.",
+                      "Confirmed forbidden official character files, derivative preview and stale V1 QR are absent from V2.",
+                      "Installed jsdom 28.1.0 and qrcode 1.5.4 from package.json and pnpm-lock.yaml.",
+                      "Ran all source syntax checks locally and in the fresh disposable clone.",
+                      "Captured the pre-repair legacy baseline: 249 PASS / 2 FAIL (J15 and K8 generated prerequisites only).",
+                      "Ran five repeated local full regressions across day 2 and an ordinary day: every run 251 PASS / 0 FAIL.",
+                      "Installed in a fresh clone with node_modules and eval-set absent, NODE_PATH empty, then ran full regression on day 2 and ordinary day: both 251 PASS / 0 FAIL.",
+                      "Verified generated evaluation-report SHA256 values remained identical across the runs."
+                  ],
+    "checkResults":  [
+                         {
+                             "check":  "V1 import and exclusion governance",
+                             "result":  "PASS",
+                             "allowedFiles":  18,
+                             "excludedFiles":  32,
+                             "sourceCommit":  "c0a8d55283765a0f7d7e4d773df0609ba1e4049d",
+                             "sourceTree":  "ca4eb14a38f735f8302c238634f7c75352f66f50",
+                             "v1GitCopied":  false
+                         },
+                         {
+                             "check":  "Portable dependencies",
+                             "result":  "PASS",
+                             "node":  "24.14.0",
+                             "pnpm":  "11.16.0",
+                             "jsdom":  "28.1.0",
+                             "qrcode":  "1.5.4",
+                             "lockfile":  "pnpm-lock.yaml"
+                         },
+                         {
+                             "check":  "Local repeated legacy regression",
+                             "result":  "PASS",
+                             "runCount":  5,
+                             "passPerRun":  251,
+                             "failPerRun":  0,
+                             "day2Runs":  3,
+                             "ordinaryDayRuns":  2
+                         },
+                         {
+                             "check":  "Fresh disposable clone qualification",
+                             "result":  "PASS",
+                             "head":  "fcdd0092545e1d3364f9175dcc73167649122b1b",
+                             "branch":  "v2-implementation",
+                             "nodeModulesAbsentBeforeInstall":  true,
+                             "evalSetAbsentBeforeFirstTest":  true,
+                             "nodePath":  "empty",
+                             "runCount":  2,
+                             "passPerRun":  251,
+                             "failPerRun":  0,
+                             "dates":  [
+                                           "2026-10-02",
+                                           "2026-10-03"
+                                       ]
+                         },
+                         {
+                             "check":  "Deterministic generated reports",
+                             "result":  "PASS",
+                             "offlineReportSha256":  "9d1a623770372c4ca1ca265ebdb1660b43177658fe3a8a276ef4d5d9da12518d",
+                             "simulationReportSha256":  "23753f0bb42d5a1bd524cbfa5feba5bd668a42720d7c0bef19d33b6994dc2752"
+                         },
+                         {
+                             "check":  "Production behavior changes in G1",
+                             "result":  "PASS",
+                             "changed":  false
+                         }
+                     ],
+    "requirements":  {
+                         "AUTH-001":  "PASS",
+                         "AUTH-003":  "PASS",
+                         "AUTH-004":  "PENDING",
+                         "TST-001":  "PASS",
+                         "TST-002":  "PASS",
+                         "TST-003":  "PASS",
+                         "TST-004":  "PASS",
+                         "TST-005":  "PASS",
+                         "TST-006":  "PASS"
+                     },
+    "knownUnknowns":  [
+                          "G2 through G7 are not yet qualified; their requirements remain PENDING until their gates.",
+                          "Final production character asset approval remains pending.",
+                          "Physical mobile/PWA behavior remains unknown until post-Luna device qualification.",
+                          "Independent release qualification and production approval remain pending."
+                      ],
+    "blocker":  null,
+    "nextAllowedGate":  "G2",
+    "forbiddenNextActions":  [
+                                 "Do not modify V1.",
+                                 "Do not begin G3 before G2 passes.",
+                                 "Do not deploy or claim RC readiness before G7 passes.",
+                                 "Do not claim physical-device qualification or production approval."
+                             ],
+    "evidenceFiles":  [
+                          "evidence/G1/allowed-import-manifest.json",
+                          "evidence/G1/exclusion-manifest.json",
+                          "evidence/G1/legacy-test-classification.json",
+                          "evidence/G1/test-qualification.json",
+                          "evidence/G1/logs/"
+                      ],
+    "schemaValidatedAgainst":  "contract/contracts/gate-evidence.schema.json"
+}
