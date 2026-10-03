@@ -1,28 +1,29 @@
 ﻿{
-  "current_gate": "G1",
-  "last_completed_gate": "G0",
-  "status": "IN_PROGRESS",
-  "branch": "main",
-  "head": "UNBORN",
-  "baseline_tree": null,
-  "known_unknowns": [
-    "Final production character asset approval remains pending.",
-    "Physical mobile/PWA behavior remains unknown until post-Luna qualification.",
-    "Independent release qualification and production approval remain pending."
+  \"current_gate\": \"G1\",
+  \"last_completed_gate\": \"G0\",
+  \"status\": \"IN_PROGRESS\",
+  \"branch\": \"v2-implementation\",
+  \"head\": \"2c3ac0893d507d9a4b2f896fa5614a6a22ea2fcb\",
+  \"baseline_tree\": \"d1fd2fab65f6e078746e4de708d2dd0e50e4ee2c\",
+  \"known_unknowns\": [
+    \"G1 portable regression harness qualification is in progress.\",
+    \"Final production character asset approval remains pending.\",
+    \"Physical mobile/PWA behavior remains unknown until post-Luna qualification.\",
+    \"Independent release qualification and production approval remain pending.\"
   ],
-  "forbidden_next_actions": [
-    "Do not modify V1.",
-    "Do not change product behavior before the G1 test harness repair.",
-    "Do not claim physical-device qualification or production approval."
+  \"forbidden_next_actions\": [
+    \"Do not modify V1.\",
+    \"Do not change product behavior before G1 harness qualification passes.\",
+    \"Do not claim physical-device qualification or production approval.\"
   ],
-  "requirements": {
-    "AUTH-001": "PASS",
-    "AUTH-003": "PASS",
-    "TST-001": "PENDING",
-    "TST-002": "PENDING",
-    "TST-003": "PENDING",
-    "TST-004": "PENDING",
-    "TST-005": "PENDING",
-    "TST-006": "PENDING"
+  \"requirements\": {
+    \"AUTH-001\": \"PASS\",
+    \"AUTH-003\": \"PASS\",
+    \"TST-001\": \"IN_PROGRESS\",
+    \"TST-002\": \"IN_PROGRESS\",
+    \"TST-003\": \"IN_PROGRESS\",
+    \"TST-004\": \"IN_PROGRESS\",
+    \"TST-005\": \"IN_PROGRESS\",
+    \"TST-006\": \"IN_PROGRESS\"
   }
 }
