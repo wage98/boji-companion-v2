@@ -1,0 +1,260 @@
+﻿$ node tools/selfcheck.js
+----- selfcheck-functional.js -----
+PASS 旧「杯」数据迁移为 ml（3杯=750ml）
+PASS dailyGoal 函数存在
+PASS 每日目标随体重计算(70kg→126g/2310kcal/2450ml) 实际=126/2310/2450
+PASS 主页出现「居家哑铃」定位文案
+PASS 训练计划卡带「居家哑铃」标签
+PASS 饮水按钮为 ml 计量（+100/+250/-100）
+PASS 点击 +250ml 后 waterMl=1000
+PASS 饮水卡片实时显示 ml 数值
+PASS 蛋白目标行显示档案计算值
+PASS 热量目标行显示档案计算值
+PASS 拍照校正面板打开
+PASS 照片缩略图显示在识别结果页
+PASS 搜索「鸡胸」有结果
+PASS 选中后出现校正编辑器
+PASS 食物名可校正（初始为库内名称）
+PASS 份量×2 后热量实时重算（鸡胸肉150g: 194×2=388 kcal）
+PASS 添加后校正面板关闭
+PASS 记录已写入（q=2，含照片）
+PASS 四餐均保留「手动选」兜底按钮
+PASS 已记录条目显示照片缩略
+PASS 条目显示 kcal
+PASS 档案编辑表单齐全（昵称/身高/体重/哑铃）
+PASS 体重改 80 实时写入 STATE
+PASS 蛋白目标即时变为 144g（80×1.8）
+PASS 哑铃重量可编辑
+PASS 昵称实时同步到头部显示
+PASS 头像显示为自定义头像
+PASS 「更换头像」按钮存在
+PASS 番茄ToDo 式统计格（连续/累计）
+PASS 统计格含「本月已完成」
+PASS 月历本月 ✓ 天数=3 实际=3
+PASS 月历可切换到下个月
+PASS 月历可切回本月
+PASS 今日已打卡 → 默认出现评分卡
+PASS 评分保存成功（4/3/5）
+PASS 月历点其它日期可补录评分
+PASS 评分可清除
+PASS 今日评分数据在档（月历可渲染 ★）
+PASS 回归：navUIClose 正常关闭面板
+PASS finishDay 无异常（休息日跳过）
+PASS NLP 归一化：全角字母+标点 → hello
+PASS NLP 归一化：去标点/语气词/折叠空白
+PASS NLP 归一化：null/空 返回空串不抛
+PASS NLP 同义：长肌肉→增肌
+PASS NLP 同义：减肥→减脂
+PASS NLP 意图：今天练什么→today_plan
+PASS NLP 意图：蛋白够吗→protein
+PASS NLP 意图：空输入→null 不抛
+PASS NLP 匹配：怎么练胸→卧推相关（同义 胸→卧推）
+PASS NLP 匹配：减肥吃什么→减脂条目（同义）
+PASS NLP 匹配：深撑→深蹲条目（错别字容错）
+PASS NLP 边界：null/空/HTML注入/超长/emoji 均返回 string 不抛
+PASS NLP 可复现：相同输入结果一致
+PASS NLP 可复现：匹配结果确定性
+PASS 回归：exportCSV 仍带 UTF-8 BOM
+
+==== 结果：55 PASS / 0 FAIL ====
+----- selfcheck-attack.js -----
+PASS A1 localStorage 存非 JSON 字符串
+PASS A2 localStorage 存 null
+PASS A3 localStorage 存数组
+PASS A4 localStorage 存字符串字面量
+PASS A5 checkins 是字符串
+PASS A6 meals 是数组（应为对象）
+PASS A7 scores 是字符串
+PASS A8 profile 缺失字段
+PASS A9 water 为字符串数字
+PASS A10 checkins 含非法日期键
+PASS A11 体重为极小/极大值仍给出合理目标
+PASS A12 selDate 为非法字符串
+PASS B1 搜索含正则特殊字符
+PASS B2 食物名含 HTML 脚本不被执行
+PASS B3 份数输入 0 / -5 / 1e9 不崩且被夹取
+PASS B4 手动覆盖热量为负数 → 忽略
+PASS B5 昵称超长被截断
+PASS B6 身高体重越界不写入
+PASS B7 导入非法 JSON 不崩
+PASS B8 未打卡日期点评分仅提示不写入
+PASS B9 评分为空点保存仅提示
+PASS C1 往前翻月可跨年到去年 12 月
+PASS C2 闰年 2 月有 29 天
+PASS C3 平年 2 月有 28 天
+PASS C4 饮水减到 0 不为负
+PASS C5 份量减到 0.5 不再减小
+PASS C6 删除不存在的饮食条目不崩
+PASS E1 知识库条目数 ≥ 38
+PASS E2 提问命中知识库
+PASS E3 追问“再详细点”接上下文
+PASS E4 无上下文追问不误触发
+PASS E5 结合数据：今天练什么
+PASS E6 结合数据：我蛋白够吗
+PASS E7 结合数据：连续打卡
+PASS E8 未知问题兜底（不瞎编 + v7.11 共情口径）
+PASS E9 空输入不崩
+PASS E10 极端输入（1 万字符）不崩
+PASS F1 返回键层栈仍在
+PASS F2 月历打卡标记：完成打卡（含 at）才显示 ✓，部分勾选不算
+PASS F3 饮水 ml 计量仍在
+PASS F4 组间休息计时器可启动与跳过
+PASS F5 时间戳出处说明已接上
+PASS F6 打卡口径：仅完成全部动作并打卡（at）才计成功；部分勾选不计入连续/累计
+PASS G1 foodConfidence 非法来源→0，合法来源在(0,1]
+PASS G2 confLabel 四档正确
+PASS G3 favFoods 空 meals 不崩返回空数组
+PASS G4 favFoods 脏 meals 结构不崩且只收数组餐项
+PASS G5 favFoods 按频次排序且历史置信度 0.75
+PASS G6 detectBarcodePhoto 无 BarcodeDetector → 错误回调不崩
+PASS G7 detectBarcodePhoto 非法 dataURL → 错误回调
+PASS G8 fetchOFFBarcode 无 fetch → 错误回调
+PASS G9 低置信度（模糊匹配）结果显示警示条
+PASS G10 历史推荐选中显示「中」置信度徽章
+PASS G11 热量覆盖 99999 被夹取到 5000
+PASS G12 单份热量 >4000 时确认添加被拦截（结果二次校验）
+PASS G13 拍照/相册入口分离（相册 input 无 capture、拍照 input 有 capture）
+PASS H1 AI 结果离谱值被夹取（克 99999→2000、热量 -5→0、蛋白 1e6→200）
+PASS H2 AI 热量与宏量矛盾 >35% → 以宏量为准并降置信度
+PASS H3 AI 只给热量 → 自动拆出宏量且自洽
+PASS H4 extractJSON：```json 包裹可解析 / 垃圾文本返回 null
+PASS H5 logWeight 脏数据不写入（abc / 500 / 10 / null）
+PASS H6 logWeight 同日覆盖、跨日追加且按日期排序
+PASS H7 体重曲线：空数据有兜底文案、单点无 NaN、多点生成路径
+PASS H8 自绘形象：10 种情绪都能生成且无 undefined / 无外链
+PASS H9 皮肤切换：自绘 SVG 皮肤均输出 dataURI（无外链素材）
+PASS H10 自定义动作：超名截断 / 组数夹取 / XSS 不执行
+PASS H11 自定义动作：完成勾选落库、删除生效（且不产生 NaN 键）
+PASS H12 自定义动作上限 20 个（超出不写入）
+PASS H13 myEx 脏数据（非数组 / 缺 id 项）不影响训练页渲染
+PASS H14 体重录入越界被拒绝（25 / 500 / 空）
+PASS H15 AI 设置：非 https 地址被拒绝且提示
+FAIL D1 在线失败场景有可操作查询入口  →  断言失败
+PASS D1 在线查询 fetch reject → 重试后兜底文案
+PASS D2 返回非 JSON → 重试后兜底文案
+PASS D3 空结果 → 兜底文案
+PASS D4 在线结果渲染
+PASS D5 在线条目按克计（默认 100g）
+PASS D6 在线条目写入且宏量按 100g 换算
+PASS D7 无照片时校正面板可用
+PASS D8 无 fetch 环境不崩
+PASS V1 AI 未开启 → 返回未开启且不发请求
+PASS V2 地址非 http / 缺凭据 / 图片过短 → 均被前置拦截
+PASS V3 代理模式成功 → 返回结构化结果且经过二次校验
+PASS V4 服务 500 → 重试 1 次共 2 次请求后返回错误
+PASS V5 网络中断 → 重试后返回「网络错误」而非崩溃
+PASS V6 401 口令错误 → 不重试（避免刷额度）
+PASS V7 直连模式：剥掉代码块后正确解析
+PASS V8 模型返回非 JSON → 返回「无法解析」
+PASS V9 模型标 uncertain → 置信度强制降到 0.35 以下
+PASS I1 形象 v7.9：11 种帧（含眨眼）输出均有效
+PASS I2 眨眼帧对象参数 → 有效 SVG
+PASS I3 scheduleBlink / petTapEgg 已定义
+PASS I4 知识库条数 ≥ 60
+PASS I5 新知识条目可命中（奶茶/引体）
+PASS I6 体重趋势（有档案无曲线）→ 引导记录而非档案文案
+PASS I7 本周统计回答含天数且不报错
+PASS I8 吃什么建议（无记录）→ 结合蛋白缺口给推荐
+PASS I9 该餐今天为空且有历史 → 显示一键复制行
+PASS I10 点击复制 → 条目新增且照片已去除
+PASS J1 小蛛 SVG 输出有效（svg 标签+viewBox）
+PASS J2 无 petSkin 脏数据 → 默认迁移为 spiderV3（v8.0 视频同款）
+PASS J3 小蛛三个版本 11 种帧全部输出有效
+PASS J4 旧值迁移：svg→nahida、spider→spiderV3、spiderV2→spiderV3、official→official、脏值→spiderV3
+PASS J5 顶边悬挂：edge-top → pet 挂上 edge-t 类
+PASS J6 翻跟头：petFlip → flip 类
+PASS J7 冒爱心：petHearts → fly-heart 节点入列
+PASS J8 教练名可配置
+PASS J9 教练名缺省回落小练
+PASS J10 applyCoachIdentity → 聊天输入占位与引导文案生效
+PASS J11 背景预设 p3 → wallpaper 渐变生效；脏 bg 回落安全渐变而非空白
+PASS J11b 默认（未设置 bg）走角色壁纸预加载，图片路径为 nahida-card.webp
+PASS J12 EST_LIB 新增蒸饺/寿司/薯条（测试集驱动）
+PASS J13 生产 prompt 含盖饭/份量锚点/背景忽略规则
+PASS J14 识别评测工具就绪（真值表 13 条 + live 模式）
+PASS J15 离线评测报告已落盘
+PASS K1 皮肤注册表六键齐全（nahida/spiderV1/V2/V3/official/photo）
+PASS K1b 位图皮肤有 asset 且对外名不含角色本名
+PASS K2 skinBy 脏键回落第一项而非崩溃
+PASS K3 切换皮肤不丢状态（悬挂类保留 + 情绪保留）
+PASS K4 上下文默认不限轮数（7 轮全留，且不超硬上限）
+PASS K4b 收回为 5 轮后立即裁剪到 5
+PASS K5 指代消解：“它”复用窗口内最近主题（引体→离心）
+PASS K6 闲聊知识库命中（晚安/心情不好）
+PASS K7 小蛛两版本主题确实不同（配色/纹样/胸标/身形比）
+PASS K8 多场景模拟评测报告已落盘（准确率口径）
+PASS L1 v3 配色 = 视频实测值（主红 #C92848 / 藏蓝 #344383 / 描边 #241018）
+PASS L2 v3 蛛网为中心放射 + 6 主干 + 不透明度提到 .45
+PASS L3 v3 胸标为蜘蛛徽记（撤销 v2 的哑铃胸标）
+PASS L4 v3 身形比回到 1.00（撤销 v2 的 1.07）
+PASS L5 v3 眼罩为水滴形 + 粗描边 3.4
+PASS L6 v3 无地面阴影（视频角色悬浮于桌面）
+PASS L7 v3 不出现星星眼 / 爱心眼 / 泪眼装饰
+PASS L8 主题缺字段补默认值（旧主题不会读到 undefined）
+PASS L9 助手回答不再吞掉证据正文（星级标记后的说明文本须保留）
+PASS L10 教练头像预设 SVG → data URI（旧版直接当 img src 会渲染成破图）
+PASS L11 气泡文本为非字符串时不崩溃
+PASS L12 模型空响应 → 返回 null，不再兜底成「150 kcal」假结果
+PASS L13 只给热量 → 按 20/50/30 拆宏量且热量守恒
+PASS L14 extractJSON 能剥离 markdown 代码块
+PASS L15 写入失败时 save() 不抛异常并返回 false（旧版会抛错中断整条调用链）
+PASS L16 视频 7 项动作的 keyframes 全部就绪
+PASS L17 v1.1 已实现溜达动作（walkBob）；仍不实现跳跃
+PASS L18 动作函数可调用且不崩（wave / crouch / exit / idle / 残影 / 圆气泡）
+PASS M1 三套方案齐全（A 有卧推椅 / B 无卧推椅 / C 健身房器械），各含推/拉/腿/核心 4 天
+PASS M2 每套动作数量充分（≥24，即 4 天 × ≥6 动作）
+PASS M3 两套互不交叉引用（动作对象不共享，改一套不影响另一套）
+PASS M4 每个动作字段齐全（名称/肌群/组数/次数/节奏/呼吸/休息/标准/易错/视频）
+PASS M5 动作视频链接均为合法 https
+PASS M5b 三套全部动作均为 B 站单视频直链（含 BV 号），无搜索页兜底
+PASS M5c C 套（健身房）动作齐全且起始建议按体重计算（kgBase）
+PASS M6 默认方案为 A，脏值一律回落 A
+PASS M7 切换方案后 PLANS 指向对应数据源
+PASS M8 切换方案不丢打卡 / 重量 / 自定义动作
+PASS M9 老数据 pump 键迁移为 core（已改组数与上次重量不丢）
+PASS M10 训练页渲染：含动作名 / 目标肌群 / 节奏 / 呼吸 / 方案标签
+PASS M11 设置页含训练方案切换 UI（A/B 两个选项 + 适用场景）
+PASS M12 点击 B 套后方案切换生效且页面不崩
+PASS N1 溜达：petWalk 加 pet-walking 类并产生位移
+PASS N2 关闭溜达后 petWalk 不再触发（设置项生效）
+PASS N3 挣扎 / 落地：petStruggle 与 petLand 可切换且不崩
+PASS N4 petSpeak 在无 speechSynthesis 环境下返回 false 且不抛
+PASS N5 photoPetSVG：有照片时输出圆形裁切 image，无照片时回落到自绘脸
+PASS N6 照片皮肤在注册表内且可渲染（切到 photo 不崩）
+PASS N7 源码内已无 bsearch 搜索兜底调用
+PASS P1 知识库文章齐全（≥10 篇，字段完整，均带视频直链）
+PASS P2 renderKnowledge 渲染不崩且含文章标题与视频行
+PASS P3 点开文章写入已读标记（STATE.knowledge.read）
+PASS P4 haversine 距离正确（1° 纬度 ≈ 111.2 km）
+PASS P5 卡路里按 ACSM 公式计算（1km/10min/65kg ≈ 76 kcal）
+PASS P6 renderRun 渲染不崩（含开始按钮 + 累计统计）
+PASS P7 轨迹 SVG：两点以上生成 path，点不足时返回空（不崩）
+PASS P8 短距离（<20m）不会被记入跑步记录
+PASS P9 地图底图：两点以上生成瓦片与轨迹层，点不足返回空
+PASS P10 地图底图默认关闭（离线优先），开启后走瓦片分支
+PASS Q1 index.html 内联首屏启动层 #boot，且三份入口文件均无 GitHub 域名引用
+PASS Q2 hideBoot 置 __READY 并淡出移除启动层（不再无限转圈）
+PASS Q3 Service Worker 改为缓存优先 + 版本号升到 boji-1-2-0
+PASS Q4 背景图等待上限收紧到 3.5s（网络不通快速回落底色）
+PASS V1 按标点切段并给不同韵律：感叹更亮更快、疑问句尾上扬、省略放慢
+PASS V2 情绪影响基频：cheer 比 sad 更快更高
+PASS V3 只在桌宠主界面发声：面板打开时返回 false 并挂起待播
+PASS V4 回到主界面可发声（返回 true）
+PASS V5 离开主界面立即停止并释放（seq 作废 + speaking=false）
+PASS V6 voiceOnHome：面板打开判否，关闭后判是
+PASS W1 生成 B 站官方嵌入播放器地址（内嵌播放，不跳外站）
+PASS W2 全库已无「合集时间戳 / 搜索兜底」链接
+PASS W3 每个动作都是唯一 BV 直链（三套合计 >=60 条）
+PASS W4 openVideo 在弹层内注入 iframe；closeVideo 清空释放
+PASS X1 底部 7 个入口，聊天固定正中（索引 3）
+PASS X2 动线顺序：训练/饮食/跑步 · 聊天 · 知识/数据/我的
+PASS Y1 SVG 带显式 width/height（此前只有 viewBox，栅格化默认尺寸导致糊）
+PASS Y2 默认保留原图五官：不叠加卡通眼睛与嘴（异常表情根因）
+PASS Y3 切到「卡通叠加」后才出现自绘五官
+PASS Y4 取景参数生效：缩放 1.8 → image 宽 = 2*48*1.8 = 172.8
+PASS Y5 取景参数脏值（NaN/字符串/null）回落默认且不崩
+PASS Y6 照片上传走高清参数（512px / 画质 0.9，不再是 256 / 0.72）
+
+==== 攻击式自检：195 PASS / 1 FAIL ====
+RESULT: FAILED
+[ELIFECYCLE] Test failed. See above for more details.

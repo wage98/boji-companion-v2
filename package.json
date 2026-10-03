@@ -1,0 +1,22 @@
+{
+  "name": "boji-companion-v2",
+  "version": "2.0.0-pre.1",
+  "private": true,
+  "description": "Boji Companion V2 frozen-contract implementation",
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@11.16.0",
+  "scripts": {
+    "test": "node tools/selfcheck.js",
+    "test:functional": "node tools/selfcheck-functional.js",
+    "test:attack": "node tools/selfcheck-attack.js",
+    "eval:vision": "node tools/eval-vision.js",
+    "eval:simulate": "node tools/eval-simulate.js",
+    "check:syntax": "node --check app.js && node --check sw.js && node --check tools/selfcheck.js && node --check tools/selfcheck-functional.js && node --check tools/selfcheck-attack.js && node --check tools/eval-vision.js && node --check tools/eval-simulate.js"
+  },
+  "devDependencies": {
+    "jsdom": "28.1.0",
+    "qrcode": "1.5.4"
+  }
+}

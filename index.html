@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<!--
+  训练日记 · 居家哑铃训练记录 App（纯前端单页，数据只存本机）
+  桌宠形象、教练名字与头像、桌面背景均可更换（我的 → 教练与外观 / 桌宠形象）
+-->
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#F3F0FB">
+<link rel="manifest" href="manifest.json">
+<!-- iOS/Android 对 SVG 图标支持不一致：一律给 PNG，避免安装后仍是旧图标 -->
+<link rel="icon" type="image/png" sizes="192x192" href="assets/icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="assets/icon-512.png">
+<link rel="apple-touch-icon" href="assets/icon-192.png">
+<title>训练日记 · 居家哑铃训练记录</title>
+<meta name="apple-mobile-web-app-title" content="训练日记">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<!-- 首屏样式内联：网络再慢也能立刻画出启动画面，杜绝白屏/黑屏 -->
+<style>
+  #boot{position:fixed; inset:0; z-index:9999; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; gap:14px;
+    background:linear-gradient(165deg,#efe9fb,#ddd2f2 55%,#c9b8e6); color:#3a3350;
+    font-family:-apple-system,"PingFang SC","Microsoft YaHei",system-ui,sans-serif;}
+  #boot .bt-logo{width:74px;height:74px;border-radius:22px;
+    background:rgba(255,255,255,.72); box-shadow:0 10px 26px -12px rgba(80,55,120,.5);
+    display:flex;align-items:center;justify-content:center;}
+  #boot .bt-name{font-size:16px;font-weight:700;letter-spacing:.5px;}
+  #boot .bt-bar{width:132px;height:4px;border-radius:99px;background:rgba(255,255,255,.55);overflow:hidden;}
+  #boot .bt-bar i{display:block;height:100%;width:38%;border-radius:99px;
+    background:linear-gradient(90deg,#a7dcc4,#7fd8c4); animation:btSlide 1.05s ease-in-out infinite;}
+  @keyframes btSlide{0%{margin-left:-42%}100%{margin-left:104%}}
+  #boot .bt-tip{font-size:11.5px;opacity:.72;}
+  #boot .bt-slow{display:none;max-width:250px;text-align:center;font-size:11.5px;line-height:1.7;
+    padding:10px 14px;border-radius:14px;background:rgba(255,255,255,.6);margin-top:2px;}
+  #boot.slow .bt-bar{display:none;} #boot.slow .bt-slow{display:block;}
+  #boot button{margin-top:4px;border:0;border-radius:999px;padding:8px 18px;font-size:12.5px;font-weight:600;
+    color:#fff;background:linear-gradient(180deg,#8fd9bf,#5fc2a4);cursor:pointer;}
+  #boot.done{opacity:0;pointer-events:none;transition:opacity .32s ease;}
+</style>
+<link rel="stylesheet" href="styles.css">
+<!-- 预加载关键静态资源，缩短首屏等待 -->
+<link rel="preload" href="styles.css" as="style">
+<link rel="preload" href="app.js" as="script">
+</head>
+<body>
+<!-- 启动画面（内联，立即可见；由 app.js 就绪后淡出） -->
+<div id="boot" role="status" aria-live="polite">
+  <div class="bt-logo">
+    <svg width="42" height="42" viewBox="0 0 48 48" aria-hidden="true">
+      <path d="M7 48 C7 36.5 14 30.5 24 30.5 C34 30.5 41 36.5 41 48Z" fill="#2e2e33"/>
+      <circle cx="24" cy="22" r="13" fill="#f6efe6" stroke="#2b2320" stroke-width="1.6"/>
+      <ellipse cx="24" cy="27.5" rx="6.4" ry="4.6" fill="#fff" stroke="#2b2320" stroke-width="1.3"/>
+      <circle cx="19" cy="20.5" r="2.1" fill="#2b2320"/><circle cx="29" cy="20.5" r="2.1" fill="#2b2320"/>
+      <circle cx="24" cy="26.4" r="1.5" fill="#2b2320"/>
+    </svg>
+  </div>
+  <div class="bt-name">训练日记</div>
+  <div class="bt-bar"><i></i></div>
+  <div class="bt-tip" id="bt-tip">正在准备你的桌面…</div>
+  <div class="bt-slow" id="bt-slow">加载有点慢，可能是网络不通畅。<br>你的数据都存在本机，不会丢。</div>
+  <button id="bt-retry" style="display:none" onclick="location.reload()">重新加载</button>
+</div>
+<script>
+/* 启动看门狗：4.5s 未就绪 → 明确告知；9s → 给重试按钮（不再无限转圈） */
+window.__T0 = Date.now();
+(function () {
+  var b = document.getElementById('boot');
+  setTimeout(function () {
+    if (!window.__READY && b) {
+      b.classList.add('slow');
+      var t = document.getElementById('bt-tip'); if (t) t.textContent = '还在加载…';
+    }
+  }, 4500);
+  setTimeout(function () {
+    if (!window.__READY && b) {
+      var r = document.getElementById('bt-retry'); if (r) r.style.display = 'block';
+      var t2 = document.getElementById('bt-tip'); if (t2) t2.textContent = '网络似乎不通';
+    }
+  }, 9000);
+})();
+</script>
+<div class="stage">
+  <!-- 手机外壳 mockup -->
+  <div class="phone" id="phone">
+    <div class="bezel">
+      <div class="notch"><span class="cam"></span></div>
+      <div class="screen" id="screen">
+
+        <!-- 桌面壁纸（可更换：5 种预设 + 自定义上传） -->
+        <div class="wallpaper" id="wallpaper"></div>
+        <div class="glow g1"></div><div class="glow g2"></div><div class="glow g3"></div>
+
+        <!-- 状态栏 -->
+        <div class="statusbar">
+          <span id="sb-time">9:41</span>
+          <span class="sb-right"><i class="sig"></i><i class="wifi"></i><i class="bat"></i></span>
+        </div>
+
+        <!-- 桌面主屏（桌宠即主界面） -->
+        <main class="homescreen" id="home">
+          <div class="clock-widget">
+            <div class="c-time" id="c-time">9:41</div>
+            <div class="c-date" id="c-date">周日 · 9月27日</div>
+          </div>
+          <div class="home-stats" id="home-stats"><!-- 今日三连：训练日/已打卡/连续 --></div>
+          <div class="home-card" id="home-today"><!-- 今日训练速览：一眼看到当天动作 --></div>
+
+          <!-- 常驻浮层桌宠（可拖拽、吸附、记忆位置） -->
+          <div class="pet" id="pet" role="button" aria-label="桌宠" tabindex="0">
+            <div class="pet-bubble" id="pet-bubble"></div>
+            <div class="pet-body">
+              <img class="pet-img" id="pet-img" src="assets/icon.svg" alt="桌宠">
+              <div class="pet-ring"></div>
+              <div class="pet-mood" id="pet-mood">✦</div>
+              <!-- 招牌发饰宝珠（小练标志）+ 草元素粒子：让桌宠“活起来”（轻量 Live2D 等效） -->
+              <span class="pet-akuma a1"></span>
+              <span class="pet-akuma a2"></span>
+            </div>
+            <div class="pet-particles" aria-hidden="true"><i></i><i></i><i></i></div>
+            <div class="pet-shadow"></div>
+          </div>
+
+          <!-- 底部 dock：从桌宠展开的各模块入口 -->
+          <nav class="dock" id="dock">
+            <!-- v1.2 动线重排：高频「训练/饮食」靠左、记录类「跑步/知识」居中两侧、
+                 低频「数据/我的」靠右；聊天固定正中，作为桌宠入口最显眼 -->
+            <button class="dock-item" data-go="training"><span class="di">🏋️</span><b>训练</b></button>
+            <button class="dock-item" data-go="diet"><span class="di">🍱</span><b>饮食</b></button>
+            <button class="dock-item" data-go="run"><span class="di">🏃</span><b>跑步</b></button>
+            <button class="dock-item pet-talk" id="pet-talk"><span class="di">💬</span><b>聊天</b></button>
+            <button class="dock-item" data-go="knowledge"><span class="di">📚</span><b>知识</b></button>
+            <button class="dock-item" data-go="data"><span class="di">📈</span><b>数据</b></button>
+            <button class="dock-item" data-go="profile"><span class="di">👤</span><b>我的</b></button>
+          </nav>
+        </main>
+
+        <!-- 助手对话面板（点宠物或聊天展开） -->
+        <section class="panel assistant" id="assistant" aria-hidden="true">
+          <header class="panel-head">
+            <img class="ph-av" src="assets/icon.svg" alt="">
+            <div class="ph-meta"><b>小练</b><span id="ph-status">在线 · 你的增肌教练</span></div>
+            <button class="ph-close" data-close="assistant">✕</button>
+          </header>
+          <div class="chat" id="chat"></div>
+          <div class="quick" id="quick"></div>
+          <div class="chat-input">
+            <input id="chat-text" type="text" placeholder="问小练任何训练/营养问题…" maxlength="80">
+            <button id="chat-send">发送</button>
+          </div>
+        </section>
+
+        <!-- 通用模块面板（训练/饮食/数据/我的） -->
+        <section class="panel module" id="module" aria-hidden="true">
+          <header class="panel-head">
+            <button class="ph-back" data-close="module">‹</button>
+            <div class="ph-meta"><b id="mod-title">模块</b><span id="mod-sub"></span></div>
+            <button class="ph-close" data-close="module">✕</button>
+          </header>
+          <div class="mod-body" id="mod-body"></div>
+        </section>
+
+        <!-- 训练页内部：周历 + 当日动作（在 module 内渲染） -->
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 首启引导 -->
+<div class="modal-mask" id="onboard" aria-hidden="true">
+  <div class="modal">
+    <h3>先认识一下你(｡･ω･｡)ﾉ</h3>
+    <p class="sub">我是小练，你的<b>居家哑铃</b>增肌教练，以后常驻你手机桌面陪你练啦~</p>
+    <label>身高 (cm)<input id="ob-h" type="number" inputmode="decimal" placeholder="170"></label>
+    <label>体重 (kg)<input id="ob-w" type="number" inputmode="decimal" placeholder="65"></label>
+    <label>单哑铃最大重量 (kg)<input id="ob-d" type="number" inputmode="decimal" placeholder="10"></label>
+    <p class="sub" style="text-align:left;font-size:11.5px;line-height:1.65;margin:2px 0 0">关于拍照记饮食：拍照 = <b>留档 + 估算</b>。未开启 AI 识别时走条码 / 在线库 / 历史 / 本地库匹配，开启后才会调用云端视觉模型；不管走哪条路径，<b>热量都要你确认后才写入</b>，估算存在 ±15~35% 误差。</p>
+    <button class="btn-grad" id="ob-save">开始和小练一起练</button>
+  </div>
+</div>
+
+<!-- 训练完成弹窗 -->
+<div class="modal-mask" id="done-modal" aria-hidden="true">
+  <div class="modal">
+    <div class="done-emoji" id="done-emoji">🎉</div>
+    <h3 id="done-title">今日训练完成！</h3>
+    <p class="sub" id="done-sub"></p>
+    <div class="done-stats" id="done-stats"></div>
+    <button class="btn-grad" id="done-ok">收到~</button>
+  </div>
+</div>
+
+<!-- 食物记录面板（识别结果页：拍照/相册 → 条码/历史/本地库匹配 + 置信度 → 校正 → 确认） -->
+<div class="modal-mask sheet" id="food-sheet" aria-hidden="true">
+  <div class="modal">
+    <h3>记录食物</h3>
+    <p class="sub">拍照留档后按条码 / 历史 / 食物库匹配并标注置信度；低置信度会明确提示，名称份量热量都能改。</p>
+    <div class="food-list" id="food-list"></div>
+    <button class="btn-grad ghost" id="food-close">取消</button>
+  </div>
+</div>
+
+<!-- 拍照取景隐藏入口（饮食页拍照记录用） -->
+
+<!-- 组间休息计时器 -->
+<div class="rest-timer hidden" id="rest-timer">
+  <div class="rt-ring"><span id="rt-sec">60</span></div>
+  <div class="rt-label">组间休息</div>
+  <button id="rt-skip">跳过</button>
+</div>
+
+<!-- v1.2 动作视频：App 内直接播放（B 站官方嵌入播放器），不再跳转外站 -->
+<div class="modal-mask vpop" id="video-pop" aria-hidden="true">
+  <div class="vpop-box">
+    <header class="vpop-head">
+      <b id="vpop-title">动作示范</b>
+      <div class="vpop-act">
+        <button id="vpop-local" title="播放你本机已保存的视频">📁 本地视频</button>
+        <a id="vpop-open" href="#" target="_blank" rel="noopener">原站 ↗</a>
+        <button id="vpop-close">✕</button>
+      </div>
+    </header>
+    <div class="vpop-stage" id="vpop-stage"></div>
+    <p class="vpop-tip" id="vpop-tip"></p>
+  </div>
+</div>
+
+<!-- toast -->
+<div class="toast hidden" id="toast"></div>
+
+<script src="app.js" defer></script>
+</body>
+</html>

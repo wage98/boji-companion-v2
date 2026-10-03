@@ -1,0 +1,60 @@
+﻿{
+  "schemaVersion": 1,
+  "classifications": [
+    {
+      "reference": "tools/selfcheck-functional.js — calendar rating edit, rating deletion, current-day score persistence",
+      "classification": "VALID_REQUIREMENT",
+      "reason": "Calendar editing and score persistence are valid capabilities. TST-004 repairs only the fixture by selecting a seeded non-today check-in key; no production behavior changed."
+    },
+    {
+      "reference": "tools/selfcheck-attack.js — J15 and K8 generated evaluation reports",
+      "classification": "VALID_REQUIREMENT",
+      "reason": "The report-generation checks remain valid. TST-003 makes their generated prerequisites explicit and idempotent in a fresh clone."
+    },
+    {
+      "reference": "tools/selfcheck-attack.js — D1 retry/fallback behavior",
+      "classification": "VALID_REQUIREMENT",
+      "reason": "The offline fallback remains a valid behavior check. TST-005 polls for the observable fallback state with a 5 second ceiling instead of assuming 1350 ms."
+    },
+    {
+      "reference": "tools/selfcheck-attack.js — H3 AI calories-only output automatically derives macros",
+      "classification": "LEGACY_BUG_EXPECTATION",
+      "reason": "This expectation conflicts with FOOD-004, which forbids fabricating macronutrients from calories. It remains unchanged during the harness-only G1 repair and must be replaced when G4 implements food truth."
+    },
+    {
+      "reference": "tools/selfcheck-attack.js — J1/J2/J3/J4/J11b/K1/K1b/K7 legacy Nahida, spider-hero and third-party wallpaper/skin identities",
+      "classification": "OBSOLETE_WITH_REASON",
+      "reason": "These V1 identity and asset assertions conflict with SEC-010, the frozen original adult Boji direction, and the exclusion of derivative previews. Companion motion, appearance choice and Photo Pet capabilities remain valid and require new V2 identity tests."
+    },
+    {
+      "reference": "tools/selfcheck-attack.js — K3 retains dock and emotion state when appearance changes; N6 renders Photo Pet",
+      "classification": "VALID_REQUIREMENT",
+      "reason": "Appearance-state continuity and Photo Pet are preserved capabilities; future tests must use the V2 Boji identity and keep Photo Pet separate."
+    }
+  ],
+  "harnessRepairs": [
+    {"requirement":"TST-001","result":"IN_PROGRESS","change":"Pinned jsdom 28.1.0 and qrcode 1.5.4 in package.json and pnpm-lock.yaml."},
+    {"requirement":"TST-002","result":"IN_PROGRESS","change":"Removed hardcoded WorkBuddy NODE_PATH and use project-local dependency resolution."},
+    {"requirement":"TST-003","result":"IN_PROGRESS","change":"Both eval generators create eval-set/ idempotently; selfcheck explicitly runs both before suites."},
+    {"requirement":"TST-004","result":"IN_PROGRESS","change":"Calendar rating test selects a seeded visible check-in instead of using a day-of-month threshold."},
+    {"requirement":"TST-005","result":"IN_PROGRESS","change":"D1 through D4 async checks wait for observable state; D1 uses 25ms polling with a 5000ms timeout."},
+    {"requirement":"TST-006","result":"IN_PROGRESS","change":"Local repeated runs passed; fresh disposable clone installation and execution are pending."}
+  ],
+  "preRepairBaseline": {"functionalPass":55,"functionalFail":0,"attackPass":194,"attackFail":2,"aggregatePass":249,"aggregateFail":2,"failures":["J15 report missing before test","K8 report missing before test"]},
+  "firstHarnessIterations": [
+    {"aggregatePass":250,"aggregateFail":1,"failure":"New D1 control-presence assertion selected controls before the V1 food result was selected."},
+    {"aggregatePass":250,"aggregateFail":1,"failure":"The same pre-selection control assertion failed again; the final repair selects the available local food result before checking the fallback control."}
+  ],
+  "localRepeatedRuns": [
+    {"timezone":"Pacific/Honolulu","localDate":"2026-10-02","aggregatePass":251,"aggregateFail":0},
+    {"timezone":"Asia/Shanghai","localDate":"2026-10-03","aggregatePass":251,"aggregateFail":0},
+    {"timezone":"Asia/Shanghai","localDate":"2026-10-03","aggregatePass":251,"aggregateFail":0},
+    {"timezone":"Pacific/Honolulu","localDate":"2026-10-02","aggregatePass":251,"aggregateFail":0},
+    {"timezone":"Pacific/Honolulu","localDate":"2026-10-02","aggregatePass":251,"aggregateFail":0}
+  ],
+  "evalArtifacts": {
+    "last-offline-report.txt": "9d1a623770372c4ca1ca265ebdb1660b43177658fe3a8a276ef4d5d9da12518d",
+    "last-simulate-report.txt": "23753f0bb42d5a1bd524cbfa5feba5bd668a42720d7c0bef19d33b6994dc2752"
+  },
+  "freshDisposableClone": {"status":"IN_PROGRESS","notes":"Pending qualification from a clean clone after the G1 harness checkpoint commit."}
+}

@@ -1,0 +1,138 @@
+{
+  "schemaVersion": 1,
+  "sourceRemote": "https://github.com/wage98/boji-diary.git",
+  "sourceBranch": "main",
+  "sourceHead": "c0a8d55283765a0f7d7e4d773df0609ba1e4049d",
+  "sourceTree": "ca4eb14a38f735f8302c238634f7c75352f66f50",
+  "trackedFileCount": 50,
+  "allowedFileCount": 18,
+  "allowedImports": [
+    {
+      "sourcePath": "app.js",
+      "destinationPath": "app.js",
+      "kind": "runtime",
+      "sha256": "d8f832998adfdad938682a05593bbef9b59fc7cfd0f9fe1327032f9875dc2aaf",
+      "reason": "V1 functional baseline; imported unchanged before harness repairs."
+    },
+    {
+      "sourcePath": "index.html",
+      "destinationPath": "index.html",
+      "kind": "runtime",
+      "sha256": "11780aca152ed54f22a6ce5c03c5f61e3542077e322e6b298c309e8a8454e43a",
+      "reason": "V1 functional baseline; imported unchanged before harness repairs."
+    },
+    {
+      "sourcePath": "manifest.json",
+      "destinationPath": "manifest.json",
+      "kind": "runtime",
+      "sha256": "fcc126b65c01a3d716a8e3b3148b73b5dbfae0f385c9fb3f13aaf8fd04a33c4d",
+      "reason": "V1 PWA baseline retained only as pre-G6 input; V2 identity will be qualified later."
+    },
+    {
+      "sourcePath": "styles.css",
+      "destinationPath": "styles.css",
+      "kind": "runtime",
+      "sha256": "a9ce8a41b3e1d619a7a39b0a66164d6c773f6c22447d24e5fb961ef2dc5328d1",
+      "reason": "V1 functional baseline; imported unchanged before harness repairs."
+    },
+    {
+      "sourcePath": "sw.js",
+      "destinationPath": "sw.js",
+      "kind": "runtime",
+      "sha256": "35a4554b7ab55d802cb2d077fbfa2cfaf89e18ed8191c0aef137f4c7efedae89",
+      "reason": "V1 offline baseline retained only as pre-G6 input; V2 namespaces will be qualified later."
+    },
+    {
+      "sourcePath": "assets/icon-192.png",
+      "destinationPath": "assets/icon-192.png",
+      "kind": "runtime",
+      "sha256": "7e4b4827d785f2a9e741462bfb5dc0d8e6250ffd033a922e1d58bb6f19997ddb",
+      "reason": "Self-drawn V1 icon; temporary bootstrap input and superseded by the frozen V2 character direction."
+    },
+    {
+      "sourcePath": "assets/icon-512.png",
+      "destinationPath": "assets/icon-512.png",
+      "kind": "runtime",
+      "sha256": "2157b0128f41147c8f7da07db29c02cdf6f543caea70b7d1e55a00bd8745f584",
+      "reason": "Self-drawn V1 icon; temporary bootstrap input and superseded by the frozen V2 character direction."
+    },
+    {
+      "sourcePath": "assets/icon.svg",
+      "destinationPath": "assets/icon.svg",
+      "kind": "runtime",
+      "sha256": "1066be53a359d7ce0c3f1e20f97d94863d5994d4a19865a42a7c8b169b1039c4",
+      "reason": "Self-drawn V1 icon; temporary bootstrap input and superseded by the frozen V2 character direction."
+    },
+    {
+      "sourcePath": "assets/maskable-512.png",
+      "destinationPath": "assets/maskable-512.png",
+      "kind": "runtime",
+      "sha256": "ac27e3f732fc8da356115abe857a65de98e72865ed07ab2e2b425ad69852caec",
+      "reason": "Self-drawn V1 icon; temporary bootstrap input and superseded by the frozen V2 character direction."
+    },
+    {
+      "sourcePath": "server/README.md",
+      "destinationPath": "server/README.md",
+      "kind": "runtime",
+      "sha256": "4f3fac5f902ac2885dff7e58555d0d6bb0e572b7bf14dd6b1327d115d6232f2a",
+      "reason": "V1 server-side proxy documentation; no credentials copied."
+    },
+    {
+      "sourcePath": "server/worker.js",
+      "destinationPath": "server/worker.js",
+      "kind": "runtime",
+      "sha256": "4352613a4212ef3079d0455d583bcee3f09b9ebe350886d3aed0b4b3de3eed38",
+      "reason": "V1 server-side proxy source; no credentials copied."
+    },
+    {
+      "sourcePath": "tools/build-offline.js",
+      "destinationPath": "tools/build-offline.js",
+      "kind": "runtime",
+      "sha256": "f794f7732ee232b5b8bbccbd9ebc48a31ca99664f090ce4f1d254ec01385f1a1",
+      "reason": "V1 offline build baseline; will be requalified for V2 namespacing and assets."
+    },
+    {
+      "sourcePath": "tools/eval-simulate.js",
+      "destinationPath": "tools/eval-simulate.js",
+      "kind": "test",
+      "sha256": "2215c001d572a651681c23bfc9b34bd7fb1bbc04d1319fe68e2bfc50a07dbf11",
+      "reason": "V1 deterministic simulation fixture; directory-creation repair required by TST-003."
+    },
+    {
+      "sourcePath": "tools/eval-vision.js",
+      "destinationPath": "tools/eval-vision.js",
+      "kind": "test",
+      "sha256": "7eae5060b6cd7fc6b5933d68c33496d936b15178c3afe46b2a902783d554f839",
+      "reason": "V1 offline evaluation fixture; directory-creation repair required by TST-003."
+    },
+    {
+      "sourcePath": "tools/selfcheck-attack.js",
+      "destinationPath": "tools/selfcheck-attack.js",
+      "kind": "test",
+      "sha256": "5085d06f970df4382d70bcf96856f594c09ea1ade8b5f419e7ecb20e0553f5c2",
+      "reason": "Captured V1 attack suite before product behavior changes."
+    },
+    {
+      "sourcePath": "tools/selfcheck-functional.js",
+      "destinationPath": "tools/selfcheck-functional.js",
+      "kind": "test",
+      "sha256": "a06b05f4b2a8b709b195038d76d9fcf95421948ac6a08e5d3c3ae2cbbcb97bf9",
+      "reason": "Captured V1 functional suite before product behavior changes."
+    },
+    {
+      "sourcePath": "tools/selfcheck.js",
+      "destinationPath": "tools/selfcheck.js",
+      "kind": "test",
+      "sha256": "d4d8faba26f2150fc16b17919db400d843c6466841c774608b942d6a01dd4f52",
+      "reason": "V1 test orchestrator; machine-specific NODE_PATH repair required by TST-002."
+    },
+    {
+      "sourcePath": "assets/CREDITS.md",
+      "destinationPath": "evidence/G1/V1_ASSET_CREDITS.md",
+      "kind": "evidence",
+      "sha256": "e76a80d9759d324223f83351d627b55d6cd8505c5c0909cfe262353dcc7d4d56",
+      "reason": "Source-backed provenance evidence used to qualify asset exclusions."
+    }
+  ],
+  "v1GitMetadataCopied": false
+}

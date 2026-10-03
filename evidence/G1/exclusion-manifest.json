@@ -1,0 +1,138 @@
+{
+  "schemaVersion": 1,
+  "sourceRemote": "https://github.com/wage98/boji-diary.git",
+  "sourceHead": "c0a8d55283765a0f7d7e4d773df0609ba1e4049d",
+  "sourceTree": "ca4eb14a38f735f8302c238634f7c75352f66f50",
+  "trackedFileCount": 50,
+  "excludedFileCount": 32,
+  "excludedFiles": [
+    {
+      "sourcePath": ".gitignore",
+      "reason": "Replaced with the V2-owned ignore policy."
+    },
+    {
+      "sourcePath": "README.md",
+      "reason": "Replaced with the V2-owned project entry point; V1 documentation is not normative."
+    },
+    {
+      "sourcePath": "assets/install-qr.png",
+      "reason": "Excluded V1 install QR because V2 QR must derive from a verified V2 RC deployment URL."
+    },
+    {
+      "sourcePath": "assets/nahida-card.webp",
+      "reason": "Excluded third-party official game character wallpaper under SEC-010 and forbidden-assets.json."
+    },
+    {
+      "sourcePath": "assets/nahida-icon.webp",
+      "reason": "Excluded third-party official game character art under SEC-010 and forbidden-assets.json."
+    },
+    {
+      "sourcePath": "assets/pet-final-preview.png",
+      "reason": "Excluded non-authoritative V1 character preview that reproduces the superseded derivative visual direction; not valid Boji branding."
+    },
+    {
+      "sourcePath": "docs/AI识别误差评测报告.md",
+      "reason": "Not imported: V1 historical/product/preview documentation is not normative; frozen V2 contract and PRE-LUNA evidence are authoritative."
+    },
+    {
+      "sourcePath": "docs/NLP与稳定性改造报告.md",
+      "reason": "Not imported: V1 historical/product/preview documentation is not normative; frozen V2 contract and PRE-LUNA evidence are authoritative."
+    },
+    {
+      "sourcePath": "docs/v1.1-交付报告.md",
+      "reason": "Not imported: V1 historical/product/preview documentation is not normative; frozen V2 contract and PRE-LUNA evidence are authoritative."
+    },
+    {
+      "sourcePath": "docs/v1.2.0-六项审验修复报告.md",
+      "reason": "Not imported: V1 historical/product/preview documentation is not normative; frozen V2 contract and PRE-LUNA evidence are authoritative."
+    },
+    {
+      "sourcePath": "docs/v7.6-交付总结报告.md",
+      "reason": "Not imported: V1 historical/product/preview documentation is not normative; frozen V2 contract and PRE-LUNA evidence are authoritative."
+    },
+    {
+      "sourcePath": "docs/产品规划与工作流程.md",
+      "reason": "Not imported: V1 historical/product/preview documentation is not normative; frozen V2 contract and PRE-LUNA evidence are authoritative."
+    },
+    {
+      "sourcePath": "docs/产品评估与开源差距清单.md",
+      "reason": "Not imported: V1 historical/product/preview documentation is not normative; frozen V2 contract and PRE-LUNA evidence are authoritative."
+    },
+    {
+      "sourcePath": "docs/依赖说明.md",
+      "reason": "Not imported: V1 historical/product/preview documentation is not normative; frozen V2 contract and PRE-LUNA evidence are authoritative."
+    },
+    {
+      "sourcePath": "docs/后续优化清单.md",
+      "reason": "Not imported: V1 historical/product/preview documentation is not normative; frozen V2 contract and PRE-LUNA evidence are authoritative."
+    },
+    {
+      "sourcePath": "docs/完整工作日志.md",
+      "reason": "Not imported: V1 historical/product/preview documentation is not normative; frozen V2 contract and PRE-LUNA evidence are authoritative."
+    },
+    {
+      "sourcePath": "docs/审验记录.md",
+      "reason": "Not imported: V1 historical/product/preview documentation is not normative; frozen V2 contract and PRE-LUNA evidence are authoritative."
+    },
+    {
+      "sourcePath": "docs/小蛛形象差异说明.md",
+      "reason": "Not imported: V1 historical/product/preview documentation is not normative; frozen V2 contract and PRE-LUNA evidence are authoritative."
+    },
+    {
+      "sourcePath": "docs/待办与未决问题.md",
+      "reason": "Not imported: V1 historical/product/preview documentation is not normative; frozen V2 contract and PRE-LUNA evidence are authoritative."
+    },
+    {
+      "sourcePath": "docs/接手提示词.md",
+      "reason": "Not imported: V1 historical/product/preview documentation is not normative; frozen V2 contract and PRE-LUNA evidence are authoritative."
+    },
+    {
+      "sourcePath": "docs/架构说明.md",
+      "reason": "Not imported: V1 historical/product/preview documentation is not normative; frozen V2 contract and PRE-LUNA evidence are authoritative."
+    },
+    {
+      "sourcePath": "docs/桌宠形象预览.html",
+      "reason": "Not imported: V1 historical/product/preview documentation is not normative; frozen V2 contract and PRE-LUNA evidence are authoritative."
+    },
+    {
+      "sourcePath": "docs/竞品差距分析.md",
+      "reason": "Not imported: V1 historical/product/preview documentation is not normative; frozen V2 contract and PRE-LUNA evidence are authoritative."
+    },
+    {
+      "sourcePath": "docs/经验总结.md",
+      "reason": "Not imported: V1 historical/product/preview documentation is not normative; frozen V2 contract and PRE-LUNA evidence are authoritative."
+    },
+    {
+      "sourcePath": "docs/自绘形象方案对比.md",
+      "reason": "Not imported: V1 historical/product/preview documentation is not normative; frozen V2 contract and PRE-LUNA evidence are authoritative."
+    },
+    {
+      "sourcePath": "docs/视频来源核对.md",
+      "reason": "Not imported: V1 historical/product/preview documentation is not normative; frozen V2 contract and PRE-LUNA evidence are authoritative."
+    },
+    {
+      "sourcePath": "docs/轮次总结.md",
+      "reason": "Not imported: V1 historical/product/preview documentation is not normative; frozen V2 contract and PRE-LUNA evidence are authoritative."
+    },
+    {
+      "sourcePath": "tools/gen-pet-preview.js",
+      "reason": "Excluded generator for superseded, non-authoritative character previews."
+    },
+    {
+      "sourcePath": "tools/gen-pet-shot.js",
+      "reason": "Excluded generator for superseded, non-authoritative character previews."
+    },
+    {
+      "sourcePath": "tools/mkzip.py",
+      "reason": "Excluded V1-specific packaging helper; V2 release packaging will be qualified under G6/G7."
+    },
+    {
+      "sourcePath": "tools/push.js",
+      "reason": "Excluded V1-targeting push helper; V1 is read-only for this execution."
+    },
+    {
+      "sourcePath": "训练日记-下载二维码.png",
+      "reason": "Not required for the V2 bootstrap allowlist; retained at the V1 source authority and available for later semantic parity audit."
+    }
+  ]
+}

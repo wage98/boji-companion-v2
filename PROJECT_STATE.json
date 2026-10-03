@@ -3,27 +3,27 @@
   \"last_completed_gate\": \"G0\",
   \"status\": \"IN_PROGRESS\",
   \"branch\": \"v2-implementation\",
-  \"head\": \"2c3ac0893d507d9a4b2f896fa5614a6a22ea2fcb\",
-  \"baseline_tree\": \"d1fd2fab65f6e078746e4de708d2dd0e50e4ee2c\",
+  \"head\": \"62121c299ebf9161ec5bb9a935a1f9153b145c7c\",
+  \"baseline_tree\": \"0293dce49fb3f0b1500c82eef947c6a6bd1d372e\",
   \"known_unknowns\": [
-    \"G1 portable regression harness qualification is in progress.\",
+    \"G1 fresh disposable clone install and regression are pending.\",
     \"Final production character asset approval remains pending.\",
     \"Physical mobile/PWA behavior remains unknown until post-Luna qualification.\",
     \"Independent release qualification and production approval remain pending.\"
   ],
   \"forbidden_next_actions\": [
     \"Do not modify V1.\",
-    \"Do not change product behavior before G1 harness qualification passes.\",
+    \"Do not change product behavior before G1 passes.\",
     \"Do not claim physical-device qualification or production approval.\"
   ],
   \"requirements\": {
     \"AUTH-001\": \"PASS\",
     \"AUTH-003\": \"PASS\",
-    \"TST-001\": \"IN_PROGRESS\",
-    \"TST-002\": \"IN_PROGRESS\",
-    \"TST-003\": \"IN_PROGRESS\",
-    \"TST-004\": \"IN_PROGRESS\",
-    \"TST-005\": \"IN_PROGRESS\",
+    \"TST-001\": \"PASS\",
+    \"TST-002\": \"PASS\",
+    \"TST-003\": \"PASS\",
+    \"TST-004\": \"PASS\",
+    \"TST-005\": \"PASS\",
     \"TST-006\": \"IN_PROGRESS\"
   }
 }
