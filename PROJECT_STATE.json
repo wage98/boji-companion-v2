@@ -1,12 +1,12 @@
 ﻿{
-  "current_gate": "G1",
+  "current_gate": "G2",
   "last_completed_gate": "G1",
-  "status": "PASS",
+  "status": "IN_PROGRESS",
   "branch": "v2-implementation",
-  "head": "fcdd0092545e1d3364f9175dcc73167649122b1b",
-  "baseline_tree": "f6f25b4a591dc14b29ec6efd6934ef29fcd92b4d",
+  "head": "b565c74fa82c702ce3f8ce4069dc4b4a51db84e1",
+  "baseline_tree": "8f2694562d4a2057c8d2ab3c99b9b1c28e4b53f8",
   "known_unknowns": [
-    "G2 data foundation and migration are not qualified.",
+    "G2 data foundation, truth provenance, migration, backup and restore are not qualified.",
     "G3 training truth is not qualified.",
     "G4 personal-system truth is not qualified.",
     "G5 UX and companion direction is not qualified; final character asset approval remains pending.",
