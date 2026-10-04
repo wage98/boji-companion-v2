@@ -97,18 +97,23 @@ window.__T0 = Date.now();
 
         <!-- 桌面主屏（桌宠即主界面） -->
         <main class="homescreen" id="home">
-          <div class="clock-widget">
+          <div class="today-greeting" id="home-greeting">
+            <span class="eyebrow">BOJI · 今日陪练</span>
+            <b>今天也按自己的节奏来</b>
+            <span>训练记录只会在你保存训练组后更新。</span>
+          </div>
+          <div class="home-card" id="home-today"><!-- 今日训练速览：一眼看到当天动作 --></div>
+          <div class="home-stats" id="home-stats"><!-- 已保存训练组与训练规律摘要 --></div>
+          <div class="clock-widget" aria-label="当前日期和时间">
             <div class="c-time" id="c-time">9:41</div>
             <div class="c-date" id="c-date">周日 · 9月27日</div>
           </div>
-          <div class="home-stats" id="home-stats"><!-- 今日三连：训练日/已打卡/连续 --></div>
-          <div class="home-card" id="home-today"><!-- 今日训练速览：一眼看到当天动作 --></div>
 
           <!-- 常驻浮层桌宠（可拖拽、吸附、记忆位置） -->
-          <div class="pet" id="pet" role="button" aria-label="桌宠" tabindex="0">
+          <div class="pet" id="pet" role="button" aria-label="桌宠" tabindex="0" data-character-family="chibi" data-character-slot="base" data-character-state="happy" data-character-states="neutral happy encourage focused proud concerned tired sleep">
             <div class="pet-bubble" id="pet-bubble"></div>
             <div class="pet-body">
-              <img class="pet-img" id="pet-img" src="assets/boji-companion-pet-candidate.png" alt="Boji 训练伙伴候选">
+              <img class="pet-img" id="pet-img" data-asset-status="candidate" src="assets/boji-companion-pet-candidate.png" alt="Boji 训练伙伴形象候选">
               <div class="pet-ring"></div>
               <div class="pet-mood" id="pet-mood">✦</div>
               <!-- 招牌发饰宝珠（Boji标志）+ 草元素粒子：让桌宠“活起来”（轻量 Live2D 等效） -->
@@ -125,7 +130,7 @@ window.__T0 = Date.now();
         <section class="panel assistant" id="assistant" aria-hidden="true">
           <header class="panel-head">
             <img class="ph-av" src="assets/boji-companion-candidate.png" alt="">
-            <div class="ph-meta"><b>Boji</b><span id="ph-status">在线 · 你的增肌教练</span></div>
+            <div class="ph-meta"><b>Boji</b><span id="ph-status">训练伙伴 · 回答会标明来源边界</span></div>
             <button class="ph-close" data-close="assistant">✕</button>
           </header>
           <div class="chat" id="chat"></div>
@@ -164,7 +169,7 @@ window.__T0 = Date.now();
 <div class="modal-mask" id="onboard" role="dialog" aria-modal="true" aria-labelledby="onboard-title" aria-hidden="true" tabindex="-1">
   <div class="modal">
     <h3 id="onboard-title">先认识一下你(｡･ω･｡)ﾉ</h3>
-    <p class="sub">我是Boji，你的<b>居家哑铃</b>增肌教练，以后常驻你手机桌面陪你练啦~</p>
+    <p class="sub">我是 Boji，你的训练伙伴。你可以从力量训练开始，也可以记录饮食、跑步和身体变化。</p>
     <label>身高 (cm)<input id="ob-h" type="number" inputmode="decimal" placeholder="170"></label>
     <label>体重 (kg)<input id="ob-w" type="number" inputmode="decimal" placeholder="65"></label>
     <label>单哑铃最大重量 (kg)<input id="ob-d" type="number" inputmode="decimal" placeholder="10"></label>

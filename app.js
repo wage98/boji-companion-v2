@@ -433,7 +433,7 @@ const KB = [
   { q:"谢谢你", a:"不用谢啦~ 看着你一点点变强，我也很开心(｡･ω･｡)ﾉ\n下次练完记得来告诉我，我等着听好消息。", k:["谢谢", "感谢", "多谢"] },
   { q:"晚安", a:"晚安呀，睡前少刷会儿手机，灯光调暗会更容易入睡。\n*[B] 证据：睡眠不足会让肌肉合成与恢复打折*", k:["晚安", "睡觉", "睡了", "good night"] },
   { q:"早上好", a:"早！先喝杯水补上夜里的水分，昨晚睡得怎么样？\n睡够的话状态会明显不同；没睡够今天就把强度降一档。", k:["早上好", "早安", "morning", "起床"] },
-  { q:"你是谁", a:"我是你的居家哑铃增肌教练——你名字由你来起（我的 → 教练名字）。\n我只做三件事：陪你练、帮你记、据实回答；不确定就直说，不瞎编。", k:["你是谁", "你叫什么", "自我介绍", "介绍下你"],
+  { q:"你是谁", a:"我是你的训练伙伴——你可以在“我的”页设置称呼。\n我会协助训练和记录，并区分已核验信息与来源待核内容；不确定时会明确告诉你。", k:["你是谁", "你叫什么", "自我介绍", "介绍下你"],
     more:"技术上我是 App 内的规则＋知识库助手，不联网编造，也不会把你的数据传出去。" },
   { q:"你会生气吗", a:"不会真的生气，但你偷懒的时候我会委屈地蹭过来提醒你一下(｡•́︿•̀｡)\n放心，我永远不用打击的方式督促你。", k:["生气", "会生气", "发脾气", "骂我"] },
   { q:"讲个笑话", a:"健身界最好笑的一句话：「我从明天开始减肥」。\n……所以今天这顿先记一笔？拍照我帮你估~(›´ω`‹ )", k:["笑话", "讲个笑话", "逗我", "搞笑"] },
@@ -710,7 +710,7 @@ function bojiReply(text){
   if(m.item && m.score>0){ const ans=m.item.a + (m.item.more ? '\n（回我“再详细点”，我展开讲）' : '');
     CTX.lastItem=m.item; CTX.lastQ=raw; CTX.turns++; ctxPush(raw, ans); return ans; }
   // 4) 寒暄
-  if(/你好|hi|在吗|在呢|嗨/.test(q)){ const a=`你好呀，我是${coachName()}，你的居家哑铃增肌教练(｡･ω･｡)ﾉ\n训练、营养、恢复都可以问我——我只回答有出处的，没把握的会直说。`; ctxPush(raw,a); return a; }
+  if(/你好|hi|在吗|在呢|嗨/.test(q)){ const a=`你好呀，我是${coachName()}，你的训练伙伴(｡･ω･｡)ﾉ\n我会区分已核验的信息和来源待核的内容；不确定时会明确告诉你。`; ctxPush(raw,a); return a; }
   // 5) 兜底：不装懂
   const nm=coachName();
   const fb=`嗯…这个问题我不想拍脑袋就答你，怕误导 ${'(>_<)'}\n` +
@@ -1762,7 +1762,10 @@ function initPet(){
     if(pid===null) return;
     const dx=e.clientX-sx, dy=e.clientY-sy;
     if(Math.abs(dx)>5||Math.abs(dy)>5){
-      if(!dragged){ say(pickLine('drag')); petStopWalk(); petStruggle(true); }   // 抓起来 → 挣扎
+      if(!dragged){
+        if(pet.classList.contains('home-compact')){pet.classList.remove('home-compact');pet.style.left=ox+'px';pet.style.top=oy+'px';}
+        say(pickLine('drag')); petStopWalk(); petStruggle(true);
+      }   // 抓起来 → 挣扎
       dragged=true;
     }
     const sr=$('#screen').getBoundingClientRect();
@@ -1776,7 +1779,7 @@ function initPet(){
     pet.releasePointerCapture(pid); pid=null; pet.classList.remove('dragging');
     petStruggle(false);                                       // 松手 → 停止挣扎
     if(!dragged){ petTapEgg(); openAssistant(); }            // 轻点 = 展开助手对话（连点有彩蛋）
-    else { dockToNearest(); petLand(); setMood('happy', 1600); }   // 拖拽 = 吸附最近边 + 落地回弹
+    else { dockToNearest(); petLand(); setMood('happy', 1600); if(ACTIVE_MODULE==='today')pet.classList.add('home-compact'); }   // 拖拽 = 吸附最近边 + 落地回弹
     petWake();
   };
   pet.addEventListener('pointerup', end);
@@ -1853,7 +1856,7 @@ function navExitAttempt(){
    面板路由
    ============================================================ */
 function openPanel(id){ const p=$('#'+id); p.classList.add('open'); p.setAttribute('aria-hidden','false'); navOpen(id); }
-function closePanel(id){ navUIClose(id); voiceSync(); }   // 回到桌面：语音恢复（有未说完的会接着说）
+function closePanel(id){ navUIClose(id); if(id==='assistant'&&ACTIVE_MODULE==='today')$('#pet')?.classList.add('home-compact'); voiceSync(); }   // 回到桌面：语音恢复（有未说完的会接着说）
 function openAssistant(){ renderAssistant(); voiceSync(); if($('#assistant').classList.contains('open')){ return; } openPanel('assistant'); setMood('wave',1500); voiceSync(); }
 function tabForModule(name){
   if(name==='diet'||name==='run'||name==='knowledge')return 'boji';
@@ -1878,6 +1881,7 @@ function goModule(name){
     metricAfterPaint(RUNTIME_METRICS.pageTransitionMs,transitionStarted);
     return;
   }
+  $('#pet')?.classList.remove('home-compact');
   const title=titles[name]||titles.today;
   updateDockState(tabForModule(name));ACTIVE_MODULE=name;
   $('#mod-title').textContent=title[0]; $('#mod-sub').textContent=title[1];
@@ -1892,23 +1896,29 @@ function goModule(name){
    桌面主屏
    ============================================================ */
 function renderHome(){
+  const homePet=$('#pet');if(homePet&&!homePet.classList.contains('dragging'))homePet.classList.add('home-compact');
   const now=new Date();
   $('#c-time').textContent = `${now.getHours()}:${String(now.getMinutes()).padStart(2,'0')}`;
   $('#sb-time').textContent = $('#c-time').textContent;
   $('#c-date').textContent = `${WEEKDAY[now.getDay()]} · ${now.getMonth()+1}月${now.getDate()}日`;
   const t=getDayType(now.getDay());
   const setsToday=COMPLETED_SETS_BY_DATE.get(todayKey())||0;
+  const greeting=ACTIVE_WORKOUT&&ACTIVE_WORKOUT.session.status==='ACTIVE'
+    ?'你有一节训练还在进行，已保存的组会保留。'
+    :t==='rest'?'今天安排为休息日，恢复也属于训练计划。':'今天的训练安排来自你当前选择的训练方案。';
+  $('#home-greeting').querySelector('span:last-child').textContent=greeting;
   $('#home-stats').innerHTML = `
-    <div class="hs-pill">今日<b> ${dayTypeLabel(t)}</b></div>
-    <div class="hs-pill">已完成<b> ${setsToday} 组</b></div>
-    <div class="hs-pill">连续<b> ${streak()} 天</b></div>`;
+    <div class="hs-pill"><span>今天安排</span><b>${dayTypeLabel(t)}</b></div>
+    <div class="hs-pill"><span>已保存</span><b>${setsToday} 组</b></div>
+    <div class="hs-pill"><span>训练规律</span><b>${streak()} 天</b></div>`;
   const ht = $('#home-today');
   if(t==='rest'){
     ht.innerHTML = `<div class="hc-head"><span class="hc-ic" aria-hidden="true">🌿</span><div><b>今天安排休息</b><span>按你当前选择的每周训练安排</span></div>
       <button class="hc-go" id="hc-go">查看训练 ›</button></div>
       <p class="hc-sub">今天的日历安排为休息日。你可以查看其他训练日，或按自己的状态安排轻松活动。</p>
       <p class="boji-note"><b>Boji：</b>你选择的${esc(planSetMeta().name)}方案把今天列为休息日。</p>
-      <details class="today-why"><summary>为什么今天练这个？</summary><p>本周计划按你选择的训练方案和星期安排显示。今天对应休息日，训练记录不会因此增加。</p></details>`;
+      <button type="button" class="home-adjust" id="home-adjust">调整今天 <span aria-hidden="true">›</span></button>
+      <details class="today-why"><summary>为什么今天安排休息？</summary><p>本周计划按你选择的训练方案和星期安排显示。今天对应休息日，训练记录不会因此增加。</p></details>`;
     $('#hc-go').onclick=()=>goModule('training');
   } else {
     const plan = PLANS[t];
@@ -1917,9 +1927,11 @@ function renderHome(){
       <p class="hc-sub">今天计划包含 ${plan.ex.length} 个动作；训练组会在保存后计入记录。</p>
       <div class="hc-chips">${plan.ex.slice(0,4).map(e=>`<span class="hc-chip">${e.name}</span>`).join('')}${plan.ex.length>4?`<span class="hc-chip more">+${plan.ex.length-4}</span>`:''}</div>
       <p class="boji-note"><b>Boji：</b>${esc(planSetMeta().name)}按星期安排今天的${esc(plan.name)}；进度只会在训练组保存后更新。</p>
+      <button type="button" class="home-adjust" id="home-adjust">调整今天 <span aria-hidden="true">›</span></button>
       <details class="today-why"><summary>为什么今天练这个？</summary><p>这是你当前训练方案按星期安排的内容。系统没有根据缺少的档案或 AI 生成新计划。</p></details>`;
     $('#hc-go').onclick = ()=>goModule('training');
   }
+  $('#home-adjust').onclick=()=>{STATE.selDate=todayKey();save();goModule('training');};
 }
 
 /* ============================================================
@@ -1940,7 +1952,7 @@ function addMsg(role,text){
 function renderAssistant(){
   const chat=$('#chat');
   if(chat.childElementCount===0){
-    addMsg('bot',`你好呀，我是${coachName()}，你的专属增肌教练(｡･ω･｡)ﾉ\n训练、营养、恢复都可以问我——我只回答有科学出处的，没把握的我会直说，不瞎编。`);
+    addMsg('bot',`你好呀，我是${coachName()}，你的训练伙伴(｡･ω･｡)ﾉ\n我会区分已核验的信息和来源待核的内容；不确定时会明确告诉你。`);
   }
   const quick=$('#quick');
   quick.innerHTML='';
@@ -2356,7 +2368,7 @@ function renderModule(name){
   if(name==='profile') return renderProfile(body);
 }
 function renderBoji(body){
-  body.innerHTML=`<section class="boji-hero card"><img class="boji-portrait" src="${BOJI_CANDIDATE}" alt="Boji，原创训练伙伴角色立绘候选"><div><span class="eyebrow">你的训练伙伴</span><h2>你好，我是 Boji</h2><p>我会陪你记录训练、饮食和恢复。需要建议时，我会说明记录依据和不确定的地方。</p><button class="btn-grad" data-boji-action="ask">问 Boji</button></div></section>
+  body.innerHTML=`<section class="boji-hero card" data-character-family="adult" data-character-state="neutral" data-character-slots="master-portrait workout-full-body icon chibi-base" data-character-states="neutral happy encourage focused proud concerned tired sleep"><div class="boji-art-frame"><img class="boji-portrait" data-character-slot="master-portrait" data-asset-status="candidate" src="${BOJI_CANDIDATE}" alt="Boji 原创训练伙伴立绘候选"><span class="asset-stage">形象候选</span></div><div><span class="eyebrow">训练伙伴 · 角色素材候选</span><h2>Boji 在这里</h2><p>训练记录、饮食与恢复工具都可以从这里开始。建议会标明记录依据和不确定之处。</p><button class="btn-grad" data-boji-action="ask">问 Boji</button></div></section>
     <section class="card"><h3>快速记录</h3><div class="boji-actions">
       <button type="button" data-boji-action="food"><span aria-hidden="true">🍽️</span><b>记录饮食</b></button>
       <button type="button" data-boji-action="barcode"><span aria-hidden="true">▥</span><b>扫条码</b></button>
@@ -2413,6 +2425,11 @@ function progressStrengthSummary(){
 }
 function renderProgress(body){
   renderData(body);
+  const details=document.createElement('details');details.className='progress-details';
+  const detailsSummary=document.createElement('summary');detailsSummary.textContent='查看训练日历、身体记录与详细指标';
+  const detailContent=document.createElement('div');detailContent.className='progress-details-body';
+  while(body.firstChild)detailContent.appendChild(body.firstChild);
+  details.append(detailsSummary,detailContent);body.appendChild(details);
   const completed=WORKOUT_HISTORY_RECORDS.filter(row=>row&&row.session&&row.session.status==='COMPLETED');
   const week=new Date();week.setHours(0,0,0,0);week.setDate(week.getDate()-6);
   const weekKey=BojiData.localDateKey(week);
@@ -2425,8 +2442,6 @@ function renderProgress(body){
     <div class="progress-answer"><b>训练规律</b><p>过去 7 天完成了 ${weekly} 天训练。统计只计入已完成的 WorkoutSession。</p></div>
     <div class="progress-answer"><b>值得留意</b><p>${esc(issue)}</p></div>`;
   body.insertBefore(summary,body.firstChild);
-  const heading=document.createElement('h3');heading.className='progress-detail-heading';heading.textContent='训练日历与身体记录';
-  body.insertBefore(heading,summary.nextSibling);
 }
 function refreshProgressSurface(body){
   if(ACTIVE_MODULE==='progress'||ACTIVE_MODULE==='data')return renderProgress(body);
@@ -2538,7 +2553,7 @@ function renderTraining(body){
         esc(video.title||'打开动作教学')+'</button><span class="tag">'+esc(video.matchLevel||'UNVERIFIED')+' · '+esc(video.availability||'UNKNOWN')+'</span>':'';
       const performanceContent=mode==='performance'?'<div class="performance-context"><span>上次：'+(last?(esc(last.date)+' · '+(last.weightKg==null?'重量未填':esc(last.weightKg)+' kg')+' × '+esc(last.reps)+' 次'):'暂无同动作已完成记录')+'</span><span>当前：'+
         (currentSet?('第 '+(currentSet.setIndex+1)+' 组 · 目标 '+esc(currentSet.targetReps)+' 次'):'本动作各组均已保存')+'</span></div>':'';
-      html+='<div class="ex"><div class="ex-top"><span class="ex-no">'+(i+1)+'</span><span class="ex-name">'+esc(ex.nameSnapshot)+
+      html+='<div class="ex '+(current?'exercise-current':'')+'"><div class="ex-top"><span class="ex-no">'+(i+1)+'</span><span class="ex-name">'+esc(ex.nameSnapshot)+
         '</span><span class="ex-sets">'+ex.targetSets+'×'+esc(ex.targetReps)+' · 休'+(p.restSeconds||60)+'s</span></div>'+
         (def&&def.targetMuscles&&def.targetMuscles.length?'<div class="ex-muscle">'+esc(def.targetMuscles.join(' · '))+'</div>':'')+
         performanceContent+modeContent+videoContent+'<div class="workout-sets">';
@@ -2548,10 +2563,10 @@ function renderTraining(body){
         const action=set.completed?'<span>已保存：'+(set.weightKg==null?'重量未填':set.weightKg+' kg')+' · '+set.reps+' 次</span>':
           enabled&&ownsWorkout?'<button class="ex-do" data-complete-set="'+esc(set.setId)+'">保存并完成本组</button>':
           !ownsWorkout?'<small>只读标签页无法保存训练组</small>':'<small>按顺序完成上一组后解锁</small>';
-        html+='<div class="workout-set '+(set.completed?'set-complete':'')+'" data-set-row="'+esc(set.setId)+'"><b>第 '+(set.setIndex+1)+' 组'+(set.completed?' ✓':'')+'</b>'+
+        html+='<div class="workout-set '+(set.completed?'set-complete':'')+(enabled?' current-set':'')+'" data-set-row="'+esc(set.setId)+'"><b>第 '+(set.setIndex+1)+' 组'+(set.completed?' ✓':'')+'</b>'+
           '<label>重量 kg <input type="number" min="0" max="2000" step="0.5" value="'+(set.weightKg==null?esc(weight):set.weightKg)+'" data-weight '+(set.completed||!enabled||!ownsWorkout?'disabled':'')+'></label>'+
           '<label>次数 <input type="number" min="1" max="1000" value="'+(set.reps==null?repsDefault(set.targetReps):set.reps)+'" data-reps '+(set.completed||!enabled||!ownsWorkout?'disabled':'')+'></label>'+
-          '<details><summary>进阶记录（选填）</summary><label>RIR <select data-rir '+(set.completed||!enabled||!ownsWorkout?'disabled':'')+'><option value="">未记录</option>'+rirOptions+'</select></label></details>'+action+'</div>';
+          '<details '+(mode==='performance'?'open':'')+'><summary>RIR 进阶记录（选填）</summary><label>RIR <select data-rir '+(set.completed||!enabled||!ownsWorkout?'disabled':'')+'><option value="">未记录</option>'+rirOptions+'</select></label></details>'+action+'</div>';
       });
       html+='</div>';
       if(current)html+='<button class="ex-do ghost-btn" data-progression="'+esc(ex.exerciseId)+'" data-target-reps="'+esc(ex.targetReps)+'">查看进阶建议</button>';
@@ -3763,6 +3778,7 @@ function renderProfile(body){
   const avatar = p && p.avatar ? p.avatar : BOJI_CANDIDATE;
   body.innerHTML=`<div class="profile-head"><img id="pf-av" src="${avatar}" alt=""><b id="pf-name">${esc(p?(p.name||'训练者'):'训练者')}</b><span>${p?`${p.height}cm · ${p.weight}kg · 哑铃${p.dumbbell}kg`:'未设置档案'}</span>
     <button class="hc-go" id="pf-av-btn">📷 更换头像</button></div>
+    <section class="settings-group"><header><span>A</span><div><h3>训练与档案</h3><p>训练背景、计划和营养偏好</p></div></header>
     <div class="card" style="padding:6px 14px">
       <h4 style="margin:8px 0 2px">档案（改完立即生效）</h4>
       <div class="pf-edit">
@@ -3789,6 +3805,8 @@ function renderProfile(body){
       </div>
       <p id="plan-fit" style="font-size:11px;color:var(--faint);line-height:1.6;padding-top:8px">适用：${esc(planSetMeta().fit)}</p>
     </div>
+    </section>
+    <section class="settings-group"><header><span>B</span><div><h3>Boji 与外观</h3><p>角色、Photo Pet、语音和陪伴偏好</p></div></header>
     <div class="card" style="padding:6px 14px">
       <div class="list-row"><span class="lr-ic">🔥</span>连续打卡<b style="margin-left:auto">${streak()} 天</b></div>
       <div class="list-row"><span class="lr-ic">💧</span>今日饮水<b style="margin-left:auto">${dailyWaterTotal(todayKey())} ml${g.water?' / 估算 '+g.water+' ml':''}</b></div>
@@ -3841,6 +3859,12 @@ function renderProfile(body){
         收回为 5 轮后，更早的内容立即不再参与回答，界面会同步显示当前档位。
       </p>
     </div>
+    </section>
+    <section class="settings-group"><header><span>C</span><div><h3>数据与隐私</h3><p>数据状态、备份恢复与 AI 控制</p></div></header>
+    <div class="card app-tools-card">
+      <div class="list-row" id="profile-health" role="button" tabindex="0"><span class="lr-ic">◉</span>数据健康与诊断<span class="lr-ar">查看 ›</span></div>
+      <p>记录和来源信息保存在本机；AI 识别仅在启用自建服务端代理时发送请求。</p>
+    </div>
     <div class="card" style="padding:6px 14px">
       <h4 style="margin:8px 0 2px">AI 食物识别 <span class="tag" id="vs-state">${(STATE.vision&&STATE.vision.mode&&STATE.vision.mode!=='off')?'已开启':'未开启'}</span></h4>
       <p style="font-size:11px;color:var(--faint);line-height:1.6">AI 拍照识别仅通过你控制的 HTTPS 服务端代理；此静态应用不会直接连接模型供应商。请在代理端限制允许来源、模型、请求大小、超时和频率，关闭图片正文日志并清理错误信息。代理访问凭据只保留在当前页面内存中，通过 Authorization 发送，且不会进入本地备份。关闭 AI 后仍可使用条码、在线库、历史和本地匹配。</p>
@@ -3870,16 +3894,20 @@ function renderProfile(body){
       <div class="list-row" id="reset-pet"><span class="lr-ic">↺</span>重置桌宠位置<span class="lr-ar">›</span></div>
       <div class="list-row" id="reset-all"><span class="lr-ic">🗑️</span>清空所有数据<span class="lr-ar">›</span></div>
     </div>
+    </section>
+    <section class="settings-group"><header><span>D</span><div><h3>应用</h3><p>PWA、更新、诊断与版本信息</p></div></header>
+    <div class="card app-tools-card">
+      <p>应用可添加到主屏幕并像应用一样打开；是否支持安装入口由当前浏览器决定。Boji 不会常驻系统桌面浮窗。</p>
+    </div>
     <div class="card" style="padding:6px 14px">
       <h4 style="margin:8px 0 2px">关于与更新 <span class="tag">v${APP_VERSION}</span></h4>
       <p style="font-size:11px;color:var(--faint);line-height:1.7">
-        桌面图标 / 应用名若仍是旧的：这是<b>添加到主屏幕那一刻</b>由系统保存的快照，之后改代码不会自动覆盖它。<br>
-        刷新方法：<b>长按桌面图标 → 删除/移除</b>，再用浏览器打开本站 → <b>添加到主屏幕</b>，即可显示 Boji 图标与名称。<br>
-        若打开后仍是旧画面：在浏览器设置里<b>清除本站数据</b>（或卸载后重装）即可。
+        更新就绪时会在页面顶部显示提示；请先确认本机记录已经备份，再选择安全更新。添加到主屏幕后可像应用一样打开，具体安装方式由浏览器提供。
       </p>
     </div>
-    <p style="font-size:11px;color:var(--faint);text-align:center;padding:6px">角色素材来源见 assets/CREDITS.md · 数据仅存本机</p>`;
+    <p style="font-size:11px;color:var(--faint);text-align:center;padding:6px">角色素材当前为候选 · 数据仅存本机</p></section>`;
   // 头像上传：本地压缩为 128px dataURL 存入档案
+  const profileHealth=$('#profile-health');if(profileHealth){const openHealth=()=>goModule('data');profileHealth.onclick=openHealth;profileHealth.onkeydown=event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();openHealth();}};}
   $('#pf-av-btn').onclick=()=>{
     if(!STATE.profile){ toast('先在引导里设置身高体重哦'); return; }
     const inp=document.createElement('input');
