@@ -17,7 +17,14 @@ async function buildRc() {
   await fs.mkdir(output, { recursive: true });
 
   for (const name of ['index.html', 'app.js', 'data-layer.js', 'styles.css', 'manifest.json', 'sw.js', 'assets']) {
-    await fs.cp(path.join(root, name), path.join(output, name), { recursive: true });
+    const sourcePath = path.join(root, name);
+    const outputPath = path.join(output, name);
+    if (name === 'index.html' || name === 'app.js') {
+      const canonicalText = (await fs.readFile(sourcePath, 'utf8')).replace(/\r\n?/g, '\n');
+      await fs.writeFile(outputPath, canonicalText, 'utf8');
+    } else {
+      await fs.cp(sourcePath, outputPath, { recursive: true });
+    }
   }
 
   const indexPath = path.join(output, 'index.html');
