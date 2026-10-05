@@ -168,7 +168,7 @@ function main() {
     artifactErrors,
     releaseWorkflowChecks: Object.fromEntries(workflowChecks.map(([name, passed]) => [name, passed ? 'PASS' : 'FAIL'])),
     symlinksNotFollowed: [...sourceSymlinks, ...distSymlinks],
-    reviewBoundary: 'Filename checks do not establish copyright or originality. Review the G5 asset provenance record and retain AUTH-004 owner approval as pending.'
+    reviewBoundary: 'Filename checks do not establish copyright or originality. Review evidence/BOJI_V2_FINAL_ASSET_PROVENANCE.md for the owner-approved final asset record; the remaining AUTH-004 items (physical device/PWA qualification, post-Luna independent release qualification, Production approval) stay pending.'
   };
   const artifactFiles = [];
   walk(rcDir, artifactFiles, [], {});

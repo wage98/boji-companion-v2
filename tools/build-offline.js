@@ -18,11 +18,10 @@ const text = p => read(p).toString('utf8');
 const du = (p, mime) => 'data:' + mime + ';base64,' + read(p).toString('base64');
 
 const ASSET_MAP = {
-  'assets/icon.svg':           du('assets/icon.svg', 'image/svg+xml'),
-  'assets/boji-icon-192.png':  du('assets/boji-icon-192.png', 'image/png'),
-  'assets/boji-icon-512.png':  du('assets/boji-icon-512.png', 'image/png'),
-  'assets/boji-companion-candidate.png': du('assets/boji-companion-candidate.png', 'image/png'),
-  'assets/boji-companion-pet-candidate.png': du('assets/boji-companion-pet-candidate.png', 'image/png'),
+  'assets/boji/portrait-master.png': du('assets/boji/portrait-master.png', 'image/png'),
+  'assets/boji/chibi-base.png':      du('assets/boji/chibi-base.png', 'image/png'),
+  'assets/boji/icon-192.png':        du('assets/boji/icon-192.png', 'image/png'),
+  'assets/boji/icon-512.png':        du('assets/boji/icon-512.png', 'image/png'),
 };
 
 let html = text('index.html');
@@ -56,6 +55,6 @@ fs.writeFileSync(OUT, html, 'utf8');
 const kb = Math.round(fs.statSync(OUT).size / 1024);
 console.log('✔ 已生成 dist/offline.html（' + kb + ' KB）');
 // 自检：产物里不得再出现任何本地资源引用
-const bad = ['styles.css"', 'app.js"', 'assets/icon', 'assets/boji-icon-192.png', 'assets/boji-icon-512.png', 'assets/boji-companion-candidate.png', 'assets/boji-companion-pet-candidate.png'].filter(k => html.indexOf(k) >= 0);
+const bad = ['styles.css"', 'app.js"', 'assets/boji/', 'assets/icon'].filter(k => html.indexOf(k) >= 0);
 if (bad.length) { console.error('✘ 仍有未内联引用：', bad); process.exit(1); }
 console.log('✔ 自检通过：无外部资源引用，可完全离线打开');

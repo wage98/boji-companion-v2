@@ -5,8 +5,10 @@
   "branch": "v2-implementation",
   "head": "7fec11c92a653775d5d88b028477cdb0b285e47b",
   "baseline_tree": "cf42ad471f23e027b305c96fde1cdf9e86af2f06",
+  "REMOTE_IMPLEMENTATION_BASELINE": "9bad96e82d6d875ddf536d432a996369e5e81baf",
+  "FINAL_ASSET_STATUS": "INTEGRATED_PENDING_FINAL_RC",
   "known_unknowns": [
-    "AUTH-004 final production Boji character approval, full generation/license provenance, physical mobile/PWA qualification, post-Luna independent release qualification, and Production approval remain PENDING; integrated art is a review candidate.",
+    "AUTH-004 asset component CLOSED: the five owner-approved production source images were integrated on 2026-10-05 and are the final runtime artwork (see evidence/BOJI_V2_FINAL_ASSET_PROVENANCE.md). AUTH-004 as a whole remains PENDING for physical mobile/PWA qualification, post-Luna independent release qualification, and Production approval; franchise/licence clearance of the supplied sources is the owner's own declaration and is not independently verifiable from the repository.",
     "G6 local/browser platform qualification and G7 local release checks passed. Physical mobile/PWA safe-area behavior, background/locked-screen GPS, official INP, and background timer drift remain UNKNOWN.",
     "The repository does not provide or operate the optional user-configured server-side AI proxy; its origin/model/size/timeout/rate/logging policy was not independently qualified (SEC-003).",
     "The owner's actual code, art, and third-party license choices remain pending; no license was invented (SEC-011).",

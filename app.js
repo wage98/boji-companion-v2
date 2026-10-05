@@ -20,7 +20,7 @@ const el = html => { const t = document.createElement('template'); t.innerHTML =
 const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
 const DEFAULT_COACH = 'Boji';
 function coachName(){ return DEFAULT_COACH; }
-function coachAvatarSrc(){ return BOJI_CANDIDATE; }
+function coachAvatarSrc(){ return BOJI_PORTRAIT; }
 const svgURI = s => 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(String(s == null ? '' : s));
 
 /* ---------- 视频深链（卓叔 B站合集，章节时间戳可点开自验） ---------- */
@@ -1227,8 +1227,8 @@ const _lastIdx = {};
 function pickLine(pool){ const arr = LINES[pool] || LINES.happy; if(arr.length===1) return arr[0];
   let i; do { i = Math.floor(Math.random()*arr.length); } while(i === _lastIdx[pool]); _lastIdx[pool] = i;
   return arr[i].replace('{c}', coachName()); }
-const BOJI_CANDIDATE = 'assets/boji-companion-candidate.png';
-const BOJI_PET_CANDIDATE = 'assets/boji-companion-pet-candidate.png';
+const BOJI_PORTRAIT = 'assets/boji/portrait-master.png';
+const BOJI_CHIBI = 'assets/boji/chibi-base.png';
 const PET_THEME = { eyeLine:'#332c29', eyeC:'#245d4b', gold:'#efb44e', blush:'#dc8390', trimB:'#397360', skinA:'#fff5e8' };
 const PET_FACE = {
   happy:{eye:'open',mouth:'smile',blush:1}, cheer:{eye:'smile',mouth:'grin',blush:1},
@@ -1249,17 +1249,17 @@ function petMouth(kind){
   if(kind==='wave') return '<path d="M55 78 Q58 75 60 78 Q62 81 65 78" stroke="#a9505b" stroke-width="1.8" fill="none" stroke-linecap="round"/>';
   return '<path d="M54 76 Q60 83 66 76" stroke="#a9505b" stroke-width="2" fill="none" stroke-linecap="round"/>';
 }const PET_SKINS = [
-  { key:'boji', name:'Boji', asset:BOJI_PET_CANDIDATE, render:()=>'' },
+  { key:'boji', name:'Boji', asset:BOJI_CHIBI, render:()=>'' },
   { key:'photo', name:'照片桌宠', render:m=>photoPetSVG(m, (STATE.settings && STATE.settings.petPhoto) || ''), photo:true }
 ];
 function skinBy(key){ return PET_SKINS.find(row=>row.key===key) || PET_SKINS[0]; }
 function petSVG(mood){
   if(STATE.petSkin==='photo') return photoPetSVG(mood, (STATE.settings && STATE.settings.petPhoto) || '');
-  return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 150" width="240" height="300"><image href="'+BOJI_PET_CANDIDATE+'" width="120" height="150" preserveAspectRatio="xMidYMid meet"/></svg>';
+  return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 150" width="240" height="300"><image href="'+BOJI_CHIBI+'" width="120" height="150" preserveAspectRatio="xMidYMid meet"/></svg>';
 }
 function petArtURI(mood){
   if(skinBy(STATE.petSkin).photo) return 'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(petSVG(mood));
-  return BOJI_PET_CANDIDATE;
+  return BOJI_CHIBI;
 }
 function applyPetArt(mood){
   const img=document.getElementById('pet-img');if(!img)return;
@@ -1348,7 +1348,7 @@ function petWake(){
   nudgeTimer = setTimeout(()=>{ if(Date.now()-STATE.lastPetTouch > 28000 && !$('#pet').classList.contains('mood-sleep')) say(pickLine('idleLong')); }, 28000);
 }
 // 顶边悬挂（视频同款）：拖到屏幕上缘松手 → 倒挂摆动；否则吸附左右缘
-const PEEK = 0.56;   // Photo Pet 贴边时保留 56% 在屏内；Boji 全身候选使用更完整的可见比例
+const PEEK = 0.56;   // Photo Pet 贴边时保留 56% 在屏内；Boji 全身形象使用更完整的可见比例
 function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
 function applyDock(){
   const pet = $('#pet'); if(!pet) return;
@@ -2368,7 +2368,7 @@ function renderModule(name){
   if(name==='profile') return renderProfile(body);
 }
 function renderBoji(body){
-  body.innerHTML=`<section class="boji-hero card" data-character-family="adult" data-character-state="neutral" data-character-slots="master-portrait workout-full-body icon chibi-base" data-character-states="neutral happy encourage focused proud concerned tired sleep"><div class="boji-art-frame"><img class="boji-portrait" data-character-slot="master-portrait" data-asset-status="candidate" src="${BOJI_CANDIDATE}" alt="Boji 原创训练伙伴立绘候选"><span class="asset-stage">形象候选</span></div><div><span class="eyebrow">训练伙伴 · 角色素材候选</span><h2>Boji 在这里</h2><p>训练记录、饮食与恢复工具都可以从这里开始。建议会标明记录依据和不确定之处。</p><button class="btn-grad" data-boji-action="ask">问 Boji</button></div></section>
+  body.innerHTML=`<section class="boji-hero card" data-character-family="adult" data-character-state="neutral" data-character-slots="master-portrait workout-full-body icon chibi-base" data-character-states="neutral happy encourage focused proud concerned tired sleep"><div class="boji-art-frame"><img class="boji-portrait" data-character-slot="master-portrait" data-asset-status="final" src="${BOJI_PORTRAIT}" alt="Boji 原创训练伙伴立绘"></div><div><span class="eyebrow">训练伙伴 · 角色形象</span><h2>Boji 在这里</h2><p>训练记录、饮食与恢复工具都可以从这里开始。建议会标明记录依据和不确定之处。</p><button class="btn-grad" data-boji-action="ask">问 Boji</button></div></section>
     <section class="card"><h3>快速记录</h3><div class="boji-actions">
       <button type="button" data-boji-action="food"><span aria-hidden="true">🍽️</span><b>记录饮食</b></button>
       <button type="button" data-boji-action="barcode"><span aria-hidden="true">▥</span><b>扫条码</b></button>
@@ -3721,7 +3721,7 @@ const BG_PRESETS = {
   p4:'linear-gradient(165deg,#dbeeff,#bcd9f5 55%,#9fc3ea)',
   p5:'linear-gradient(165deg,#fdf3e7,#f6e4cf 55%,#eecfb4)'
 };
-const BG_IMAGES = { card:BOJI_CANDIDATE };
+const BG_IMAGES = { card:BOJI_PORTRAIT };
 const BG_IMG_FALLBACK = BG_PRESETS.p3;
 // 统一的安全图片切换：先铺底色 → 预加载 → 成功才换图，失败/超时回落
 function setBgImage(src){
@@ -3775,7 +3775,7 @@ function saveSafe(){
 /* ---------- 我的 ---------- */
 function renderProfile(body){
   const p=STATE.profile; const g=dailyGoal();
-  const avatar = p && p.avatar ? p.avatar : BOJI_CANDIDATE;
+  const avatar = p && p.avatar ? p.avatar : BOJI_PORTRAIT;
   body.innerHTML=`<div class="profile-head"><img id="pf-av" src="${avatar}" alt=""><b id="pf-name">${esc(p?(p.name||'训练者'):'训练者')}</b><span>${p?`${p.height}cm · ${p.weight}kg · 哑铃${p.dumbbell}kg`:'未设置档案'}</span>
     <button class="hc-go" id="pf-av-btn">📷 更换头像</button></div>
     <section class="settings-group"><header><span>A</span><div><h3>训练与档案</h3><p>训练背景、计划和营养偏好</p></div></header>
@@ -3905,7 +3905,7 @@ function renderProfile(body){
         更新就绪时会在页面顶部显示提示；请先确认本机记录已经备份，再选择安全更新。添加到主屏幕后可像应用一样打开，具体安装方式由浏览器提供。
       </p>
     </div>
-    <p style="font-size:11px;color:var(--faint);text-align:center;padding:6px">角色素材当前为候选 · 数据仅存本机</p></section>`;
+    <p style="font-size:11px;color:var(--faint);text-align:center;padding:6px">角色形象为正式素材 · 数据仅存本机</p></section>`;
   // 头像上传：本地压缩为 128px dataURL 存入档案
   const profileHealth=$('#profile-health');if(profileHealth){const openHealth=()=>goModule('data');profileHealth.onclick=openHealth;profileHealth.onkeydown=event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();openHealth();}};}
   $('#pf-av-btn').onclick=()=>{
@@ -4031,7 +4031,7 @@ function renderProfile(body){
     STATE.petSkin=key; save();                            // 先落盘，失败也不影响页面
     skinPick.querySelectorAll('.av-pick').forEach(x=>x.classList.toggle('on', x===b));
     applyPetArt(prevMood);                                // 切换保留当前情绪，不重置动画状态
-    applyDock();                                           // Boji 全身候选与照片桌宠使用各自的贴边可见比例
+    applyDock();                                           // Boji 全身形象与照片桌宠使用各自的贴边可见比例
     toast('已切换：' + sk.name);
     if(prevSkin!==key) petHearts(4);                      // 切换给一点反馈（不打断拖拽/悬挂状态）
   };
@@ -4381,7 +4381,7 @@ function hideBoot(){
 }
 /* 预取关键图片到浏览器缓存（空闲时做，不抢首屏带宽） */
 function prewarmAssets(){
-  const list = [BOJI_CANDIDATE];
+  const list = [BOJI_PORTRAIT];
   try{
     if(BG_IMAGES && BG_IMAGES.card) list.push(BG_IMAGES.card);
     const sk = skinBy(STATE.petSkin);

@@ -78,8 +78,8 @@ assert.ok(builtManifest.icons.some(icon => icon.sizes === '192x192'));
 assert.ok(builtManifest.icons.some(icon => icon.sizes === '512x512'));
 assert.ok(builtHtml.includes(`<base href="${rc.path}">`), 'deep navigation assets resolve against the RC app base');
 assert.ok(builtConfig.includes("\"channel\": \"rc\""));
-assert.ok(fs.existsSync(path.join(out, 'assets', 'boji-icon-192.png')));
-assert.ok(fs.existsSync(path.join(out, 'assets', 'boji-icon-512.png')));
+assert.ok(fs.existsSync(path.join(out, 'assets', 'boji', 'icon-192.png')));
+assert.ok(fs.existsSync(path.join(out, 'assets', 'boji', 'icon-512.png')));
 assert.ok(!fs.existsSync(path.join(root, 'dist', 'prod')), 'automated build does not emit a Production artifact');
 
 const workerSource = fs.readFileSync(path.join(root, 'sw.js'), 'utf8');

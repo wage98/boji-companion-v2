@@ -6,9 +6,9 @@ const CACHE_NAME = `${CACHE_PREFIX}6`;
 const BASE_URL = new URL('./', self.registration.scope);
 const ASSETS = [
   './', './index.html', './app.js', './data-layer.js', './styles.css',
-  './manifest.json', './release-config.js', './assets/icon.svg',
-  './assets/boji-icon-192.png', './assets/boji-icon-512.png',
-  './assets/boji-companion-candidate.png', './assets/boji-companion-pet-candidate.png'
+  './manifest.json', './release-config.js',
+  './assets/boji/portrait-master.png', './assets/boji/chibi-base.png',
+  './assets/boji/icon-192.png', './assets/boji/icon-512.png'
 ].map(path => new URL(path, BASE_URL).href);
 
 async function precache() {

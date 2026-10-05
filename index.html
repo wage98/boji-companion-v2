@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <!--
   Boji Companion V2 · local-first training companion
-  Official Boji portrait is a candidate; Photo Pet remains a separate local option.
+  Official Boji portrait is the approved final asset; Photo Pet remains a separate local option.
 -->
 <html lang="zh-CN">
 <head>
@@ -10,9 +10,9 @@
 <meta name="theme-color" content="#F6F4ED">
 <base href="./">
 <link rel="manifest" href="manifest.json">
-<link rel="icon" type="image/png" sizes="192x192" href="assets/boji-icon-192.png">
-<link rel="icon" type="image/png" sizes="512x512" href="assets/boji-icon-512.png">
-<link rel="apple-touch-icon" href="assets/boji-icon-192.png">
+<link rel="icon" type="image/png" sizes="192x192" href="assets/boji/icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="assets/boji/icon-512.png">
+<link rel="apple-touch-icon" href="assets/boji/icon-192.png">
 <title>Boji Companion V2</title>
 <meta name="apple-mobile-web-app-title" content="Boji">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -47,7 +47,7 @@
 <body>
 <!-- 启动画面（内联，立即可见；由 app.js 就绪后淡出） -->
 <div id="boot" role="status" aria-live="polite">
-  <div class="bt-logo"><img src="assets/boji-icon-192.png" alt="Boji"></div>
+  <div class="bt-logo"><img src="assets/boji/icon-192.png" alt="Boji"></div>
   <div class="bt-name">Boji Companion</div>
   <div class="bt-bar"><i></i></div>
   <div class="bt-tip" id="bt-tip">正在准备你的桌面…</div>
@@ -113,7 +113,7 @@ window.__T0 = Date.now();
           <div class="pet" id="pet" role="button" aria-label="桌宠" tabindex="0" data-character-family="chibi" data-character-slot="base" data-character-state="happy" data-character-states="neutral happy encourage focused proud concerned tired sleep">
             <div class="pet-bubble" id="pet-bubble"></div>
             <div class="pet-body">
-              <img class="pet-img" id="pet-img" data-asset-status="candidate" src="assets/boji-companion-pet-candidate.png" alt="Boji 训练伙伴形象候选">
+              <img class="pet-img" id="pet-img" data-asset-status="final" src="assets/boji/chibi-base.png" alt="Boji 训练伙伴形象">
               <div class="pet-ring"></div>
               <div class="pet-mood" id="pet-mood">✦</div>
               <!-- 招牌发饰宝珠（Boji标志）+ 草元素粒子：让桌宠“活起来”（轻量 Live2D 等效） -->
@@ -129,7 +129,7 @@ window.__T0 = Date.now();
         <!-- 助手对话面板（点宠物或聊天展开） -->
         <section class="panel assistant" id="assistant" aria-hidden="true">
           <header class="panel-head">
-            <img class="ph-av" src="assets/boji-companion-candidate.png" alt="">
+            <img class="ph-av" src="assets/boji/portrait-master.png" alt="">
             <div class="ph-meta"><b>Boji</b><span id="ph-status">训练伙伴 · 回答会标明来源边界</span></div>
             <button class="ph-close" data-close="assistant">✕</button>
           </header>

@@ -1,7 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
-  <title id="title">Boji Companion</title>
-  <rect width="512" height="512" rx="112" fill="#F6F4ED"/>
-  <circle cx="256" cy="256" r="176" fill="#2F7E67"/>
-  <path d="M173 150h132c48 0 78 27 78 68 0 30-17 51-44 61 37 8 59 33 59 69 0 47-35 75-88 75H173V150zm69 54v56h58c20 0 31-10 31-28 0-18-11-28-31-28h-58zm0 108v58h66c23 0 35-10 35-29s-12-29-35-29h-66z" fill="#FFFEFA"/>
-  <path d="M352 99l13 27 29 4-21 20 5 29-26-14-26 14 5-29-21-20 29-4 13-27z" fill="#E69A63"/>
-</svg>

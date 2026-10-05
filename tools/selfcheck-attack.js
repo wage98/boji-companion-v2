@@ -441,11 +441,11 @@ check('H7 体重曲线：空数据有兜底文案、单点无 NaN、多点生成
   return empty.indexOf('还没有体重记录') >= 0 && one.indexOf('NaN') < 0 && many.indexOf('NaN') < 0
       && many.indexOf('<path') >= 0 && bad;
 });
-check('H8 Boji candidate renderer stays on the local approved-candidate asset', () => {
+check('H8 Boji final artwork renderer stays on the approved local assets', () => {
   const w = boot(J({ profile: { weight: 70 } }));
-  return w.eval('coachAvatarSrc')() === 'assets/boji-companion-candidate.png'
-    && w.eval('skinBy')('boji').asset === 'assets/boji-companion-pet-candidate.png'
-    && w.eval('petArtURI')('happy') === 'assets/boji-companion-pet-candidate.png';
+  return w.eval('coachAvatarSrc')() === 'assets/boji/portrait-master.png'
+    && w.eval('skinBy')('boji').asset === 'assets/boji/chibi-base.png'
+    && w.eval('petArtURI')('happy') === 'assets/boji/chibi-base.png';
 });
 check('H9 Photo Pet remains a separate renderer and selection', () => {
   const photo = 'data:image/png;base64,AAAA';
@@ -621,7 +621,7 @@ async function v79Checks() {
     const moods = ['happy','cheer','proud','expect','think','sad','sleep','wave','hover','drag','blink'];
     const photo = 'data:image/png;base64,AAAA';
     const svg = w.eval('photoPetSVG');
-    check('I1 Boji identity resolves to the local candidate asset', () => w.eval('coachAvatarSrc')() === 'assets/boji-companion-candidate.png');
+    check('I1 Boji identity resolves to the approved local final asset', () => w.eval('coachAvatarSrc')() === 'assets/boji/portrait-master.png');
     check('I2 Photo Pet emits valid local SVG for supported moods', () => moods.every(m => {
       const out = svg(m, photo);
       return out.indexOf('<svg') === 0 && out.indexOf('undefined') < 0 && out.indexOf('NaN') < 0 && out.indexOf('<script') < 0;
@@ -669,7 +669,7 @@ function v710Checks() {
     const w = boot(J({ profile: { weight: 70 } }));
     const keys = w.eval('PET_SKINS.map(x=>x.key)');
     check('J1 companion registry contains Boji and Photo Pet', () => JSON.stringify(keys) === JSON.stringify(['boji','photo']));
-    check('J2 default companion selection uses the local Boji pet candidate', () => w.__S.petSkin === 'boji' && w.eval('skinBy')('boji').asset === 'assets/boji-companion-pet-candidate.png');
+    check('J2 default companion selection uses the local Boji final pet asset', () => w.__S.petSkin === 'boji' && w.eval('skinBy')('boji').asset === 'assets/boji/chibi-base.png');
     check('J3 unknown saved selection safely falls back to Boji', () => boot(J({ profile: { weight: 70 }, petSkin: '__dirty__' })).__S.petSkin === 'boji');
     const photo = 'data:image/png;base64,AAAA';
     const w2 = boot(J({ profile: { weight: 70 }, petSkin: 'photo', settings: { petPhoto: photo } }));
@@ -704,7 +704,7 @@ function v710Checks() {
       const okPreset = el.style.background.indexOf('linear-gradient') >= 0 && el.classList.contains('wall-custom');
       w.__S.settings.bg = 'not-a-preset';
       w.eval('applyWallpaper')();
-      return okPreset && String(el.__bgImg && el.__bgImg.src).indexOf('assets/boji-companion-candidate.png') >= 0;
+      return okPreset && String(el.__bgImg && el.__bgImg.src).indexOf('assets/boji/portrait-master.png') >= 0;
     });
   }
   // J12–J14 识别优化联动
@@ -766,10 +766,10 @@ function v711Checks() {
       return r3('晚安').indexOf('晚安呀') >= 0 && r3('心情不好怎么办').indexOf('接住') >= 0;
     });
   }
-  // K7 local Boji candidate is used by the companion surface
+  // K7 local Boji final artwork is used by the companion surface
   {
     const w = boot(J({ profile: { weight: 70 } }));
-    check('K7 portrait and pet candidates are configured as distinct companion artwork', () => w.eval('BG_IMAGES.card') === 'assets/boji-companion-candidate.png' && w.eval('skinBy')('boji').asset === 'assets/boji-companion-pet-candidate.png');
+    check('K7 portrait and pet artwork are configured as distinct companion artwork', () => w.eval('BG_IMAGES.card') === 'assets/boji/portrait-master.png' && w.eval('skinBy')('boji').asset === 'assets/boji/chibi-base.png');
     const rep = fs.existsSync(path.join(PROJ, 'eval-set', 'last-simulate-report.txt'));
     check('K8 多场景模拟评测报告已落盘（准确率口径）', () => {
       if(!rep) return false;
@@ -890,14 +890,14 @@ function v81Checks() {
   }
 }
 
-// ===== V2 增量：Boji 候选形象 / 动作 / 助手与识别缺陷修复 / 存储稳定性 =====
+// ===== V2 增量：Boji 最终形象 / 动作 / 助手与识别缺陷修复 / 存储稳定性 =====
 function v80Checks() {
   const CSS = fs.readFileSync(path.join(PROJ, 'styles.css'), 'utf8');
   // L1-L8 V2 character, navigation, and accessibility basics
   {
     const w = boot(J({ profile: { weight: 70 } }));
     const ids = Array.from(w.document.querySelectorAll('#dock .dock-item')).map(x => x.dataset.go);
-    check('L1 V2 portrait and pet candidate artwork is present in the project', () => fs.existsSync(path.join(PROJ, 'assets', 'boji-companion-candidate.png')) && fs.existsSync(path.join(PROJ, 'assets', 'boji-companion-pet-candidate.png')));
+    check('L1 V2 portrait and pet artwork is present in the project', () => fs.existsSync(path.join(PROJ, 'assets', 'boji', 'portrait-master.png')) && fs.existsSync(path.join(PROJ, 'assets', 'boji', 'chibi-base.png')));
     check('L2 primary navigation has five named destinations', () => ids.join(',') === 'today,training,boji,progress,profile');
     check('L3 reduced-motion preference has a CSS rule', () => /prefers-reduced-motion:\s*reduce/.test(CSS));
     check('L4 primary navigation targets retain accessible labels', () => Array.from(w.document.querySelectorAll('#dock .dock-item')).every(x => x.textContent.trim().length > 0));
@@ -910,7 +910,7 @@ function v80Checks() {
       const out = md('先降重量。\n*[B] 证据：NSCA 建议肩胛稳定是卧推安全前提*');
       return out.indexOf('来源待核') >= 0 && out.indexOf('证据等级 B') < 0 && out.indexOf('NSCA 建议肩胛稳定是卧推安全前提') >= 0;
     });
-    check('L10 coach avatar uses the local Boji candidate asset', () => w.eval('coachAvatarSrc')() === 'assets/boji-companion-candidate.png');
+    check('L10 coach avatar uses the local Boji final asset', () => w.eval('coachAvatarSrc')() === 'assets/boji/portrait-master.png');
     check('L11 气泡文本为非字符串时不崩溃', () => w.eval('md')(undefined) === '' && w.eval('md')(null) === '');
   }
   // L12–L14 AI 识别：拒绝假识别

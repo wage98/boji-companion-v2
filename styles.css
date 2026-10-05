@@ -623,7 +623,7 @@ body{
 .bg-swatch{width:46px;height:46px;border-radius:12px;border:2px solid var(--line);cursor:pointer;padding:0;}
 .bg-swatch.on{border-color:#7fc49a;box-shadow:0 0 0 2px rgba(127,196,154,.22);}
 /* 角色壁纸缩略图（图片型预设；图片缺失时由后面的渐变兜底，选中态依然可见） */
-.bw0{background:url("assets/boji-companion-candidate.png") center 30%/cover no-repeat,linear-gradient(165deg,#f7f5ef,#e5f1ea 55%,#f6e4cf);}
+.bw0{background:url("assets/boji/portrait-master.png") center 30%/cover no-repeat,linear-gradient(165deg,#f7f5ef,#e5f1ea 55%,#f6e4cf);}
 .bw1{background:linear-gradient(165deg,#ffe9d6,#ffd3c0 45%,#ffb7c5);}
 .bw2{background:linear-gradient(165deg,#e0f5e9,#c8e6d5 50%,#a8d8c0);}
 .bw3{background:linear-gradient(165deg,#efe9fb,#ddd2f2 55%,#c9b8e6);}
@@ -893,7 +893,6 @@ body{font-family:var(--font-sans);background:radial-gradient(110% 110% at 50% 0%
 .boji-hero{grid-template-columns:minmax(76px,26%) minmax(0,1fr);gap:14px;padding:14px;background:linear-gradient(145deg,#FFF8F7,#fff 70%);}
 .boji-art-frame{position:relative;min-width:0;align-self:stretch;display:flex;align-items:center;justify-content:center;overflow:hidden;border-radius:15px;background:linear-gradient(155deg,#F8E9EE,#F6F1F8);}
 .boji-portrait{width:100%;height:100%;max-height:176px;aspect-ratio:3/4;object-fit:cover;object-position:center 20%;border-radius:0;}
-.asset-stage{position:absolute;left:5px;right:5px;bottom:5px;padding:3px 5px;border-radius:999px;background:rgba(255,254,252,.9);color:var(--text-secondary);font-size:9px;text-align:center;}
 .boji-hero .eyebrow{color:var(--brand-primary-strong);font-size:10px;}
 .boji-hero h2{font-size:19px;}
 .boji-hero p,.boji-photo-note p{color:var(--text-secondary);font-size:12px;}
