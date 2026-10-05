@@ -230,7 +230,7 @@ body{
 .ph-meta{flex:1; display:flex; flex-direction:column;}
 .ph-meta b{font-size:15px; color:var(--ink);}
 .ph-meta span{font-size:11px; color:var(--ink2);}
-.ph-close,.ph-back{width:34px;height:34px;border:0;border-radius:50%;background:var(--glass);
+.ph-close,.ph-back{width:44px;height:44px;border:0;border-radius:50%;background:var(--glass);
   color:var(--ink); font-size:16px; cursor:pointer; box-shadow:var(--line) 0 0 0 1px;}
 .ph-close:active,.ph-back:active{transform:scale(.9);}
 
@@ -462,7 +462,7 @@ body{
 .cal-head button:active{transform:scale(.92);}
 .cal-week,.cal-grid{display:grid; grid-template-columns:repeat(7,1fr); gap:4px;}
 .cal-week span{text-align:center; font-size:10.5px; color:var(--faint); padding:2px 0;}
-.cal-day{aspect-ratio:1; border-radius:10px; background:var(--glass); border:1px solid var(--line);
+.cal-day{min-height:44px; border-radius:10px; background:var(--glass); border:1px solid var(--line);
   display:flex; flex-direction:column; align-items:center; justify-content:center; gap:0;
   font-size:11.5px; color:var(--ink2); cursor:pointer; position:relative; padding:0;}
 .cal-day:active{transform:scale(.94);}
@@ -847,7 +847,7 @@ body{font-family:var(--font-sans);background:radial-gradient(110% 110% at 50% 0%
 .card h3,.card h4,.profile-head b,.ph-meta b{color:var(--text-primary);}
 .card h4 .tag{background:var(--brand-soft);color:var(--brand-primary-strong);}
 .btn-grad,.ex-do:not(.ghost-btn),.hc-go,.chat-input button{min-height:44px;color:#fff;background:linear-gradient(135deg,var(--brand-primary),var(--brand-primary-strong));box-shadow:0 8px 18px -12px rgba(145,62,89,.56);}
-.btn-grad.ghost,.ex-do.ghost-btn{color:var(--text-secondary);background:var(--surface-raised);border:1px solid var(--border-soft);box-shadow:none;}
+.btn-grad.ghost,.ex-do.ghost-btn{min-height:44px;color:var(--text-secondary);background:var(--surface-raised);border:1px solid var(--border-soft);box-shadow:none;}
 .btn-grad:focus-visible,.ex-do:focus-visible,.hc-go:focus-visible,.home-adjust:focus-visible,.dock-item:focus-visible,.wday:focus-visible,.list-row[role=button]:focus-visible{outline:3px solid rgba(196,92,120,.38);outline-offset:2px;}
 .mode-switch{grid-template-columns:repeat(2,minmax(0,1fr));padding:14px;}
 .mode-switch b,.mode-switch span{grid-column:1/-1;}
