@@ -7,7 +7,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="theme-color" content="#F6F4ED">
+<meta name="theme-color" content="#FFF7F9">
 <base href="./">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/png" sizes="192x192" href="assets/boji/icon-192.png">
@@ -99,8 +99,14 @@ window.__T0 = Date.now();
         <main class="homescreen" id="home">
           <div class="today-greeting" id="home-greeting">
             <span class="eyebrow">BOJI · 今日陪练</span>
-            <b>今天也按自己的节奏来</b>
-            <span>训练记录只会在你保存训练组后更新。</span>
+            <b id="hg-title">早上好！今天也加油吧♡</b>
+            <span id="hg-sub">训练记录只会在你保存训练组后更新。</span>
+          </div>
+          <!-- 今日主视觉：Adult Boji 立绘（最终视觉权威）取代旧「整屏壁纸 + 悬浮桌宠」构图 -->
+          <div class="home-hero" id="home-hero" data-character-family="adult" data-character-state="neutral" data-character-slots="master-portrait">
+            <img class="hh-img" data-character-slot="master-portrait" data-asset-status="final" src="assets/boji/portrait-master.png" alt="Boji 训练伙伴立绘">
+            <div class="hh-scrim" aria-hidden="true"></div>
+            <div class="hh-cap"><b>Boji</b><span>有我在，我们会一起变强哦 ♡</span></div>
           </div>
           <div class="home-card" id="home-today"><!-- 今日训练速览：一眼看到当天动作 --></div>
           <div class="home-stats" id="home-stats"><!-- 已保存训练组与训练规律摘要 --></div>
