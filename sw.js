@@ -2,12 +2,16 @@
 // marker so RC and Production have disjoint Cache Storage namespaces.
 const RELEASE_CHANNEL = 'rc';
 const CACHE_PREFIX = `boji-v2-${RELEASE_CHANNEL}-`;
-const CACHE_NAME = `${CACHE_PREFIX}6`;
+const CACHE_NAME = `${CACHE_PREFIX}9`;
 const BASE_URL = new URL('./', self.registration.scope);
 const ASSETS = [
   './', './index.html', './app.js', './data-layer.js', './styles.css',
   './manifest.json', './release-config.js',
   './assets/boji/portrait-master.png', './assets/boji/chibi-base.png',
+  './assets/boji/chibi-states/neutral.png', './assets/boji/chibi-states/encourage.png',
+  './assets/boji/chibi-states/think.png', './assets/boji/chibi-states/walk.png',
+  './assets/boji/chibi-states/sit.png', './assets/boji/chibi-states/happy.png',
+  './assets/boji/chibi-states/sleep.png', './assets/boji/chibi-states/wave.png',
   './assets/boji/icon-192.png', './assets/boji/icon-512.png'
 ].map(path => new URL(path, BASE_URL).href);
 

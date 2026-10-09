@@ -257,6 +257,8 @@ async function asyncChecks() {
 }
 
 check('D9 过期食物搜索结果与关闭面板后的响应均被丢弃', async () => {
+  // Start timer-driven work after the synchronous suite yields to the event loop.
+  await new Promise(resolve=>setTimeout(resolve,0));
   const w=boot(J({profile:{weight:70}})),pending=[];
   w.fetch=(url,options)=>new Promise(resolve=>pending.push({resolve,signal:options&&options.signal}));
   w.goModule('diet');w.openFoodSheet(0,w.document.querySelector('#mod-body'),null);
@@ -444,8 +446,10 @@ check('H7 体重曲线：空数据有兜底文案、单点无 NaN、多点生成
 check('H8 Boji final artwork renderer stays on the approved local assets', () => {
   const w = boot(J({ profile: { weight: 70 } }));
   return w.eval('coachAvatarSrc')() === 'assets/boji/portrait-master.png'
-    && w.eval('skinBy')('boji').asset === 'assets/boji/chibi-base.png'
-    && w.eval('petArtURI')('happy') === 'assets/boji/chibi-base.png';
+    && w.eval('skinBy')('boji').asset === 'assets/boji/chibi-states/neutral.png'
+    && w.eval('petArtURI')('happy') === 'assets/boji/chibi-states/happy.png'
+    && w.eval('petArtURI')('cheer') === 'assets/boji/chibi-states/encourage.png'
+    && w.eval('petArtURI')('walk') === 'assets/boji/chibi-states/walk.png';
 });
 check('H9 Photo Pet remains a separate renderer and selection', () => {
   const photo = 'data:image/png;base64,AAAA';
@@ -669,7 +673,7 @@ function v710Checks() {
     const w = boot(J({ profile: { weight: 70 } }));
     const keys = w.eval('PET_SKINS.map(x=>x.key)');
     check('J1 companion registry contains Boji and Photo Pet', () => JSON.stringify(keys) === JSON.stringify(['boji','photo']));
-    check('J2 default companion selection uses the local Boji final pet asset', () => w.__S.petSkin === 'boji' && w.eval('skinBy')('boji').asset === 'assets/boji/chibi-base.png');
+    check('J2 default companion selection uses the local Boji neutral state', () => w.__S.petSkin === 'boji' && w.eval('skinBy')('boji').asset === 'assets/boji/chibi-states/neutral.png');
     check('J3 unknown saved selection safely falls back to Boji', () => boot(J({ profile: { weight: 70 }, petSkin: '__dirty__' })).__S.petSkin === 'boji');
     const photo = 'data:image/png;base64,AAAA';
     const w2 = boot(J({ profile: { weight: 70 }, petSkin: 'photo', settings: { petPhoto: photo } }));
@@ -704,7 +708,7 @@ function v710Checks() {
       const okPreset = el.style.background.indexOf('linear-gradient') >= 0 && el.classList.contains('wall-custom');
       w.__S.settings.bg = 'not-a-preset';
       w.eval('applyWallpaper')();
-      return okPreset && String(el.__bgImg && el.__bgImg.src).indexOf('assets/boji/portrait-master.png') >= 0;
+      return okPreset && !el.style.background && !el.classList.contains('wall-custom');
     });
   }
   // J12–J14 识别优化联动
@@ -769,7 +773,7 @@ function v711Checks() {
   // K7 local Boji final artwork is used by the companion surface
   {
     const w = boot(J({ profile: { weight: 70 } }));
-    check('K7 portrait and pet artwork are configured as distinct companion artwork', () => w.eval('BG_IMAGES.card') === 'assets/boji/portrait-master.png' && w.eval('skinBy')('boji').asset === 'assets/boji/chibi-base.png');
+    check('K7 adult portrait and mapped Chibi states remain distinct local artwork', () => w.eval('BG_IMAGES.card') === 'assets/boji/portrait-master.png' && w.eval('skinBy')('boji').asset === 'assets/boji/chibi-states/neutral.png' && w.eval('petArtURI')('sleep') === 'assets/boji/chibi-states/sleep.png');
     const rep = fs.existsSync(path.join(PROJ, 'eval-set', 'last-simulate-report.txt'));
     check('K8 多场景模拟评测报告已落盘（准确率口径）', () => {
       if(!rep) return false;
@@ -984,12 +988,13 @@ function g5SurfaceChecks() {
   check('G5 onboarding explains existing presets and has no generated-program control', () =>
     onboarding.document.querySelector('#onboard').textContent.includes(String.fromCharCode(0x4e0d,0x4f1a,0x636e,0x6b64,0x81ea,0x52a8,0x751f,0x6210))
       && !onboarding.document.querySelector('#onboard [data-generate-program]'));
-  check('G5 Today has one Boji note, three metrics, a main action, and its rationale', () => {
+  check('G5 Today has one Boji note, weekly progress, two helper entries, a main action, and rationale', () => {
     const w = boot(J({ profile: { weight: 70 } }));
     w.goModule('today');
-    return w.document.querySelectorAll('#home-stats .hs-pill').length === 3
+    return w.document.querySelectorAll('#home-stats .home-week-day').length === 7
+      && w.document.querySelectorAll('#home-shortcuts button').length === 2
       && w.document.querySelectorAll('#home-today .boji-note').length === 1
-      && !!w.document.querySelector('#hc-go') && !!w.document.querySelector('#home-today .today-why');
+      && !!w.document.querySelector('#hc-go') && !!w.document.querySelector('#home-why');
   });
   check('G5 Boji full-body dock and Photo Pet keep separate edge visibility', () => {
     const w = boot(J({ profile: { weight: 70 } }));
@@ -998,21 +1003,53 @@ function g5SurfaceChecks() {
     w.eval("STATE.petSkin='photo'"); w.eval('applyDock')(); const photoLeft = parseFloat(w.document.getElementById('pet').style.left);
     return Math.abs(bojiLeft-(360-126*0.78))<1 && Math.abs(photoLeft-(360-126*0.56))<1;
   });
-  check('G5 Boji center exposes six distinct quick actions and opens Ask Boji', () => {
+  check('G5 Boji center exposes core records, barcode, and two interaction entries', () => {
     const w = boot(J({ profile: { weight: 70 } }));
     w.goModule('boji');
-    const actions = new Set(Array.from(w.document.querySelectorAll('.boji-actions [data-boji-action]')).map(x => x.dataset.bojiAction));
+    const actions = new Set(Array.from(w.document.querySelectorAll('#mod-body [data-boji-action]')).map(x => x.dataset.bojiAction));
     const expected = ['food','barcode','run','weight','ask','photo'];
-    const ask = w.document.querySelector('.boji-actions [data-boji-action="ask"]');
+    const ask = w.document.querySelector('#mod-body [data-boji-action="ask"]');
+    const bond = w.document.querySelector('#mod-body .boji-bond');
+    const css = fs.readFileSync(path.join(PROJ,'styles.css'),'utf8');
     w.__click(ask);
-    return expected.every(x => actions.has(x)) && actions.size === 6 && w.document.getElementById('assistant').classList.contains('open');
+    return expected.every(x => actions.has(x)) && actions.size === 6 && w.document.getElementById('assistant').classList.contains('open')
+      && !!bond && bond.textContent.includes('亲密度 Lv.') && !!bond.querySelector('.bb-bar i')
+      && css.includes('.boji-hero{display:flex;flex:0 0 auto') && css.includes('.boji-hero .boji-bond{flex:0 0 auto');
   });
-  check('G5 Progress answers strength, consistency, and issues before drill-down', () => {
+  check('G5 Progress leads with real range-based trend, four metrics, and weekly highlight', () => {
     const w = boot(J({ profile: { weight: 70 } }));
     w.goModule('progress');
-    const first = w.document.querySelector('#mod-body > .progress-first');
-    return !!first && first.querySelectorAll('.progress-answer').length === 3
-      && first.textContent.includes(String.fromCharCode(0x529b,0x91cf,0x53d8,0x5316)) && first.textContent.includes(String.fromCharCode(0x8bad,0x7ec3,0x89c4,0x5f8b)) && first.textContent.includes(String.fromCharCode(0x503c,0x5f97,0x7559,0x610f));
+    const first = w.document.querySelector('#mod-body > .progress-overview');
+    const details = w.document.querySelector('#mod-body > .progress-details');
+    const answers = details && details.querySelectorAll('.progress-first .progress-answer');
+    const explanationLabels = answers ? Array.from(answers, row => row.querySelector('b') && row.querySelector('b').textContent) : [];
+    return !!first && first.querySelectorAll('[data-progress-range]').length === 4
+      && first.querySelectorAll('.metric-card').length === 4
+      && !!first.querySelector('.progress-week-highlight')
+      && !!first.querySelector('.pt-empty')
+      && !!details && !details.open && explanationLabels.join('|') === '力量变化|训练规律|值得留意'
+      && details.textContent.includes('本机存储健康') && details.textContent.includes('统计口径：今天及前 6 个自然日')
+      && details.textContent.includes('建议固定早晨空腹、如厕后称重');
+  });
+  check('G5 e1RM names its exercise and compares only that exercise', () => {
+    const w = boot(J({ profile: { weight: 70 } }));
+    const record=(id,date,exerciseId,name,weight,reps)=>({
+      session:{sessionId:id,status:'COMPLETED',localDateKey:date,startedAt:Date.parse(date+'T10:00:00')},
+      exerciseSessions:[{exerciseSessionId:id+'-ex',exerciseId:exerciseId,nameSnapshot:name}],
+      sets:[{exerciseSessionId:id+'-ex',setIndex:0,completed:true,weightKg:weight,reps:reps}]
+    });
+    w.eval('WORKOUT_HISTORY_RECORDS = '+JSON.stringify([
+      record('bench-1','2026-10-01','bench_press','卧推',100,5),
+      record('bench-2','2026-10-04','bench_press','卧推',105,5),
+      record('squat-1','2026-10-08','squat','深蹲',200,5)
+    ])+';');
+    w.goModule('progress');
+    const estimate=w.eval('e1rmOverview')();
+    const label=w.document.querySelector('#mod-body > .progress-overview .metric-card span:not(.mc-ic)');
+    const delta=w.document.querySelector('#mod-body > .progress-overview .metric-card em');
+    return estimate.exerciseId==='bench_press' && estimate.exerciseName==='卧推' && estimate.value===122.5 && estimate.delta===5
+      && !!label && label.textContent.includes('卧推') && label.textContent.includes('e1RM 估算')
+      && !!delta && delta.textContent.includes('同动作 +5%');
   });
   check('G5 Learning and Performance share one active workout record', () => {
     const w = boot(J({ profile: { weight: 70 }, settings: { trainingMode: 'learning' } }));
@@ -1022,7 +1059,7 @@ function g5SurfaceChecks() {
     const exerciseSessions = template.exercises.map((row,i) => ({ exerciseSessionId:'active-ex-'+i, exerciseId:row.exerciseId, nameSnapshot:w.eval('exerciseDefinition')(row.exerciseId).name }));
     const sets = [];
     template.exercises.forEach((row,i) => { for(let n=0;n<row.sets;n++) sets.push({setId:'active-set-'+i+'-'+n,exerciseSessionId:'active-ex-'+i,setIndex:n,targetReps:row.reps,weightKg:null,reps:null,rir:null,completed:false}); });
-    const current = { session:{sessionId:'active-session',status:'ACTIVE',localDateKey:key,templateId:'template:A:push',equipmentProfileId:'equipment:A',startedAt:Date.now(),currentSetId:sets[0].setId},exerciseSessions:exerciseSessions,sets:sets };
+    const current = { session:{sessionId:'active-session',status:'ACTIVE',localDateKey:key,templateId:'template:A:push',equipmentProfileId:'equipment:A',startedAt:Date.now(),currentSetId:sets[0].setId,ownerTabId:w.eval('TAB_OWNER_ID')},exerciseSessions:exerciseSessions,sets:sets };
     const ex = exerciseSessions[0];
     w.eval('WORKOUT_HISTORY_RECORDS = '+JSON.stringify([{session:{sessionId:'prior-session',status:'COMPLETED',localDateKey:'2026-10-01',startedAt:Date.now()-86400000,endedAt:Date.now()-86399000},exerciseSessions:[{exerciseSessionId:'prior-ex',exerciseId:ex.exerciseId,nameSnapshot:ex.nameSnapshot}],sets:[{exerciseSessionId:'prior-ex',setIndex:0,completed:true,weightKg:12,reps:10}]}])+';');
     w.eval('ACTIVE_WORKOUT = '+JSON.stringify(current)+'; STATE.selDate = '+JSON.stringify(key)+';');
@@ -1031,13 +1068,20 @@ function g5SurfaceChecks() {
     if (!learning) return false;
     w.__click(w.document.querySelector('#mod-body [data-training-mode="performance"]'));
     const performance = w.document.querySelector('#mod-body .performance-context');
+    const demo = w.document.querySelector('#mod-body .exercise-current .exercise-demo');
+    const currentSet = w.document.querySelector('#mod-body .exercise-current .workout-set.current-set');
+    const currentRir = currentSet && currentSet.querySelector('label select[data-rir]');
+    const teaching = w.document.querySelector('#mod-body .exercise-current details.learning-details');
+    const currentContainer = currentSet && currentSet.closest('.workout-sets');
+    const currentChildren = currentSet && Array.from(currentSet.closest('.exercise-current').children);
     const sessionKept = w.eval('ACTIVE_WORKOUT.session.sessionId') === 'active-session';
     return sessionKept && w.__S.settings.trainingMode === 'performance' && !!performance
       && performance.textContent.includes('12 kg') && performance.textContent.includes('10')
-      && !!w.document.querySelector('#mod-body details.learning-details')
-      && !!w.document.querySelector('#mod-body [data-weight]')
-      && !!w.document.querySelector('#mod-body [data-reps]')
-      && !!w.document.querySelector('#mod-body [data-rir]');
+      && !!demo && demo.textContent.includes('演示状态') && !!demo.querySelector('.exercise-demo-art')
+      && !!teaching && !!currentSet && !!currentSet.querySelector('[data-weight]')
+      && !!currentSet.querySelector('[data-reps]') && !!currentRir
+      && !!currentSet.querySelector('[data-complete-set]')
+      && !!currentChildren && currentChildren.indexOf(currentContainer)<currentChildren.indexOf(teaching);
   });
   check('G5 mobile safe areas, touch targets, reduced motion, and storage errors are explicit', () => {
     const css = fs.readFileSync(path.join(PROJ,'styles.css'),'utf8');

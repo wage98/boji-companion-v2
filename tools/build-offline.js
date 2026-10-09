@@ -20,6 +20,14 @@ const du = (p, mime) => 'data:' + mime + ';base64,' + read(p).toString('base64')
 const ASSET_MAP = {
   'assets/boji/portrait-master.png': du('assets/boji/portrait-master.png', 'image/png'),
   'assets/boji/chibi-base.png':      du('assets/boji/chibi-base.png', 'image/png'),
+  'assets/boji/chibi-states/neutral.png':   du('assets/boji/chibi-states/neutral.png', 'image/png'),
+  'assets/boji/chibi-states/encourage.png': du('assets/boji/chibi-states/encourage.png', 'image/png'),
+  'assets/boji/chibi-states/think.png':     du('assets/boji/chibi-states/think.png', 'image/png'),
+  'assets/boji/chibi-states/walk.png':      du('assets/boji/chibi-states/walk.png', 'image/png'),
+  'assets/boji/chibi-states/sit.png':       du('assets/boji/chibi-states/sit.png', 'image/png'),
+  'assets/boji/chibi-states/happy.png':     du('assets/boji/chibi-states/happy.png', 'image/png'),
+  'assets/boji/chibi-states/sleep.png':     du('assets/boji/chibi-states/sleep.png', 'image/png'),
+  'assets/boji/chibi-states/wave.png':      du('assets/boji/chibi-states/wave.png', 'image/png'),
   'assets/boji/icon-192.png':        du('assets/boji/icon-192.png', 'image/png'),
   'assets/boji/icon-512.png':        du('assets/boji/icon-512.png', 'image/png'),
 };

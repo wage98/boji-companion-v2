@@ -80,7 +80,9 @@ const g = w.dailyGoal();
 ok(g.protein === 126 && g.kcal === 2310 && g.water === 2450, `每日目标随体重计算(70kg→126g/2310kcal/2450ml) 实际=${g.protein}/${g.kcal}/${g.water}`);
 
 // 3. 主页明确「居家哑铃」
-ok($('#home-stats').querySelectorAll('.hs-pill').length === 3 && $('#hc-go') !== null, 'Today shows three progress metrics and its main action');
+ok($('#home-stats').querySelectorAll('.home-week-day').length === 7
+  && $('#home-shortcuts').querySelectorAll('button').length === 2 && $('#hc-go') !== null,
+  'Today shows real weekly progress, two helper entries, and its main action');
 
 // 4. 训练页标签（今天若是周日休息日，则选下一个周一验证）
 {

@@ -1229,6 +1229,20 @@ function pickLine(pool){ const arr = LINES[pool] || LINES.happy; if(arr.length==
   return arr[i].replace('{c}', coachName()); }
 const BOJI_PORTRAIT = 'assets/boji/portrait-master.png';
 const BOJI_CHIBI = 'assets/boji/chibi-base.png';
+const BOJI_CHIBI_STATES = Object.freeze({
+  neutral:'assets/boji/chibi-states/neutral.png',
+  encourage:'assets/boji/chibi-states/encourage.png',
+  think:'assets/boji/chibi-states/think.png',
+  walk:'assets/boji/chibi-states/walk.png',
+  sit:'assets/boji/chibi-states/sit.png',
+  happy:'assets/boji/chibi-states/happy.png',
+  sleep:'assets/boji/chibi-states/sleep.png',
+  wave:'assets/boji/chibi-states/wave.png'
+});
+const BOJI_CHIBI_MOOD_MAP = Object.freeze({
+  happy:'happy', cheer:'encourage', wave:'wave', think:'think', sleep:'sleep', walk:'walk', sit:'sit',
+  expect:'neutral', proud:'happy', sad:'think', hover:'neutral', drag:'neutral', blink:'neutral'
+});
 const PET_THEME = { eyeLine:'#332c29', eyeC:'#245d4b', gold:'#efb44e', blush:'#dc8390', trimB:'#397360', skinA:'#fff5e8' };
 const PET_FACE = {
   happy:{eye:'open',mouth:'smile',blush:1}, cheer:{eye:'smile',mouth:'grin',blush:1},
@@ -1249,7 +1263,7 @@ function petMouth(kind){
   if(kind==='wave') return '<path d="M55 78 Q58 75 60 78 Q62 81 65 78" stroke="#a9505b" stroke-width="1.8" fill="none" stroke-linecap="round"/>';
   return '<path d="M54 76 Q60 83 66 76" stroke="#a9505b" stroke-width="2" fill="none" stroke-linecap="round"/>';
 }const PET_SKINS = [
-  { key:'boji', name:'Boji', asset:BOJI_CHIBI, render:()=>'' },
+  { key:'boji', name:'Boji', asset:BOJI_CHIBI_STATES.neutral, render:()=>'' },
   { key:'photo', name:'照片桌宠', render:m=>photoPetSVG(m, (STATE.settings && STATE.settings.petPhoto) || ''), photo:true }
 ];
 function skinBy(key){ return PET_SKINS.find(row=>row.key===key) || PET_SKINS[0]; }
@@ -1259,13 +1273,14 @@ function petSVG(mood){
 }
 function petArtURI(mood){
   if(skinBy(STATE.petSkin).photo) return 'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(petSVG(mood));
-  return BOJI_CHIBI;
+  const state=BOJI_CHIBI_MOOD_MAP[mood]||'neutral';
+  return BOJI_CHIBI_STATES[state]||BOJI_CHIBI_STATES.neutral;
 }
 function applyPetArt(mood){
   const img=document.getElementById('pet-img');if(!img)return;
   const skin=skinBy(STATE.petSkin),pet=document.getElementById('pet');
   if(pet){pet.classList.remove('pet-video');pet.classList.toggle('skin-photo',skin.key==='photo');pet.classList.toggle('skin-boji',skin.key==='boji');}
-  img.src=skin.asset&&!skin.photo?skin.asset:petArtURI(mood||STATE.petMood||'happy');
+  img.src=petArtURI(mood||STATE.petMood||'happy');
 }
 let blinkTimer=null;
 function prefersReducedMotion(){
@@ -1427,6 +1442,7 @@ function petWalk(){
   else              ty = clamp(curY + dist, -ph*0.30, Math.max(-ph*0.30, sr.height - 132 - ph*0.2));
   _walking = true;
   pet.classList.add('pet-walking');
+  applyPetArt('walk');
   pet.style.transition = 'left ' + PET_WALK_MS + 'ms linear, top ' + PET_WALK_MS + 'ms linear';
   pet.style.left = tx + 'px'; pet.style.top = ty + 'px';
   _walkTimers.push(setTimeout(()=>{
@@ -1435,6 +1451,7 @@ function petWalk(){
       pet.classList.remove('pet-walking');
       pet.style.transition = 'none';
       _walking = false;
+      applyPetArt(STATE.petMood||'happy');
     }, PET_WALK_MS + 60));
   }, PET_WALK_MS + 120));
 }
@@ -1443,6 +1460,7 @@ function petStopWalk(){
   const pet = $('#pet'); if(!pet) return;
   pet.classList.remove('pet-walking'); pet.style.transition = 'none'; _walking = false;
   applyDock();
+  applyPetArt(STATE.petMood||'happy');
 }
 function pausePetMotion(){
   clearTimeout(idleTimer);idleTimer=null;
@@ -1673,11 +1691,13 @@ function petAct(name){
   ['idle','wave','crouch','exit'].forEach(n=>pet.classList.remove('act-'+n));
   void pet.offsetWidth;                      // 强制重排，让同名动画能重新播放
   pet.classList.add('act-' + name);
+  if(name==='crouch')applyPetArt('sit');
   clearTimeout(_actTimer);
   if(name === 'idle') return;                // 待机是常驻循环，不自动清除
   _actTimer = setTimeout(()=>{
     pet.classList.remove('act-' + name);
     pet.classList.add('act-idle');           // 动作结束后回到待机
+    if(name==='crouch')applyPetArt(STATE.petMood||'happy');
   }, PET_ACT_MS[name] || 0);
 }
 /* ③ 圆形气泡（视频里的 "hi" / "bye"）：延迟 0.2s 弹出 → 停留 1.8s → 淡出
@@ -1902,7 +1922,6 @@ function renderHome(){
   $('#sb-time').textContent = $('#c-time').textContent;
   $('#c-date').textContent = `${WEEKDAY[now.getDay()]} · ${now.getMonth()+1}月${now.getDate()}日`;
   const t=getDayType(now.getDay());
-  const setsToday=COMPLETED_SETS_BY_DATE.get(todayKey())||0;
   const hour=now.getHours();
   const salutation=hour<11?'早上好':hour<18?'下午好':'晚上好';
   const titleEl=$('#hg-title');
@@ -1911,18 +1930,25 @@ function renderHome(){
     ?'你有一节训练还在进行，已保存的组会保留。'
     :t==='rest'?'今天安排为休息日，恢复也属于训练计划。':'今天的训练安排来自你当前选择的训练方案。';
   $('#home-greeting').querySelector('span:last-child').textContent=greeting;
-  $('#home-stats').innerHTML = `
-    <div class="hs-pill"><span>今天安排</span><b>${dayTypeLabel(t)}</b></div>
-    <div class="hs-pill"><span>已保存</span><b>${setsToday} 组</b></div>
-    <div class="hs-pill"><span>训练规律</span><b>${streak()} 天</b></div>`;
+  const weekStart=new Date(now);weekStart.setHours(0,0,0,0);weekStart.setDate(weekStart.getDate()-weekStart.getDay());
+  const weekDates=Array.from({length:7},(_,i)=>{const d=new Date(weekStart);d.setDate(d.getDate()+i);return d;});
+  const completedDays=new Set(WORKOUT_HISTORY_RECORDS.filter(row=>row&&row.session&&row.session.status==='COMPLETED')
+    .map(row=>row.session.localDateKey).filter(key=>{const date=new Date(key+'T00:00:00');return date>=weekStart&&date<=now;}));
+  const planCode=planProfileForDate(todayKey()),plannedDays=Object.keys(PLAN_SETS[planCode]&&PLAN_SETS[planCode].days||{}).length;
+  const weekCount=completedDays.size,weekLabel=weekCount<=plannedDays?`${weekCount} / ${plannedDays} 天`:`${weekCount} 天`;
+  const weekdayLabels=['日','一','二','三','四','五','六'];
+  $('#home-stats').innerHTML=`<div class="home-week-head"><b>本周进度</b><span>${weekLabel}</span></div>
+    <div class="home-week-days" role="group" aria-label="本周完成训练情况">${weekDates.map((date,i)=>{
+      const key=BojiData.localDateKey(date),done=completedDays.has(key),selected=key===todayKey(),planned=getDayType(date.getDay())!=='rest';
+      return `<span class="home-week-day${done?' done':''}${selected?' today':''}${planned?' planned':''}" aria-label="${key}${done?' 已完成训练':planned?' 计划训练':' 休息日'}"><i>${done?'✓':planned?'·':''}</i><b>${weekdayLabels[i]}</b></span>`;
+    }).join('')}</div><small class="home-week-note">按已完成并保存的训练日统计</small>`;
   const ht = $('#home-today');
   if(t==='rest'){
     ht.innerHTML = `<div class="hc-head"><span class="hc-ic" aria-hidden="true">🌿</span><div><b>今天安排休息</b><span>按你当前选择的每周训练安排</span></div></div>
       <p class="hc-sub">今天的日历安排为休息日。你可以查看其他训练日，或按自己的状态安排轻松活动。</p>
       <button class="hc-go hc-go-lg" id="hc-go">查看训练 <span aria-hidden="true">→</span></button>
       <p class="boji-note"><b>Boji：</b>你选择的${esc(planSetMeta().name)}方案把今天列为休息日。</p>
-      <button type="button" class="home-adjust" id="home-adjust">调整今天 <span aria-hidden="true">›</span></button>
-      <details class="today-why"><summary>为什么今天安排休息？</summary><p>本周计划按你选择的训练方案和星期安排显示。今天对应休息日，训练记录不会因此增加。</p></details>`;
+       <details class="today-why" id="home-why"><summary>为什么今天安排休息？</summary><p>本周计划按你选择的训练方案和星期安排显示。今天对应休息日，训练记录不会因此增加。</p></details>`;
     $('#hc-go').onclick=()=>goModule('training');
   } else {
     const plan = PLANS[t];
@@ -1933,11 +1959,14 @@ function renderHome(){
       <div class="hc-chips">${plan.ex.slice(0,4).map(e=>`<span class="hc-chip">${esc(e.name)}</span>`).join('')}${plan.ex.length>4?`<span class="hc-chip more">+${plan.ex.length-4}</span>`:''}</div>
       <button class="hc-go hc-go-lg" id="hc-go">开始训练 <span aria-hidden="true">→</span></button>
       <p class="boji-note"><b>Boji：</b>${esc(planSetMeta().name)}按星期安排今天的${esc(plan.name)}；进度只会在训练组保存后更新。</p>
-      <button type="button" class="home-adjust" id="home-adjust">调整今天 <span aria-hidden="true">›</span></button>
-      <details class="today-why"><summary>为什么今天练这个？</summary><p>这是你当前训练方案按星期安排的内容。系统没有根据缺少的档案或 AI 生成新计划。</p></details>`;
+       <details class="today-why" id="home-why"><summary>为什么今天练这个？</summary><p>这是你当前训练方案按星期安排的内容。系统没有根据缺少的档案或 AI 生成新计划。</p></details>`;
     $('#hc-go').onclick = ()=>goModule('training');
   }
-  $('#home-adjust').onclick=()=>{STATE.selDate=todayKey();save();goModule('training');};
+  const adjust=$('#home-adjust');if(adjust)adjust.onclick=()=>{STATE.selDate=todayKey();save();goModule('training');};
+  const whyToggle=$('#home-why-toggle');if(whyToggle)whyToggle.onclick=()=>{
+    const why=$('#home-why');if(!why)return;why.open=!why.open;
+    if(why.open&&why.scrollIntoView)why.scrollIntoView({block:'nearest',behavior:'smooth'});
+  };
 }
 
 /* ============================================================
@@ -2381,15 +2410,20 @@ function bondProgress(){
 }
 function renderBoji(body){
   const bond=bondProgress();
-  body.innerHTML=`<section class="boji-hero card" data-character-family="adult" data-character-state="neutral" data-character-slots="master-portrait workout-full-body icon chibi-base" data-character-states="neutral happy encourage focused proud concerned tired sleep"><div class="boji-art-frame"><img class="boji-portrait" data-character-slot="master-portrait" data-asset-status="final" src="${BOJI_PORTRAIT}" alt="Boji 原创训练伙伴立绘"></div><div><div class="boji-say">有我在，我们会一起变强哦！</div><span class="eyebrow">训练伙伴 · 角色形象</span><h2>Boji 在这里</h2><p>训练记录、饮食与恢复工具都可以从这里开始。建议会标明记录依据和不确定之处。</p><div class="boji-bond"><span class="bb-heart" aria-hidden="true">❤</span><div class="bb-main"><b>亲密度 Lv.${bond.level}</b><span class="bb-bar" role="img" aria-label="亲密度进度"><i style="width:${bond.pct}%"></i></span><small>${bond.into} / ${bond.span} · 随已完成训练增长</small></div></div><button class="btn-grad" data-boji-action="ask">问 Boji</button></div></section>
-    <section class="card"><h3>快速记录</h3><div class="boji-actions">
-      <button type="button" data-boji-action="food"><span aria-hidden="true">🍽️</span><b>记录饮食</b></button>
-      <button type="button" data-boji-action="barcode"><span aria-hidden="true">▥</span><b>扫条码</b></button>
-      <button type="button" data-boji-action="run"><span aria-hidden="true">🏃</span><b>开始跑步</b></button>
-      <button type="button" data-boji-action="weight"><span aria-hidden="true">⚖</span><b>记录体重</b></button>
-      <button type="button" data-boji-action="ask"><span aria-hidden="true">✦</span><b>问 Boji</b></button>
-      <button type="button" data-boji-action="photo"><span aria-hidden="true">📷</span><b>照片伙伴</b></button>
-    </div></section>
+  body.innerHTML=`<section class="boji-hero card" data-character-family="adult" data-character-state="neutral" data-character-slots="master-portrait workout-full-body icon chibi-base" data-character-states="neutral happy encourage focused proud concerned tired sleep">
+      <div class="boji-art-frame"><img class="boji-portrait" data-character-slot="master-portrait" data-asset-status="final" src="${BOJI_PORTRAIT}" alt="Boji 原创训练伙伴立绘"><div class="boji-say">有我在，我们会一起变强哦！</div></div>
+      <div class="boji-hero-copy"><span class="eyebrow">训练伙伴 · 角色形象</span><h2>Boji 在这里</h2><p>记录训练、饮食与身体变化；建议会说明依据。</p></div>
+      <div class="boji-bond"><span class="bb-heart" aria-hidden="true">❤</span><div class="bb-main"><b>亲密度 Lv.${bond.level}</b><span class="bb-bar" role="img" aria-label="亲密度进度"><i style="width:${bond.pct}%"></i></span><small>${bond.into} / ${bond.span} · 随已完成训练增长</small></div></div>
+    </section>
+    <section class="card boji-primary-card"><h3>记录与变化</h3><div class="boji-primary-actions">
+      <button type="button" class="boji-main-action" data-boji-action="food"><span aria-hidden="true">🍽️</span><b>记录饮食</b><small>拍照或手动添加</small></button>
+      <button type="button" class="boji-main-action" data-boji-action="run"><span aria-hidden="true">🏃</span><b>开始跑步</b><small>记录路线与时间</small></button>
+      <button type="button" class="boji-main-action" data-boji-action="weight"><span aria-hidden="true">⚖</span><b>记录体重</b><small>更新身体趋势</small></button>
+    </div><button type="button" class="boji-scan-link" data-boji-action="barcode"><span aria-hidden="true">▥</span> 扫食品条码</button></section>
+    <section class="boji-secondary-actions" aria-label="伙伴互动">
+      <button type="button" data-boji-action="ask"><span aria-hidden="true">✦</span><b>问 Boji</b><small>训练、营养与生活</small></button>
+      <button type="button" data-boji-action="photo"><span aria-hidden="true">📷</span><b>Photo Pet</b><small>用自己的照片做伙伴</small></button>
+    </section>
     <section class="card boji-photo-note"><h3>伙伴形象</h3><p>Boji 角色与 Photo Pet 分开保存。Photo Pet 图片只保存在本机，可以随时替换或移除。</p><button class="ex-do ghost-btn" data-boji-action="photo">管理 Photo Pet</button></section>
     <p class="boji-signoff">今天也辛苦了！记得喝水和拉伸哦～</p>`;
   body.querySelectorAll('[data-boji-action]').forEach(button=>button.onclick=()=>{
@@ -2443,20 +2477,26 @@ function renderProgress(body){
   const detailsSummary=document.createElement('summary');detailsSummary.textContent='查看训练日历、身体记录与详细指标';
   const detailContent=document.createElement('div');detailContent.className='progress-details-body';
   while(body.firstChild)detailContent.appendChild(body.firstChild);
+  detailContent.prepend(progressExplanationSection());
   details.append(detailsSummary,detailContent);body.appendChild(details);
+  const overview=progressOverviewSection();body.insertBefore(overview,details);
+  body.querySelectorAll('[data-progress-range]').forEach(button=>button.onclick=()=>{
+    progressRange=button.dataset.progressRange;renderProgress(body);
+  });
+}
+function progressExplanationSection(){
   const completed=WORKOUT_HISTORY_RECORDS.filter(row=>row&&row.session&&row.session.status==='COMPLETED');
-  const week=new Date();week.setHours(0,0,0,0);week.setDate(week.getDate()-6);
-  const weekKey=BojiData.localDateKey(week);
+  const week=new Date();week.setHours(0,0,0,0);week.setDate(week.getDate()-6);const weekKey=BojiData.localDateKey(week);
   const weekly=new Set(completed.filter(row=>row.session.localDateKey>=weekKey&&row.session.localDateKey<=todayKey()).map(row=>row.session.localDateKey)).size;
   const latest=completed.slice().sort((a,b)=>(b.session.endedAt||b.session.startedAt||0)-(a.session.endedAt||a.session.startedAt||0))[0];
-  const issue=ACTIVE_WORKOUT?`有一节训练仍在进行：${ACTIVE_WORKOUT.session.localDateKey}。保存的组会保留，可继续完成。`:
-    latest?`最近一次完成训练：${latest.session.localDateKey}；近 7 天有 ${weekly} 天完成训练。`:'当前没有已完成的训练记录。';
-  const summary=document.createElement('section');summary.className='progress-first card';
-  summary.innerHTML=`<h3>先看这三件事</h3><div class="progress-answer"><b>力量变化</b><p>${esc(progressStrengthSummary())}</p></div>
-    <div class="progress-answer"><b>训练规律</b><p>过去 7 天完成了 ${weekly} 天训练。统计只计入已完成的 WorkoutSession。</p></div>
+  const issue=ACTIVE_WORKOUT?`有一节训练仍在进行，日期为 ${ACTIVE_WORKOUT.session.localDateKey}；未保存的组不会计入进步。`:
+    latest?`最近完成训练：${latest.session.localDateKey}；近 7 天记录了 ${weekly} 天。`:'还没有已完成的训练记录。保存并完成训练后，这里会显示实际记录。';
+  const section=document.createElement('section');section.className='progress-first card';
+  section.innerHTML=`<h3>训练记录说明</h3>
+    <div class="progress-answer"><b>力量变化</b><p>${esc(progressStrengthSummary())}</p></div>
+    <div class="progress-answer"><b>训练规律</b><p>近 7 天有 ${weekly} 天包含已完成训练。只统计已完成的训练记录。</p></div>
     <div class="progress-answer"><b>值得留意</b><p>${esc(issue)}</p></div>`;
-  body.insertBefore(summary,body.firstChild);
-  summary.insertAdjacentElement('afterend',progressOverviewSection());
+  return section;
 }
 function e1rmOverview(){
   const grouped=new Map();
@@ -2474,11 +2514,54 @@ function e1rmOverview(){
         });
       best.forEach((value,id)=>{const list=grouped.get(id)||[];list.push(value);grouped.set(id,list);});
     });
-  const ordered=Array.from(grouped.values()).filter(rows=>rows.length).sort((a,b)=>b[b.length-1].date.localeCompare(a[a.length-1].date));
-  const comparable=ordered.find(rows=>rows.length>1);
-  if(!comparable){const only=ordered[0];return only?{value:Math.round(only[only.length-1].e1*10)/10,delta:null}:{value:null,delta:null};}
-  const prev=comparable[comparable.length-2],last=comparable[comparable.length-1];
-  return {value:Math.round(last.e1*10)/10,delta:prev.e1?Math.round((last.e1-prev.e1)/prev.e1*1000)/10:null};
+  const ordered=Array.from(grouped.entries()).map(([exerciseId,rows])=>({exerciseId,rows}))
+    .filter(group=>group.rows.length).sort((a,b)=>b.rows[b.rows.length-1].date.localeCompare(a.rows[a.rows.length-1].date));
+  const selected=ordered.find(group=>group.rows.length>1)||ordered[0];
+  if(!selected)return{value:null,delta:null,exerciseId:null,exerciseName:null};
+  const rows=selected.rows,last=rows[rows.length-1],prev=rows.length>1?rows[rows.length-2]:null;
+  return{value:Math.round(last.e1*10)/10,delta:prev&&prev.e1?Math.round((last.e1-prev.e1)/prev.e1*1000)/10:null,
+    exerciseId:selected.exerciseId,exerciseName:last.name||selected.exerciseId};
+}
+let progressRange='week';
+function progressTrendBuckets(range){
+  const today=new Date();today.setHours(0,0,0,0);
+  const completed=WORKOUT_HISTORY_RECORDS.filter(row=>row&&row.session&&row.session.status==='COMPLETED'&&/^\d{4}-\d{2}-\d{2}$/.test(row.session.localDateKey||''));
+  const firstKey=completed.map(row=>row.session.localDateKey).sort()[0]||todayKey();
+  let bucketCount=7,unit='day',start=new Date(today),label='近 7 天';
+  if(range==='month'){bucketCount=4;unit='week';start.setDate(start.getDate()-27);label='近 4 周';}
+  else if(range==='quarter'){bucketCount=12;unit='week';start.setDate(start.getDate()-83);label='近 12 周';}
+  else if(range==='all'){
+    const [fy,fm]=firstKey.split('-').map(Number),first=new Date(fy,fm-1,1),months=(today.getFullYear()-first.getFullYear())*12+today.getMonth()-first.getMonth()+1;
+    unit=months<=12?'month':months<=48?'quarter':'half-year';
+    const size=unit==='month'?1:unit==='quarter'?3:6;
+    bucketCount=Math.max(1,Math.ceil(months/size));
+    start=new Date(first);label='全部记录';
+  }else{start.setDate(start.getDate()-6);}
+  const rows=Array.from({length:bucketCount},(_,i)=>{
+    const from=new Date(start);
+    if(unit==='day')from.setDate(from.getDate()+i);
+    else if(unit==='week')from.setDate(from.getDate()+i*7);
+    else from.setMonth(from.getMonth()+i*(unit==='month'?1:unit==='quarter'?3:6));
+    const to=new Date(from);
+    if(unit==='day')to.setDate(to.getDate()+1);
+    else if(unit==='week')to.setDate(to.getDate()+7);
+    else to.setMonth(to.getMonth()+(unit==='month'?1:unit==='quarter'?3:6));
+    return{from,to,count:0,label:unit==='day'?`${from.getMonth()+1}/${from.getDate()}`:unit==='week'?`${from.getMonth()+1}/${from.getDate()}`:unit==='quarter'?`${from.getFullYear()}/${from.getMonth()+1}`:`${from.getFullYear()}/${from.getMonth()+1}`};
+  });
+  completed.forEach(row=>{
+    const [y,m,d]=row.session.localDateKey.split('-').map(Number),date=new Date(y,m-1,d);
+    const bucket=rows.find(item=>date>=item.from&&date<item.to);if(bucket)bucket.count++;
+  });
+  return{rows,label,hasRecords:rows.some(row=>row.count>0)};
+}
+function progressTrendSvg(model){
+  if(!model.hasRecords)return '<div class="pt-empty">所选时间段还没有已完成的训练记录</div>';
+  const rows=model.rows,max=Math.max(1,...rows.map(row=>row.count)),left=25,right=314,top=10,bottom=82;
+  const points=rows.map((row,i)=>`${rows.length===1?(left+right)/2:left+i*(right-left)/(rows.length-1)},${bottom-(row.count/max)*(bottom-top)}`);
+  const labels=rows.map((row,i)=>i===0||i===rows.length-1||i%Math.ceil(rows.length/4)===0?`<text x="${points[i].split(',')[0]}" y="112" text-anchor="middle">${esc(row.label)}</text>`:'').join('');
+  const dots=points.map((point,i)=>{const [x,y]=point.split(',');return `<circle cx="${x}" cy="${y}" r="3.2"><title>${esc(rows[i].label)}：${rows[i].count} 次</title></circle>`;}).join('');
+  const grid=[0,1,2,3].map(i=>{const y=top+i*(bottom-top)/3;return `<line x1="${left}" y1="${y}" x2="${right}" y2="${y}"/><text x="18" y="${y+3}" text-anchor="end">${Math.round(max*(1-i/3))}</text>`;}).join('');
+  return `<svg class="pt-chart" viewBox="0 0 320 124" role="img" aria-label="${esc(model.label)}每周已完成训练次数趋势">${grid}<polyline points="${points.join(' ')}"/><g>${dots}</g>${labels}</svg>`;
 }
 function progressOverviewSection(){
   const section=document.createElement('section');section.className='progress-overview';
@@ -2487,22 +2570,28 @@ function progressOverviewSection(){
   const wDelta=(weights.length>1&&latestW&&firstW)?Math.round((latestW.w-firstW.w)*10)/10:null;
   const since=new Date();since.setHours(0,0,0,0);since.setDate(since.getDate()-27);
   const sinceKey=BojiData.localDateKey(since);
-  const recent=WORKOUT_HISTORY_RECORDS.filter(row=>row&&row.session&&row.session.localDateKey>=sinceKey);
-  const doneCount=recent.filter(row=>row.session.status==='COMPLETED').length;
-  const rate=recent.length?Math.round(doneCount/recent.length*100):null;
+  const recent=WORKOUT_HISTORY_RECORDS.filter(row=>row&&row.session&&row.session.status==='COMPLETED'&&row.session.localDateKey>=sinceKey&&row.session.localDateKey<=todayKey());
+  const doneDays=new Set(recent.map(row=>row.session.localDateKey));let plannedDays=0;
+  for(let i=0;i<28;i++){const d=new Date(since);d.setDate(d.getDate()+i);if(getDayType(d.getDay())!=='rest')plannedDays++;}
+  const hasCompletedHistory=WORKOUT_HISTORY_RECORDS.some(row=>row&&row.session&&row.session.status==='COMPLETED');
+  const rate=plannedDays&&hasCompletedHistory?Math.round(doneDays.size/plannedDays*100):null;
   const e1=e1rmOverview(), st=streak();
-  const trendLine=rate==null?'保存训练组后，这里会显示近 4 周的完成率趋势。'
-    :rate>=70?`你在稳定进步！近 4 周训练完成率 ${rate}%。`
-    :`继续保持节奏：近 4 周训练完成率 ${rate}%。`;
+  const trend=progressTrendBuckets(progressRange);
+  const trendLine=trend.hasRecords?`${trend.label}共完成 ${trend.rows.reduce((sum,row)=>sum+row.count,0)} 次训练。只统计已完成并保存的训练。`:'保存并完成训练后，这里会按实际训练记录显示趋势。';
+  const weekStart=new Date();weekStart.setHours(0,0,0,0);weekStart.setDate(weekStart.getDate()-6);const weekKey=BojiData.localDateKey(weekStart);
+  const thisWeek=WORKOUT_HISTORY_RECORDS.filter(row=>row&&row.session&&row.session.status==='COMPLETED'&&row.session.localDateKey>=weekKey&&row.session.localDateKey<=todayKey());
+  const weekSets=thisWeek.reduce((sum,row)=>sum+(row.sets||[]).filter(set=>set&&set.completed===true).length,0);
+  const highlight=thisWeek.length?`近 7 天完成 ${new Set(thisWeek.map(row=>row.session.localDateKey)).size} 天训练，保存 ${weekSets} 组。`:'本周还没有已完成的训练；完成并保存后，这里会显示本周记录。';
   const sign=v=>v==null?'':(v>0?'+':'');
-  section.innerHTML=`<div class="card progress-trend"><h3>总体趋势</h3><p class="pt-line">${esc(trendLine)}</p>
-      <div class="pt-spark" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div></div>
+  const ranges=[['week','周'],['month','月'],['quarter','3个月'],['all','全部']];
+  section.innerHTML=`<div class="card progress-trend"><div class="pt-head"><h3>总体趋势</h3><div class="progress-ranges" role="group" aria-label="趋势时间范围">${ranges.map(([key,label])=>`<button type="button" data-progress-range="${key}" class="${progressRange===key?'active':''}" aria-pressed="${progressRange===key}">${label}</button>`).join('')}</div></div><p class="pt-line">${esc(trendLine)}</p>
+      ${progressTrendSvg(trend)}</div>
     <div class="metric-grid">
-      <div class="metric-card"><span class="mc-ic" aria-hidden="true">💪</span><b>${e1.value!=null?esc(e1.value)+' kg':'—'}</b><span>力量 e1RM</span><em class="${e1.delta>0?'up':e1.delta<0?'down':''}">${e1.delta==null?'待累计':sign(e1.delta)+e1.delta+'%'}</em></div>
+      <div class="metric-card"><span class="mc-ic" aria-hidden="true">💪</span><b>${e1.value!=null?esc(e1.value)+' kg':'—'}</b><span>${e1.exerciseName?esc(e1.exerciseName)+' · e1RM 估算':'e1RM 估算 · 尚无动作记录'}</span><em class="${e1.delta>0?'up':e1.delta<0?'down':''}">${e1.delta==null?(e1.exerciseName?'同动作再记录一次可比较':'等待记录'):'同动作 '+sign(e1.delta)+e1.delta+'%'}</em></div>
       <div class="metric-card"><span class="mc-ic" aria-hidden="true">⚖</span><b>${latestW?esc(latestW.w)+' kg':'—'}</b><span>体重</span><em class="${wDelta>0?'up':wDelta<0?'down':''}">${wDelta==null?'未记录变化':sign(wDelta)+wDelta+' kg'}</em></div>
-      <div class="metric-card"><span class="mc-ic" aria-hidden="true">✅</span><b>${rate!=null?rate+'%':'—'}</b><span>训练完成率</span><em>近 4 周</em></div>
-      <div class="metric-card"><span class="mc-ic" aria-hidden="true">🔥</span><b>${st} 天</b><span>连续训练</span><em>已保存组</em></div>
-    </div>`;
+      <div class="metric-card"><span class="mc-ic" aria-hidden="true">✅</span><b>${rate!=null?rate+'%':'—'}</b><span>训练完成率</span><em>近 4 周计划日</em></div>
+      <div class="metric-card"><span class="mc-ic" aria-hidden="true">🔥</span><b>${hasCompletedHistory?st+' 天':'—'}</b><span>连续训练</span><em>${hasCompletedHistory?'已保存组':'暂无训练记录'}</em></div>
+    </div><div class="card progress-week-highlight"><h3>本周亮点</h3><p>${esc(highlight)}</p></div>`;
   return section;
 }
 function refreshProgressSurface(body){
@@ -2594,12 +2683,13 @@ function renderTraining(body){
     if(headName||totalEx)html+='<div class="card train-head"><div class="th-main"><b>'+esc(headName||'今日训练')+'</b><span>'+esc(planSetMeta().name)+'</span></div>'+(totalEx?'<span class="th-count" aria-label="已完成动作">'+doneEx+'/'+totalEx+'</span>':'')+'</div>';
   }
   html+='<div class="mode-switch card" role="group" aria-label="训练模式"><b>训练模式</b><button type="button" data-training-mode="learning" class="'+(mode==='learning'?'active':'')+'" aria-pressed="'+(mode==='learning')+'">学习</button><button type="button" data-training-mode="performance" class="'+(mode==='performance'?'active':'')+'" aria-pressed="'+(mode==='performance')+'">表现</button><span>'+(mode==='learning'?'先看动作要点，再记录组数':'突出上次记录和当前组')+'</span></div>';
-  html+='<div class="card"><h4>本周安排</h4><div class="week">';
+  html+=workout?'<details class="workout-week-details"><summary>本周安排 · 查看其他训练日</summary>':'<div class="card"><h4>本周安排</h4>';
+  html+='<div class="week">';
   for(let i=0;i<7;i++){const d=new Date();d.setDate(d.getDate()-d.getDay()+i);const k=BojiData.localDateKey(d),cls=['wday'];
     if(d.getDay()===wd())cls.push('today');if(k===key)cls.push('sel');if(isDayComplete(k))cls.push('done');
     html+='<button class="'+cls.join(' ')+'" data-day="'+k+'"><span>'+WEEKDAY[d.getDay()][1]+'</span><span class="wd-d">'+d.getDate()+'</span><span>'+
       (getDayType(d.getDay())==='rest'?'休':getDayType(d.getDay())[0].toUpperCase())+'</span></button>';}
-  html+='</div></div>';
+  html+=workout?'</div></details>':'</div></div>';
   if(active&&!workout)html+='<div class="card"><h4>有一节训练尚未结束</h4><p>'+esc(active.session.localDateKey)+' · '+active.sets.filter(x=>x.completed).length+'/'+
     active.sets.length+' 组已保存</p><button class="btn-grad" id="resume-workout">查看这节训练</button>'+
     (active.session.ownerTabId!==TAB_OWNER_ID?'<button class="ex-do ghost-btn" id="takeover-workout">在此标签页接管</button>':'')+'</div>';
@@ -2608,40 +2698,58 @@ function renderTraining(body){
     const ownsWorkout=s.ownerTabId===TAB_OWNER_ID;
     const complete=workout.sets.length>0&&workout.sets.every(x=>x.completed);
     if(!ownsWorkout)html+='<div class="card workout-owner-notice" role="status"><b>当前为只读</b><p>这节训练由另一个标签页控制。接管后，原标签页会变为只读。</p><button class="ex-do" id="takeover-workout">在此标签页接管</button></div>';
-    html+='<div class="card"><h4>'+esc(t&&t.name||'训练进行中')+' <span class="tag">'+esc(profile&&profile.name||'器械档案')+'</span></h4><p>'+
+    html+='<div class="card workout-session-summary"><h4>'+esc(t&&t.name||'训练进行中')+' <span class="tag">'+esc(profile&&profile.name||'器械档案')+'</span></h4><p>'+
       esc(s.localDateKey)+' · 已保存 '+workout.sets.filter(x=>x.completed).length+'/'+workout.sets.length+' 组</p>'+
       (s.lastCommittedAt?'<p>最近一组保存于 '+new Date(s.lastCommittedAt).toLocaleTimeString()+(s.activeRestEndAt?' · 休息计时已恢复':'')+'</p>':'')+'</div>';
-    workout.exerciseSessions.forEach((ex,i)=>{
+    const exerciseRows=workout.exerciseSessions.map((ex,index)=>({ex,index}));
+    exerciseRows.sort((a,b)=>{
+      const aCurrent=workout.sets.some(row=>row.exerciseSessionId===a.ex.exerciseSessionId&&row.setId===s.currentSetId)?1:0;
+      const bCurrent=workout.sets.some(row=>row.exerciseSessionId===b.ex.exerciseSessionId&&row.setId===s.currentSetId)?1:0;
+      return bCurrent-aCurrent||a.index-b.index;
+    });
+    exerciseRows.forEach(({ex,index:i})=>{
       const p=t&&t.exercises[i]||{},def=exerciseDefinition(ex.exerciseId),sets=workout.sets.filter(x=>x.exerciseSessionId===ex.exerciseSessionId);
       const current=sets.some(x=>x.setId===s.currentSetId),teaching=def&&def.teaching||p.teaching||{},video=teaching.video;
       const last=previousExerciseSet(ex.exerciseId,s.sessionId),currentSet=sets.find(x=>!x.completed);
+      const suggestion=PROGRESSION_SUGGESTIONS.get(ex.exerciseId);
       const learningContent='<div class="learning-content"><div><b>动作标准</b><p>'+esc(teaching.form||'在舒适范围内控制动作')+'</p></div>'+((teaching.breathing||p.breathing)?'<div><b>呼吸</b><p>'+esc(teaching.breathing||p.breathing)+'</p></div>':'')+
         ((teaching.tempo||p.tempo)?'<div><b>节奏</b><p>'+esc(teaching.tempo||p.tempo)+'</p></div>':'')+'<div><b>常见错误</b><p>'+esc(teaching.commonErrors||'动作过程中保持稳定，避免借力。')+'</p></div><div><b>安全提示</b><p>'+esc(teaching.safety||'如出现疼痛或不适，请停止并调整。')+'</p></div></div>';
-      const modeContent=mode==='learning'?learningContent:'<details class="learning-details"><summary>动作教学与安全</summary>'+learningContent+'</details>';
+      const modeContent=workout?'<details class="learning-details"><summary>'+(mode==='learning'?'展开动作要点':'动作教学与安全')+'</summary>'+learningContent+'</details>':
+        mode==='learning'?learningContent:'<details class="learning-details"><summary>动作教学与安全</summary>'+learningContent+'</details>';
       const videoContent=video&&video.sourceUrl?'<button class="ex-video" data-video-url="'+esc(video.sourceUrl)+'" data-video-label="'+esc(video.title||def.name)+'">▶ '+
         esc(video.title||'打开动作教学')+'</button><span class="tag">'+esc(video.matchLevel||'UNVERIFIED')+' · '+esc(video.availability||'UNKNOWN')+'</span>':'';
-      const performanceContent=mode==='performance'?'<div class="performance-context"><span>上次：'+(last?(esc(last.date)+' · '+(last.weightKg==null?'重量未填':esc(last.weightKg)+' kg')+' × '+esc(last.reps)+' 次'):'暂无同动作已完成记录')+'</span><span>当前：'+
-        (currentSet?('第 '+(currentSet.setIndex+1)+' 组 · 目标 '+esc(currentSet.targetReps)+' 次'):'本动作各组均已保存')+'</span></div>':'';
+      const demoContent=current?'<div class="exercise-demo"><div class="exercise-demo-art"><span aria-hidden="true">'+(videoContent?'有来源':'无视频')+'</span><small>演示状态</small></div><div class="exercise-demo-copy"><b>动作演示与要点</b><p>'+
+        (videoContent?'教学媒体标记为 '+esc(video.matchLevel||'UNVERIFIED')+' · '+esc(video.availability||'UNKNOWN')+'，匹配状态仍待核验。':'当前没有已验证的视频素材；动作要点可离线查看。')+
+        '</p>'+videoContent+'</div></div>':'';
+      const suggestionCopy=!suggestion?'':!suggestion.ready?'尚无足够的已保存同动作组，暂不提供重量建议。':suggestion.kind==='INCREASE_LOAD'?
+        '建议重量 '+esc(suggestion.suggestedKg)+' kg · 需要你确认':'保持 '+esc(suggestion.currentKg)+' kg，先逐步达到目标次数';
+      const performanceContent=current?'<div class="performance-context"><strong>上次表现</strong><span>'+
+        (last?(esc(last.date)+' · '+(last.weightKg==null?'重量未填':esc(last.weightKg)+' kg')+' × '+esc(last.reps)+' 次'):'暂无同动作已完成记录')+
+        (currentSet?'<span>当前第 '+(currentSet.setIndex+1)+' 组 · 目标 '+esc(currentSet.targetReps)+' 次</span>':'')+
+        (suggestion?'<span class="suggested-load">'+suggestionCopy+'</span>':'')+
+        '<button class="ex-do ghost-btn" data-progression="'+esc(ex.exerciseId)+'" data-target-reps="'+esc(ex.targetReps)+'">'+(suggestion?'重新计算建议':'查看建议重量')+'</button></div>':
+        mode==='performance'?'<div class="performance-context"><span>当前：'+(currentSet?('第 '+(currentSet.setIndex+1)+' 组 · 目标 '+esc(currentSet.targetReps)+' 次'):'本动作各组均已保存')+'</span></div>':'';
       html+='<div class="ex '+(current?'exercise-current':'')+'"><div class="ex-top"><span class="ex-no">'+(i+1)+'</span><span class="ex-name">'+esc(ex.nameSnapshot)+
         '</span><span class="ex-sets">'+ex.targetSets+'×'+esc(ex.targetReps)+' · 休'+(p.restSeconds||60)+'s</span></div>'+
         (def&&def.targetMuscles&&def.targetMuscles.length?'<div class="ex-muscle">'+esc(def.targetMuscles.join(' · '))+'</div>':'')+
-        performanceContent+modeContent+videoContent+'<div class="workout-sets">';
+         demoContent+performanceContent+(current?'':modeContent)+(current?'':videoContent)+'<div class="workout-sets">';
       sets.forEach(set=>{
         const enabled=!set.completed&&set.setId===s.currentSetId,weight=STATE.weights[key]&&STATE.weights[key][String(i)]||'';
         const rirOptions=Array.from({length:11},(_,n)=>'<option value="'+n+'" '+(set.rir===n?'selected':'')+'>'+n+'</option>').join('');
         const action=set.completed?'<span>已保存：'+(set.weightKg==null?'重量未填':set.weightKg+' kg')+' · '+set.reps+' 次</span>':
           enabled&&ownsWorkout?'<button class="ex-do" data-complete-set="'+esc(set.setId)+'">保存并完成本组</button>':
           !ownsWorkout?'<small>只读标签页无法保存训练组</small>':'<small>按顺序完成上一组后解锁</small>';
+        const rirField='<label>RIR <select data-rir '+(set.completed||!enabled||!ownsWorkout?'disabled':'')+'><option value="">未记录</option>'+rirOptions+'</select></label>';
+        const rirControl=enabled?rirField:'<details '+(mode==='performance'?'open':'')+'><summary>RIR 进阶记录（选填）</summary>'+rirField+'</details>';
         html+='<div class="workout-set '+(set.completed?'set-complete':'')+(enabled?' current-set':'')+'" data-set-row="'+esc(set.setId)+'"><b>第 '+(set.setIndex+1)+' 组'+(set.completed?' ✓':'')+'</b>'+
           '<label>重量 kg <input type="number" min="0" max="2000" step="0.5" value="'+(set.weightKg==null?esc(weight):set.weightKg)+'" data-weight '+(set.completed||!enabled||!ownsWorkout?'disabled':'')+'></label>'+
           '<label>次数 <input type="number" min="1" max="1000" value="'+(set.reps==null?repsDefault(set.targetReps):set.reps)+'" data-reps '+(set.completed||!enabled||!ownsWorkout?'disabled':'')+'></label>'+
-          '<details '+(mode==='performance'?'open':'')+'><summary>RIR 进阶记录（选填）</summary><label>RIR <select data-rir '+(set.completed||!enabled||!ownsWorkout?'disabled':'')+'><option value="">未记录</option>'+rirOptions+'</select></label></details>'+action+'</div>';
+          rirControl+action+'</div>';
       });
       html+='</div>';
-      if(current)html+='<button class="ex-do ghost-btn" data-progression="'+esc(ex.exerciseId)+'" data-target-reps="'+esc(ex.targetReps)+'">查看进阶建议</button>';
-      const suggestion=PROGRESSION_SUGGESTIONS.get(ex.exerciseId);
-      if(suggestion&&current)html+='<div class="ex-over">'+esc(suggestion.reason)+(suggestion.ready?' 建议重量 '+suggestion.suggestedKg+' kg。 <button data-accept-progression="'+
-        esc(ex.exerciseId)+'" data-load="'+suggestion.suggestedKg+'">采用建议</button>':'')+'</div>';
+      if(current)html+=modeContent;
+      if(suggestion&&current&&suggestion.ready&&suggestion.kind==='INCREASE_LOAD')html+='<div class="ex-over">'+esc(suggestion.reason)+' <button data-accept-progression="'+
+        esc(ex.exerciseId)+'" data-load="'+suggestion.suggestedKg+'">采用建议</button></div>';
       html+='</div>';
     });
     if(ownsWorkout)html+='<button class="btn-grad" id="finish-workout" '+(complete?'':'disabled')+'>'+(complete?'完成训练':'完成所有组后可结束训练')+
@@ -3821,8 +3929,9 @@ function applyWallpaper(){
   if(bg && BG_IMAGES[bg]){ setBgImage(BG_IMAGES[bg]); return; }
   // 自定义图片（data: URL）
   if(bg && bg.slice(0,5)==='data:'){ setBgImage(bg); return; }
-  // 未设置 → 默认恢复为角色壁纸（图片加载失败会自动回落到雾紫渐变，不会白屏或半张图）
-  setBgImage(BG_IMAGES.card);
+  // 默认保持温暖浅色画布；Boji 人物背景仅在用户主动选择后显示。
+  if(!bg||bg==='default'){w.style.background='';return;}
+  w.style.background='';
 }
 // 教练身份应用到全局：助手面板头部 / 聊天输入占位 / 引导文案（聊天消息头像按发送时刻取值）
 function applyCoachIdentity(){
@@ -3847,12 +3956,7 @@ function renderProfile(body){
   const avatar = p && p.avatar ? p.avatar : BOJI_PORTRAIT;
   body.innerHTML=`<div class="profile-head"><img id="pf-av" src="${avatar}" alt=""><b id="pf-name">${esc(p?(p.name||'训练者'):'训练者')}</b><span>${p?`${p.height}cm · ${p.weight}kg · 哑铃${p.dumbbell}kg`:'未设置档案'}</span>
     <button class="hc-go" id="pf-av-btn">📷 更换头像</button></div>
-    <div class="profile-summary" id="profile-summary">
-      <div class="ps-item"><span class="ps-ic">💗</span><b>亲密度 Lv.${bondProgress().level}</b><small>与 Boji 的羁绊</small></div>
-      <div class="ps-item"><span class="ps-ic">🔥</span><b>${streak()} 天</b><small>连续打卡</small></div>
-      <div class="ps-item"><span class="ps-ic">🗓️</span><b>${esc(planSetMeta().name)}</b><small>当前训练方案</small></div>
-    </div>
-    <section class="settings-group"><header><span>A</span><div><h3>训练与档案</h3><p>训练背景、计划和营养偏好</p></div></header>
+    <section class="settings-group"><header><span>🏋</span><div><h3>训练与档案</h3><p>训练背景、计划和营养偏好</p></div></header>
     <details class="sg-body" id="sg-train"><summary class="sg-summary"><span class="sg-caret">⌄</span>展开设置 · 档案、目标与训练方案</summary>
     <div class="card" style="padding:6px 14px">
       <h4 style="margin:8px 0 2px">档案（改完立即生效）</h4>
@@ -3882,7 +3986,7 @@ function renderProfile(body){
     </div>
     </details>
     </section>
-    <section class="settings-group"><header><span>B</span><div><h3>Boji 与外观</h3><p>角色、Photo Pet、语音和陪伴偏好</p></div></header>
+    <section class="settings-group"><header><span>♡</span><div><h3>Boji 与外观</h3><p>角色、Photo Pet、语音和陪伴偏好</p></div></header>
     <details class="sg-body" id="sg-boji"><summary class="sg-summary"><span class="sg-caret">⌄</span>展开设置 · 角色、外观与陪伴</summary>
     <div class="card" style="padding:6px 14px">
       <div class="list-row"><span class="lr-ic">🔥</span>连续打卡<b style="margin-left:auto">${streak()} 天</b></div>
@@ -3896,7 +4000,8 @@ function renderProfile(body){
       <h4 style="margin:8px 0 2px">外观设置</h4>
       <p class="set-lab">桌面背景（建议浅色，深色壁纸文字可能看不清）</p>
       <div class="bg-swatches" id="bg-sw">
-        <button class="bg-swatch bw0${(STATE.settings.bg==='card'||!STATE.settings.bg)?' on':''}" data-bg="card" title="角色壁纸（默认）"></button>
+        <button class="bg-swatch bwoff${(!STATE.settings.bg||STATE.settings.bg==='default')?' on':''}" data-bg="default" title="温暖浅色（默认）"></button>
+        <button class="bg-swatch bw0${STATE.settings.bg==='card'?' on':''}" data-bg="card" title="Boji 角色背景"></button>
         <button class="bg-swatch bw1${STATE.settings.bg==='p1'?' on':''}" data-bg="p1" title="晨光橙"></button>
         <button class="bg-swatch bw2${STATE.settings.bg==='p2'?' on':''}" data-bg="p2" title="薄荷绿"></button>
         <button class="bg-swatch bw3${STATE.settings.bg==='p3'?' on':''}" data-bg="p3" title="雾紫"></button>
@@ -3938,7 +4043,7 @@ function renderProfile(body){
     </div>
     </details>
     </section>
-    <section class="settings-group"><header><span>C</span><div><h3>数据与隐私</h3><p>数据状态、备份恢复与 AI 控制</p></div></header>
+    <section class="settings-group"><header><span>⊕</span><div><h3>数据与隐私</h3><p>数据状态、备份恢复与 AI 控制</p></div></header>
     <details class="sg-body" id="sg-data"><summary class="sg-summary"><span class="sg-caret">⌄</span>展开设置 · 数据、备份与 AI</summary>
     <div class="card app-tools-card">
       <div class="list-row" id="profile-health" role="button" tabindex="0"><span class="lr-ic">◉</span>数据健康与诊断<span class="lr-ar">查看 ›</span></div>
@@ -3975,7 +4080,7 @@ function renderProfile(body){
     </div>
     </details>
     </section>
-    <section class="settings-group"><header><span>D</span><div><h3>应用</h3><p>PWA、更新、诊断与版本信息</p></div></header>
+    <section class="settings-group"><header><span>▣</span><div><h3>应用</h3><p>PWA、更新、诊断与版本信息</p></div></header>
     <details class="sg-body" id="sg-app"><summary class="sg-summary"><span class="sg-caret">⌄</span>展开设置 · 关于与更新</summary>
     <div class="card app-tools-card">
       <p>应用可添加到主屏幕并像应用一样打开；是否支持安装入口由当前浏览器决定。Boji 不会常驻系统桌面浮窗。</p>

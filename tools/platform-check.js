@@ -123,8 +123,11 @@ async function dispatchLifecycle(name, extras) {
   await dispatchLifecycle('install');
   assert.equal(skipWaitingCount, 0, 'worker install does not force activation');
   assert.ok(posted.some(message => message.type === 'BOJI_UPDATE_READY'), 'waiting update notifies clients');
-  const ownCache = cacheStore.get('boji-v2-rc-6');
+  const ownCache = cacheStore.get('boji-v2-rc-9');
   assert.ok(ownCache && ownCache.items.has('https://example.test/boji-companion-v2/rc/index.html'));
+  for (const state of ['neutral', 'encourage', 'think', 'walk', 'sit', 'happy', 'sleep', 'wave']) {
+    assert.ok(ownCache.items.has(`https://example.test/boji-companion-v2/rc/assets/boji/chibi-states/${state}.png`), `offline cache contains the ${state} Chibi state`);
+  }
   await caches.open('boji-v2-rc-4');
   await caches.open('boji-v2-rc-5');
   await caches.open('boji-v2-prod-9');

@@ -109,6 +109,14 @@ window.__T0 = Date.now();
             <div class="hh-cap"><b>Boji</b><span>有我在，我们会一起变强哦 ♡</span></div>
           </div>
           <div class="home-card" id="home-today"><!-- 今日训练速览：一眼看到当天动作 --></div>
+          <div class="home-shortcuts" id="home-shortcuts" aria-label="今日辅助入口">
+            <button type="button" class="home-shortcut" id="home-adjust">
+              <span class="hs-ic" aria-hidden="true">▦</span><span><b>调整今天</b><small>器械与可用时间</small></span><i aria-hidden="true">›</i>
+            </button>
+            <button type="button" class="home-shortcut" id="home-why-toggle" aria-controls="home-why">
+              <span class="hs-ic" aria-hidden="true">✦</span><span><b>为什么这样安排？</b><small>查看计划依据</small></span><i aria-hidden="true">›</i>
+            </button>
+          </div>
           <div class="home-stats" id="home-stats"><!-- 已保存训练组与训练规律摘要 --></div>
           <div class="clock-widget" aria-label="当前日期和时间">
             <div class="c-time" id="c-time">9:41</div>
@@ -149,10 +157,8 @@ window.__T0 = Date.now();
 
         <!-- 通用模块面板（训练/饮食/数据/我的） -->
         <section class="panel module" id="module" aria-hidden="true">
-          <header class="panel-head">
-            <button class="ph-back" data-close="module">‹</button>
+          <header class="panel-head module-head">
             <div class="ph-meta"><b id="mod-title">模块</b><span id="mod-sub"></span></div>
-            <button class="ph-close" data-close="module">✕</button>
           </header>
           <div class="mod-body" id="mod-body"></div>
         </section>
