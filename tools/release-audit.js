@@ -4,11 +4,13 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { spawnSync } = require('node:child_process');
+const { ensureDirectoryWithinRoot, resolveWithin, writeFileWithinRoot } = require('./evidence-path');
 
-const root = path.resolve(__dirname, '..');
+const root = fs.realpathSync(path.resolve(__dirname, '..'));
 const dist = path.join(root, 'dist');
 const rcDir = path.join(dist, 'rc');
-const evidenceDir = path.join(root, 'evidence', 'G7');
+const requestedEvidenceDir = process.argv[2] || 'evidence/RC/local';
+const evidenceDir = resolveWithin(root, 'evidence', requestedEvidenceDir);
 const excludedRootDirectories = new Set(['.git', 'node_modules', 'dist']);
 const secretPatterns = [
   ['private_key', /-----BEGIN (?:[A-Z0-9 ]+ )?PRIVATE KEY-----/g],
@@ -73,11 +75,11 @@ function pngDimensions(file) {
 }
 
 function writeJson(file, data) {
-  fs.writeFileSync(file, `${JSON.stringify(data, null, 2)}\n`, 'utf8');
+  writeFileWithinRoot(root, file, `${JSON.stringify(data, null, 2)}\n`);
 }
 
 function main() {
-  fs.mkdirSync(evidenceDir, { recursive: true });
+  ensureDirectoryWithinRoot(root, evidenceDir);
   const sourceFiles = [], sourceSymlinks = [];
   walk(root, sourceFiles, sourceSymlinks, { skipNames: excludedRootDirectories });
   const distFiles = [], distSymlinks = [];
@@ -94,14 +96,16 @@ function main() {
   const releaseWorkflow = fs.existsSync(releaseWorkflowPath) ? fs.readFileSync(releaseWorkflowPath, 'utf8') : '';
   const workflowChecks = [
     ['manual-dispatch-only', /workflow_dispatch:/.test(releaseWorkflow) && !/^\s{2}(?:push|pull_request):/m.test(releaseWorkflow)],
-    ['requires-reviewed-g7', /RC_READY_FOR_REVIEW/.test(releaseWorkflow) && /gate\.json/.test(releaseWorkflow)],
+    ['candidate-branch-and-sha-guard', /refs\/heads\/codex-v2-independent-upgrade/.test(releaseWorkflow) && /GITHUB_SHA/.test(releaseWorkflow) && /git rev-parse HEAD/.test(releaseWorkflow)],
+    ['checkout-exact-dispatch-candidate', /github\.sha/.test(releaseWorkflow) && /ref:/.test(releaseWorkflow)],
     ['locked-runtime-and-package-manager', /actions\/setup-node@v7/.test(releaseWorkflow) && /node-version: 22\.13\.0/.test(releaseWorkflow) && /pnpm\/action-setup@v6/.test(releaseWorkflow) && /version: 11\.16\.0/.test(releaseWorkflow) && /pnpm install --frozen-lockfile/.test(releaseWorkflow)],
     ['syntax-before-deploy', /pnpm run check:syntax/.test(releaseWorkflow)],
     ['regression-before-deploy', /pnpm test/.test(releaseWorkflow)],
-    ['scan-before-deploy', /pnpm run audit:release/.test(releaseWorkflow)],
-    ['scan-results-gate', /Require clean release scans/.test(releaseWorkflow) && /secret-scan\.json/.test(releaseWorkflow) && /asset-scan\.json/.test(releaseWorkflow)],
+    ['scan-before-deploy', /node tools\/release-audit\.js "evidence\/RC\/\$GITHUB_SHA"/.test(releaseWorkflow)],
+    ['scan-results-gate', /Require current candidate scans/.test(releaseWorkflow) && /secret-scan\.json/.test(releaseWorkflow) && /asset-scan\.json/.test(releaseWorkflow) && /head!==sha/.test(releaseWorkflow)],
     ['rc-only-build', /node tools\/build-rc\.js/.test(releaseWorkflow) && /path: dist\s/.test(releaseWorkflow)],
-    ['deploy-waits-for-qualification', /deploy:\s*\n\s+needs: qualify/.test(releaseWorkflow) && /actions\/deploy-pages@v4/.test(releaseWorkflow)]
+    ['qualification-evidence-uploaded', /record-rc-qualification\.js/.test(releaseWorkflow) && /actions\/upload-artifact@v4/.test(releaseWorkflow)],
+    ['deploy-waits-for-qualification', /deploy:\s*\n\s+needs: qualify/.test(releaseWorkflow) && /actions\/deploy-pages@v4/.test(releaseWorkflow) && /record-rc-deployment\.js/.test(releaseWorkflow)]
   ];
   const workflowFailures = workflowChecks.filter(([, passed]) => !passed).map(([name]) => name);
   const builtManifestPath = path.join(rcDir, 'manifest.json');

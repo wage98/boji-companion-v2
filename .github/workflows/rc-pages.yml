@@ -18,6 +18,12 @@ jobs:
       pages: read
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+      - name: Require the approved candidate branch and exact commit
+        run: |
+          test "$GITHUB_REF" = "refs/heads/codex-v2-independent-upgrade"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
       - uses: actions/setup-node@v7
         with:
           node-version: 22.13.0
@@ -27,24 +33,30 @@ jobs:
           version: 11.16.0
       - name: Install locked dependencies
         run: pnpm install --frozen-lockfile
-      - name: Require the reviewed G7 checkpoint
-        run: >-
-          node -e "const s=require('./PROJECT_STATE.json');const g=require('./evidence/G7/gate.json');
-          if(s.status!=='RC_READY_FOR_REVIEW'||s.current_gate!=='G7'||s.last_completed_gate!=='G7'||g.status!=='PASS')process.exit(1)"
-      - name: Configure GitHub Pages
-        uses: actions/configure-pages@v5
+      - name: Confirm historical qualification is preserved
+        run: test -f evidence/G7/gate.json
+      - uses: actions/configure-pages@v5
       - name: Check syntax
         run: pnpm run check:syntax
-      - name: Run required regression and attack suite
+      - name: Run full regression and attack suite
         run: pnpm test
       - name: Build RC only
         run: node tools/build-rc.js
-      - name: Scan source, build, evidence and release
-        run: pnpm run audit:release
-      - name: Require clean release scans
-        run: >-
-          node -e "const s=require('./evidence/G7/secret-scan.json');const a=require('./evidence/G7/asset-scan.json');
-          if(s.status!=='PASS'||a.status!=='PASS')process.exit(1)"
+      - name: Scan current source, evidence, and RC build
+        run: node tools/release-audit.js "evidence/RC/$GITHUB_SHA"
+      - name: Require current candidate scans
+        run: |
+          node -e 'const fs=require("node:fs");const sha=process.env.GITHUB_SHA;const dir="evidence/RC/"+sha+"/";const s=JSON.parse(fs.readFileSync(dir+"secret-scan.json"));const a=JSON.parse(fs.readFileSync(dir+"asset-scan.json"));const r=JSON.parse(fs.readFileSync(dir+"release-manifest.json"));if(s.head!==sha||a.head!==sha||r.head!==sha||s.status!=="PASS"||a.status!=="PASS"||r.channel!=="rc"||r.productionArtifact.status!=="NOT_BUILT"||r.deployment.status!=="NOT_DEPLOYED")process.exit(1)'
+      - name: Record current RC qualification
+        run: node tools/record-rc-qualification.js "evidence/RC/$GITHUB_SHA"
+      - name: Upload current qualification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: boji-v2-rc-qualification-${{ github.sha }}
+          path: evidence/RC/${{ github.sha }}/
+          if-no-files-found: ignore
+          retention-days: 90
       - name: Upload the project Pages tree
         uses: actions/upload-pages-artifact@v3
         with:
@@ -54,12 +66,31 @@ jobs:
     needs: qualify
     runs-on: ubuntu-latest
     permissions:
+      contents: read
       pages: write
       id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+      - name: Download the matching qualification record
+        uses: actions/download-artifact@v4
+        with:
+          name: boji-v2-rc-qualification-${{ github.sha }}
+          path: evidence/RC/${{ github.sha }}/
       - name: Deploy the qualified RC tree
         id: deployment
         uses: actions/deploy-pages@v4
+      - name: Record deployment URL and candidate commit
+        env:
+          BOJI_PAGES_URL: ${{ steps.deployment.outputs.page_url }}
+        run: node tools/record-rc-deployment.js
+      - name: Upload deployment evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: boji-v2-rc-deployment-${{ github.sha }}
+          path: evidence/RC/${{ github.sha }}/deployment.json
+          retention-days: 90

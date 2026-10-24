@@ -4,3 +4,14 @@ dist/
 .env.*
 !.env.example
 eval-set/
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+*.sqlite
+*.sqlite3
+*.db
+coverage/
+playwright-report/
+test-results/
+evidence/RC/local/

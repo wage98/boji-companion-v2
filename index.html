@@ -160,6 +160,11 @@ window.__T0 = Date.now();
           <header class="panel-head module-head">
             <div class="ph-meta"><b id="mod-title">模块</b><span id="mod-sub"></span></div>
           </header>
+          <div class="rest-timer hidden" id="rest-timer" role="status" aria-live="polite">
+            <div class="rt-ring"><span id="rt-sec">60</span></div>
+            <div class="rt-label">组间休息</div>
+            <button id="rt-skip" type="button">跳过</button>
+          </div>
           <div class="mod-body" id="mod-body"></div>
         </section>
 
@@ -224,13 +229,6 @@ window.__T0 = Date.now();
 </div>
 
 <!-- 拍照取景隐藏入口（饮食页拍照记录用） -->
-
-<!-- 组间休息计时器 -->
-<div class="rest-timer hidden" id="rest-timer">
-  <div class="rt-ring"><span id="rt-sec">60</span></div>
-  <div class="rt-label">组间休息</div>
-  <button id="rt-skip">跳过</button>
-</div>
 
 <!-- v1.2 动作视频：App 内直接播放（B 站官方嵌入播放器），不再跳转外站 -->
 <div class="modal-mask vpop" id="video-pop" aria-hidden="true">

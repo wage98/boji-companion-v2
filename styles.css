@@ -833,7 +833,7 @@ body{font-family:var(--font-sans);background:radial-gradient(110% 110% at 50% 0%
 /* 今日主视觉：Adult Boji 立绘（最终视觉权威）— 取代旧「整屏壁纸 + 大时钟」构图 */
 .home-hero{position:relative;z-index:2;width:100%;max-width:420px;margin:0 auto;height:236px;border-radius:22px;
   overflow:hidden;border:1px solid var(--border-soft);background:linear-gradient(160deg,var(--brand-soft) 0%,#FFF7F9 64%);box-shadow:var(--sh);}
-.home-hero .hh-img{width:100%;height:100%;display:block;object-fit:cover;object-position:center 14%;}
+.home-hero .hh-img{width:100%;height:100%;display:block;object-fit:cover;object-position:center top;}
 .home-hero .hh-scrim{position:absolute;inset:auto 0 0 0;height:56%;
   background:linear-gradient(180deg,rgba(255,247,249,0),rgba(255,247,249,.78) 74%,rgba(255,247,249,.96));}
 .home-hero .hh-cap{position:absolute;left:16px;right:16px;bottom:12px;display:flex;flex-direction:column;gap:1px;}
@@ -1121,7 +1121,7 @@ details[open]>.sg-summary>.sg-caret{transform:rotate(180deg);}
 .progress-week-highlight p{margin-top:5px;color:var(--text-secondary);font-size:12px;line-height:1.6;}
 .boji-hero{display:flex;flex:0 0 auto;flex-direction:column;gap:0;padding:0;overflow:hidden;background:var(--surface-raised);}
 .boji-art-frame{height:244px;min-height:244px;align-self:stretch;border-radius:0;background:linear-gradient(155deg,#FCE4EC,#FFF7F9);}
-.boji-portrait{max-height:none;object-fit:cover;object-position:center 18%;}
+.boji-portrait{max-height:none;object-fit:cover;object-position:center top;}
 .boji-art-frame .boji-say{position:absolute;left:12px;top:56%;width:min(148px,42%);margin:0;padding:9px 11px;border:1px solid rgba(186,116,142,.18);border-radius:14px 14px 14px 4px;background:rgba(255,252,250,.94);color:#253D60;font-size:11px;}
 .boji-art-frame .boji-say::after{content:"";position:absolute;left:16px;bottom:-7px;width:12px;height:12px;transform:rotate(45deg);border-right:1px solid rgba(186,116,142,.18);border-bottom:1px solid rgba(186,116,142,.18);background:rgba(255,252,250,.94);}
 .boji-hero-copy{flex:0 0 auto;padding:12px 14px 0;}
@@ -1254,6 +1254,10 @@ body{background:radial-gradient(120% 120% at 15% 0%,#F7EAE5 0%,#EFE4DF 72%,#E9DE
 .workout-next{margin:8px 0;padding:0 12px;}
 .workout-next>summary{min-height:46px;display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:pointer;list-style:none;font-size:12px;font-weight:700;}
 .workout-next[open]{padding-bottom:10px;}
+.workout-set-group{margin-top:8px;border:1px solid var(--border-soft);border-radius:13px;background:var(--surface-raised);}
+.workout-set-group>summary{min-height:42px;padding:8px 12px;display:flex;align-items:center;color:var(--brand-primary-strong);font-size:12px;font-weight:700;cursor:pointer;}
+.workout-set-group[open]{padding-bottom:8px;}
+.workout-set-group-list{display:grid;gap:8px;padding:0 8px 8px;}
 .onboard-more{margin:8px 0;padding:0 12px;}
 .onboard-more[open]{padding-bottom:6px;}
 .onboard-note{margin:10px 0!important;font-size:11px!important;}
@@ -1268,3 +1272,13 @@ button:focus-visible,summary:focus-visible{outline:2px solid var(--cta);outline-
   .home-shortcut{background:#FFFEFC;}
   .plan-exercise-list>div{align-items:flex-start;flex-direction:column;gap:2px;}
 }
+
+/* Active training keeps the timer in the panel flow; the dock has its own reserved region. */
+#module{overflow:hidden;}
+#mod-body{min-height:0;overscroll-behavior:contain;scroll-padding-block:16px;padding-bottom:max(18px,env(safe-area-inset-bottom,0px));}
+#module .rest-timer{position:relative;top:auto;left:auto;transform:none;z-index:1;flex:none;min-height:52px;margin:8px 12px 0;padding:6px 10px;
+  display:flex;flex-direction:row;align-items:center;gap:10px;border:1px solid var(--border-soft);border-radius:15px;
+  background:var(--surface-raised);backdrop-filter:none;box-shadow:0 5px 14px rgba(82,47,58,.08);}
+#module .rt-ring{width:40px;height:40px;flex:none;background:var(--brand-soft);font-size:17px;color:var(--brand-primary-strong);}
+#module .rt-label{flex:1;font-size:12px;color:var(--text-secondary);}
+#module .rest-timer button{min-height:40px;padding:7px 14px;border-color:var(--border-soft);background:var(--surface-soft);color:var(--brand-primary-strong);font-weight:700;}

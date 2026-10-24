@@ -33,10 +33,38 @@ const seed = {
 };
 const dom = new JSDOM(html, { url: 'http://localhost/', runScripts: 'dangerously', pretendToBeVisual: true });
 const w = dom.window;
-const fakeRecords={drafts:[],meals:[],weights:[],water:[],runs:[],profiles:[]};
+const fakeRecords={drafts:[],meals:[],weights:[],water:[],runs:[],profiles:[],workouts:[],activeWorkout:null,workoutStartCount:0};
 const clone=value=>JSON.parse(JSON.stringify(value));
+function fakeWorkout(input){
+  const template=w.eval('trainingTemplate')(input.templateId),sessionId='workout-ui-test';
+  const exerciseSessions=(template.exercises||[]).map((row,index)=>({exerciseSessionId:'workout-ui-ex-'+index,exerciseId:row.exerciseId,
+    exerciseOrder:index,nameSnapshot:w.eval('exerciseDefinition')(row.exerciseId).name}));
+  const sets=[];
+  (template.exercises||[]).forEach((row,index)=>{for(let setIndex=0;setIndex<row.sets;setIndex++)sets.push({
+    setId:'workout-ui-set-'+index+'-'+setIndex,exerciseSessionId:exerciseSessions[index].exerciseSessionId,exerciseOrder:index,
+    setIndex,targetReps:row.reps,weightKg:null,reps:null,rir:null,completed:false
+  });});
+  return{session:{sessionId,status:'ACTIVE',localDateKey:input.localDateKey,templateId:input.templateId,equipmentProfileId:input.equipmentProfileId,
+    ownerTabId:input.ownerId,startedAt:Date.now(),currentSetId:sets[0].setId,activeRestEndAt:null},exerciseSessions,sets};
+}
 w.BojiData = { localDateKey(date){ const d = date instanceof Date ? date : new Date(date == null ? Date.now() : date); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; },
   timezoneContext(at){return{timezoneOffsetMinutes:-new Date(at||Date.now()).getTimezoneOffset(),timeZone:'Test/Local'};},
+  async startWorkout(input){fakeRecords.workoutStartCount++;await new Promise(resolve=>setTimeout(resolve,20));
+    if(fakeRecords.activeWorkout)return{status:'ACTIVE_EXISTS',workout:clone(fakeRecords.activeWorkout)};
+    fakeRecords.activeWorkout=fakeWorkout(input);fakeRecords.workouts.push(fakeRecords.activeWorkout);
+    return{status:'CREATED',workout:clone(fakeRecords.activeWorkout)};},
+  async listWorkoutHistory(){return clone(fakeRecords.workouts);},
+  async claimWorkoutOwnership(sessionId,ownerId){fakeRecords.activeWorkout.session.ownerTabId=ownerId;return{status:'CLAIMED',workout:clone(fakeRecords.activeWorkout)};},
+  async completeWorkoutSet(sessionId,setId,values){const workout=fakeRecords.activeWorkout,set=workout.sets.find(row=>row.setId===setId);
+    Object.assign(set,clone(values),{completed:true,completedAt:Date.now()});workout.session.currentSetId=(workout.sets.find(row=>!row.completed)||{}).setId||null;
+    workout.session.lastCommittedAt=Date.now();workout.session.activeRestStartedAt=Date.now();
+    workout.session.activeRestEndAt=workout.session.currentSetId?Date.now()+75000:null;
+    return{status:'COMPLETED',workout:clone(workout),commitCompletedAtPerformance:0};},
+  async clearWorkoutRest(){fakeRecords.activeWorkout.session.activeRestEndAt=null;fakeRecords.activeWorkout.session.activeRestStartedAt=null;return clone(fakeRecords.activeWorkout);},
+  async finishWorkout(sessionId){const workout=fakeRecords.activeWorkout;
+    if(workout.sets.some(row=>!row.completed))return{status:'INCOMPLETE'};
+    workout.session.status='COMPLETED';workout.session.finishedAt=Date.now();workout.session.endedAt=Date.now();
+    fakeRecords.activeWorkout=null;return{status:'COMPLETED',workout:clone(workout)};},
   async saveState(){return true;}, async putCustomExercise(){return true;}, async deleteCustomExercise(){return true;},
   async createFoodDraft(input){const draft=Object.assign({draftId:this.makeId('draft'),createdAt:Date.now(),status:'DRAFT',items:[]},clone(input));fakeRecords.drafts.push(draft);return clone(draft);},
   async updateFoodDraft(id,changes){const row=fakeRecords.drafts.find(item=>item.draftId===id);Object.assign(row,clone(changes),{updatedAt:Date.now()});return clone(row);},
@@ -333,6 +361,50 @@ await (async () => {
   ok(runRows.length===3&&runRows[0].includes('legacy-date')&&runRows[0].includes('来源未注明')&&!runRows[0].includes('定位记录')&&
     runRows[1].includes('manual-date')&&runRows[1].includes('手动记录')&&runRows[2].includes('measured-date')&&runRows[2].includes('定位记录'),
     '跑步历史只按已知来源标注，旧记录不冒充定位记录');
+  // 首页训练主按钮：开始时只创建一次，活跃后显示并执行继续。
+  const testTrainingDay=w.eval('getDayType(new Date().getDay())');
+  w.eval("TRAINING_CATALOG.exercises=[{exerciseId:'exercise:ui-press',name:'测试卧推',goal:'HYPERTROPHY',equipmentProfileIds:['equipment:A','equipment:B','equipment:C'],targetMuscles:['chest'],movementPattern:'chest_push'}]; TRAINING_CATALOG.templates.forEach(row=>row.exercises=[{exerciseId:'exercise:ui-press',sets:3,reps:'10',restSeconds:60}]); ['A','B','C'].forEach(code=>{const id='template:'+code+':"+testTrainingDay+"';if(!TRAINING_CATALOG.templates.some(row=>row.templateId===id))TRAINING_CATALOG.templates.push({templateId:id,programId:'program:'+code,dayKey:'"+testTrainingDay+"',name:'Test workout',exercises:[{exerciseId:'exercise:ui-press',sets:3,reps:'10',restSeconds:60}]});}); ACTIVE_WORKOUT=null; START_INTENT_KEY=null; STATE.selDate=todayKey(); renderHome();");
+  const homeStart=$('#hc-go');
+  const startLabel=homeStart&&homeStart.textContent.includes('开始训练');
+  click(homeStart);click(homeStart);
+  const started=await waitFor(()=>fakeRecords.workoutStartCount===1&&w.eval('ACTIVE_WORKOUT&&ACTIVE_WORKOUT.session.status==="ACTIVE"'));
+  const activeLabel=$('#hc-go')&&$('#hc-go').textContent.includes('继续训练');
+  ok(startLabel&&started&&activeLabel&&fakeRecords.workoutStartCount===1,
+    '首页「开始训练」创建一个会话，成功后改为「继续训练」且连点不重复创建');
+  click($('#hc-go'));
+  await waitFor(()=>$('#module').classList.contains('open')&&$('#mod-body [data-set-row]'));
+  const initialUpcoming=$('#mod-body .workout-set-upcoming');
+  const currentCount=$$('#mod-body .workout-set.current-set').length;
+  const futureHidden=initialUpcoming&&!initialUpcoming.open&&initialUpcoming.querySelectorAll('.workout-set').length===2;
+  ok(currentCount===1&&futureHidden,'训练页默认只展开当前组，后续组收纳在折叠区');
+  const current=$('#mod-body .workout-set.current-set');
+  current.querySelector('[data-weight]').value='20';current.querySelector('[data-reps]').value='10';
+  click(current.querySelector('[data-complete-set]'));
+  const saved=await waitFor(()=>w.eval('ACTIVE_WORKOUT&&ACTIVE_WORKOUT.sets[0].completed'));
+  const completedGroup=$('#mod-body .workout-set-completed'),nextCurrent=$('#mod-body .workout-set.current-set');
+  const timerInPanel=$('#rest-timer').parentElement===$('#module');
+  ok(saved&&completedGroup&&!completedGroup.open&&completedGroup.querySelectorAll('.workout-set').length===1
+    &&nextCurrent&&nextCurrent.dataset.setRow==='workout-ui-set-0-1'&&timerInPanel,
+    '保存后已完成组折叠、下一组成为当前组，休息计时器位于训练面板内');
+  ok(w.eval('STATE.petMood')==='cheer','完成一组后 Boji 进入鼓励表情');
+  let safety=0;
+  while(w.eval('ACTIVE_WORKOUT&&ACTIVE_WORKOUT.sets.some(row=>!row.completed)')&&safety++<4){
+    if(w.eval('ACTIVE_WORKOUT.session.activeRestEndAt')){click($('#rt-skip'));await waitFor(()=>!w.eval('ACTIVE_WORKOUT.session.activeRestEndAt'));}
+    const next=$('#mod-body .workout-set.current-set');
+    if(!next)break;
+    next.querySelector('[data-weight]').value='20';next.querySelector('[data-reps]').value='10';
+    click(next.querySelector('[data-complete-set]'));
+    await waitFor(()=>w.eval('ACTIVE_WORKOUT&&ACTIVE_WORKOUT.sets.filter(row=>row.completed).length')===safety+1);
+  }
+  const finishButton=$('#finish-workout');
+  if(finishButton)click(finishButton);
+  const completed=await waitFor(()=>!w.eval('ACTIVE_WORKOUT')&&$('#done-modal').classList.contains('show'));
+  const workflowEvents=productEvents.slice(5).map(event=>event.type);
+  ok(completed&&workflowEvents[0]==='workout.started'&&workflowEvents.filter(type=>type==='workout.set_completed').length===3
+    &&workflowEvents.includes('workout.completed')&&$('#hc-go').textContent.includes('开始训练'),
+    '训练完成后记录开始、三组保存与完成事件，首页恢复开始入口');
+  w.goModule('training');$('#mod-body').scrollTop=200;w.goModule('boji');
+  ok($('#mod-body').scrollTop===0,'切换到其他模块时回到页面顶部，避免沿用上一页滚动位置');
   w.eval("bubbleBusy=false;petRoundBubble('拜拜',1)");
   ok($('#pet-bubble').textContent==='拜拜', '桌宠问候和告别气泡显示中文短句');
   dom.window.close();

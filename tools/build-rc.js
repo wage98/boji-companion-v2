@@ -3,18 +3,41 @@
 const fs = require('node:fs/promises');
 const path = require('node:path');
 
+function isWithin(parent, target) {
+  const relative = path.relative(parent, target);
+  return relative === '' || (relative !== '..' && !relative.startsWith('..' + path.sep) && !path.isAbsolute(relative));
+}
+
+async function assertSafeBuildDirectory(root, target, label) {
+  if (!isWithin(root, target)) throw new Error(`${label} escapes the repository.`);
+  let metadata;
+  try { metadata = await fs.lstat(target); }
+  catch (error) { if (error.code === 'ENOENT') return; throw error; }
+  if (!metadata.isDirectory() || metadata.isSymbolicLink()) {
+    throw new Error(`${label} cannot be a symbolic link or non-directory.`);
+  }
+  const resolved = await fs.realpath(target);
+  if (!isWithin(root, resolved) || path.relative(target, resolved) !== '') {
+    throw new Error(`${label} resolves outside its safe repository path.`);
+  }
+}
+
 async function buildRc() {
-  const root = path.resolve(__dirname, '..');
+  const root = await fs.realpath(path.resolve(__dirname, '..'));
   const identities = JSON.parse(await fs.readFile(path.join(root, 'release-identities.json'), 'utf8'));
   const config = identities.channels && identities.channels.rc;
   if (!config || identities.automatedBuildChannel !== 'rc') throw new Error('Release identity contract does not permit an RC build.');
   if (!config.path.startsWith(identities.repositoryPath) || !config.path.endsWith('/')) throw new Error('RC install path is outside the repository Pages path.');
 
-  const output = path.resolve(root, 'dist', 'rc');
-  const allowedRoot = path.resolve(root, 'dist') + path.sep;
-  if (!output.startsWith(allowedRoot)) throw new Error('Refusing to write outside the RC build directory.');
+  const distRoot = path.resolve(root, 'dist');
+  const output = path.resolve(distRoot, 'rc');
+  if (!isWithin(distRoot, output) || output === distRoot) throw new Error('Refusing to write outside the RC build directory.');
+  await assertSafeBuildDirectory(root, distRoot, 'Build directory');
+  await assertSafeBuildDirectory(root, output, 'RC output directory');
   await fs.rm(output, { recursive: true, force: true });
   await fs.mkdir(output, { recursive: true });
+  await assertSafeBuildDirectory(root, distRoot, 'Build directory');
+  await assertSafeBuildDirectory(root, output, 'RC output directory');
 
   for (const name of ['index.html', 'app.js', 'data-layer.js', 'styles.css', 'manifest.json', 'sw.js', 'assets']) {
     const sourcePath = path.join(root, name);

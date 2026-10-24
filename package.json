@@ -13,10 +13,10 @@
     "test:attack": "node tools/selfcheck-attack.js",
     "test:data": "node tools/data-layer-check.js",
     "test:platform": "node tools/platform-check.js",
-    "audit:release": "node tools/release-audit.js",
+    "audit:release": "node tools/release-audit.js evidence/RC/local",
     "eval:vision": "node tools/eval-vision.js",
     "eval:simulate": "node tools/eval-simulate.js",
-    "check:syntax": "node --check data-layer.js && node --check app.js && node --check sw.js && node --check tools/selfcheck.js && node --check tools/selfcheck-functional.js && node --check tools/selfcheck-attack.js && node --check tools/data-layer-check.js && node --check tools/platform-check.js && node --check tools/build-rc.js && node --check tools/release-audit.js && node --check tools/eval-vision.js && node --check tools/eval-simulate.js"
+    "check:syntax": "node --check data-layer.js && node --check app.js && node --check sw.js && node --check tools/selfcheck.js && node --check tools/selfcheck-functional.js && node --check tools/selfcheck-attack.js && node --check tools/data-layer-check.js && node --check tools/platform-check.js && node --check tools/worker-check.js && node --check tools/build-rc.js && node --check tools/build-path-check.js && node --check tools/release-audit.js && node --check tools/evidence-path.js && node --check tools/evidence-path-check.js && node --check tools/preview-path-check.js && node --check tools/record-rc-qualification.js && node --check tools/record-rc-deployment.js && node --check tools/eval-vision.js && node --check tools/eval-simulate.js"
   },
   "devDependencies": {
     "fake-indexeddb": "6.2.4",

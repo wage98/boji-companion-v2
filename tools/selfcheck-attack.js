@@ -319,14 +319,16 @@ check('F3 water adds a dated record and leaves the legacy scalar untouched', asy
   w.__click(w.document.querySelector('#water-250'));
   const committed=await waitForTest(()=>w.eval('dailyWaterTotal(todayKey())')===250);
   return committed && w.__S.waterMl===300 && w.__TEST_RECORDS.water.length===1; });
-check('F4 休息计时按 wall-clock end timestamp 渲染且支持持久化跳过入口', () => {
+check('F4 休息计时按 wall-clock end timestamp 显示在训练面板内且支持跳过入口', () => {
   const w = boot(J({ profile: { weight: 70 } })), end = Date.now() + 45000;
+  w.goModule('training');
   w.eval('ACTIVE_WORKOUT = { session: { sessionId: "test-session", activeRestEndAt: '+end+' } }');
   w.showWorkoutRest(end);
   const shown = !w.document.querySelector('#rest-timer').classList.contains('hidden');
   const remaining = +w.document.querySelector('#rt-sec').textContent;
+  const inTrainingPanel=w.document.querySelector('#rest-timer').parentElement===w.document.querySelector('#module');
   w.stopRestUI();
-  return shown && remaining > 0 && remaining <= 45 && typeof w.skipWorkoutRest === 'function' && w.document.querySelector('#rest-timer').classList.contains('hidden');
+  return shown && inTrainingPanel && remaining > 0 && remaining <= 45 && typeof w.skipWorkoutRest === 'function' && w.document.querySelector('#rest-timer').classList.contains('hidden');
 });
 check('F5 动作教学保留来源状态且用自然文案提醒参考边界', () => { const w = boot(J({ profile: { weight:70 } }));
   return w.eval('TRAINING_CATALOG.exercises.some(row => row.teaching.video && row.teaching.video.matchLevel === "UNVERIFIED" && row.teaching.video.availability === "UNKNOWN")')

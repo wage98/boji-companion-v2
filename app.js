@@ -1063,6 +1063,7 @@ async function refreshActiveWorkoutFromDB(){
     const active=(await BojiData.listActiveWorkouts())[0]||null;
     if(!ACTIVE_WORKOUT||!active||ACTIVE_WORKOUT.session.sessionId===active.session.sessionId)ACTIVE_WORKOUT=active;
     if(ACTIVE_MODULE==='training'&&$('#module')?.classList.contains('open'))renderTraining($('#mod-body'));
+    if(ACTIVE_MODULE==='today')renderHome();
     if(ACTIVE_WORKOUT&&ACTIVE_WORKOUT.session.activeRestEndAt&&!document.hidden)showWorkoutRest(ACTIVE_WORKOUT.session.activeRestEndAt);
     else if(!ACTIVE_WORKOUT)stopRestUI();
   }catch(_){}
@@ -1902,16 +1903,19 @@ function goModule(name){
   const transitionStarted=runtimeNow();
   const titles={training:['训练','学习动作，或进入今天的训练'],boji:['Boji','记录与陪伴都在这里'],progress:['进步','训练规律、力量记录与趋势'],data:['进步','训练规律、力量记录与趋势'],profile:['我的','档案与设置'],diet:['饮食记录','已确认的餐点与营养记录'],run:['跑步','记录路线、距离与时间'],knowledge:['训练知识与营养问答','实用的训练和饮食知识']};
   if(name==='today'){
-    updateDockState('today');ACTIVE_MODULE='today';renderHome();
+    updateDockState('today');ACTIVE_MODULE='today';$('#rest-timer')?.classList.add('hidden');renderHome();
     if($('#module').classList.contains('open'))closePanel('module');
     metricAfterPaint(RUNTIME_METRICS.pageTransitionMs,transitionStarted);
     return;
   }
+  if(name!=='training')$('#rest-timer')?.classList.add('hidden');
   $('#pet')?.classList.remove('home-compact');
   const title=titles[name]||titles.today;
+  const moduleChanged=ACTIVE_MODULE!==name;
   updateDockState(tabForModule(name));ACTIVE_MODULE=name;
   $('#mod-title').textContent=title[0]; $('#mod-sub').textContent=title[1];
   renderModule(name);
+  if(moduleChanged){const body=$('#mod-body');if(body)body.scrollTop=0;}
   voiceSync();                                          // 离开桌面：立即停语音并释放
   if($('#module').classList.contains('open')){metricAfterPaint(RUNTIME_METRICS.pageTransitionMs,transitionStarted);return;}   // 已打开：只重渲染，不重复压栈
   openPanel('module'); voiceSync();
@@ -1932,7 +1936,8 @@ function renderHome(){
   const salutation=hour<11?'早上好':hour<18?'下午好':'晚上好';
   const titleEl=$('#hg-title');
   if(titleEl)titleEl.textContent=`${salutation}！今天也加油吧♡`;
-  const greeting=ACTIVE_WORKOUT&&ACTIVE_WORKOUT.session.status==='ACTIVE'
+  const activeWorkout=ACTIVE_WORKOUT&&ACTIVE_WORKOUT.session.status==='ACTIVE'?ACTIVE_WORKOUT:null;
+  const greeting=activeWorkout
     ?'你有一节训练还在进行，已保存的组会保留。'
     :t==='rest'?'今天安排为休息日，恢复也属于训练计划。':'今天按你的训练计划安排。';
   $('#home-greeting').querySelector('span:last-child').textContent=greeting;
@@ -1949,13 +1954,22 @@ function renderHome(){
       return `<span class="home-week-day${done?' done':''}${selected?' today':''}${planned?' planned':''}" aria-label="${key}${done?' 已完成训练':planned?' 计划训练':' 休息日'}"><i>${done?'✓':planned?'·':''}</i><b>${weekdayLabels[i]}</b></span>`;
     }).join('')}</div><small class="home-week-note">按已完成并保存的训练日统计</small>`;
   const ht = $('#home-today');
-  if(t==='rest'){
+  if(activeWorkout){
+    const activeTemplate=trainingTemplate(activeWorkout.session.templateId);
+    const completed=activeWorkout.sets.filter(row=>row.completed).length;
+    ht.innerHTML=`<div class="hc-head"><span class="hc-ic" aria-hidden="true">💪</span><div><b>${esc(activeTemplate&&activeTemplate.name||'训练还没完成')}</b><span>这节训练还在继续</span></div></div>
+      <p class="hc-meta">${esc(activeWorkout.session.localDateKey)} · 已保存 ${completed}/${activeWorkout.sets.length} 组</p>
+      <button class="hc-go hc-go-lg" id="hc-go">继续训练 <span aria-hidden="true">→</span></button>
+      <p class="boji-note"><b>Boji：</b>上次练到这里，准备好就接着来。</p>
+      <details class="today-why" id="home-why"><summary>训练记录会保留吗？</summary><p>已保存的组会留在这节训练里，继续后再按顺序完成。</p></details>`;
+    $('#hc-go').onclick=startWorkoutFromHome;
+  }else if(t==='rest'){
     ht.innerHTML = `<div class="hc-head"><span class="hc-ic" aria-hidden="true">🌿</span><div><b>今天安排休息</b><span>按你当前选择的每周训练安排</span></div></div>
       <p class="hc-sub">今天的日历安排为休息日。你可以查看其他训练日，或按自己的状态安排轻松活动。</p>
       <button class="hc-go hc-go-lg" id="hc-go">查看训练 <span aria-hidden="true">→</span></button>
       <p class="boji-note"><b>Boji：</b>你选择的${esc(planSetMeta().name)}方案把今天列为休息日。</p>
        <details class="today-why" id="home-why"><summary>为什么今天安排休息？</summary><p>本周计划按你选择的训练方案和星期安排显示。今天对应休息日，训练记录不会因此增加。</p></details>`;
-    $('#hc-go').onclick=()=>goModule('training');
+    $('#hc-go').onclick=startWorkoutFromHome;
   } else {
     const plan = PLANS[t];
     const todayTpl=trainingTemplate('template:'+planProfileForDate(todayKey())+':'+t);
@@ -1966,13 +1980,20 @@ function renderHome(){
       <button class="hc-go hc-go-lg" id="hc-go">开始训练 <span aria-hidden="true">→</span></button>
       <p class="boji-note"><b>Boji：</b>今天按你的${esc(planSetMeta().name)}计划练${esc(plan.name)}。每完成一组，进度就会更新。</p>
        <details class="today-why" id="home-why"><summary>为什么今天练这个？</summary><p>今天的安排来自你当前的训练计划，不会因为档案不完整而临时生成新计划。</p></details>`;
-    $('#hc-go').onclick = ()=>goModule('training');
+    $('#hc-go').onclick = startWorkoutFromHome;
   }
   const adjust=$('#home-adjust');if(adjust)adjust.onclick=()=>{STATE.selDate=todayKey();save();goModule('training');};
   const whyToggle=$('#home-why-toggle');if(whyToggle)whyToggle.onclick=()=>{
     const why=$('#home-why');if(!why)return;why.open=!why.open;
     if(why.open&&why.scrollIntoView)why.scrollIntoView({block:'nearest',behavior:'smooth'});
   };
+}
+function startWorkoutFromHome(){
+  const active=ACTIVE_WORKOUT&&ACTIVE_WORKOUT.session.status==='ACTIVE'?ACTIVE_WORKOUT:null;
+  if(active){STATE.selDate=active.session.localDateKey;save();goModule('training');return;}
+  const date=todayKey(),day=getDayType(new Date().getDay());
+  STATE.selDate=date;save();goModule('training');
+  if(day!=='rest'&&!START_INTENT_KEY)beginWorkout(date,day,$('#mod-body'));
 }
 
 /* ============================================================
@@ -2777,7 +2798,7 @@ function renderTraining(body){
         '</span><span class="ex-sets">'+ex.targetSets+'×'+esc(ex.targetReps)+' · 休'+(p.restSeconds||60)+'s</span></div>'+
         (def&&def.targetMuscles&&def.targetMuscles.length?'<div class="ex-muscle">'+esc(def.targetMuscles.join(' · '))+'</div>':'')+
          demoContent+performanceContent+(current?'':modeContent)+(current?'':videoContent)+'<div class="workout-sets">';
-      sets.forEach(set=>{
+      const renderSetRow=set=>{
         const enabled=!set.completed&&set.setId===s.currentSetId,weight=STATE.weights[key]&&STATE.weights[key][String(i)]||'';
         const rirOptions=Array.from({length:11},(_,n)=>'<option value="'+n+'" '+(set.rir===n?'selected':'')+'>'+n+'</option>').join('');
         const action=set.completed?'<span>已保存：'+(set.weightKg==null?'重量未填':set.weightKg+' kg')+' · '+set.reps+' 次</span>':
@@ -2785,11 +2806,17 @@ function renderTraining(body){
           !ownsWorkout?'<small>只读标签页无法保存训练组</small>':'<small>按顺序完成上一组后解锁</small>';
         const rirField='<label>还能再做几次 <select data-rir '+(set.completed||!enabled||!ownsWorkout?'disabled':'')+'><option value="">不记录</option>'+rirOptions+'</select></label>';
         const rirControl=enabled?rirField:'<details '+(mode==='performance'?'open':'')+'><summary>余力次数（选填）</summary>'+rirField+'</details>';
-        html+='<div class="workout-set '+(set.completed?'set-complete':'')+(enabled?' current-set':'')+'" data-set-row="'+esc(set.setId)+'"><b>第 '+(set.setIndex+1)+' 组'+(set.completed?' ✓':'')+'</b>'+
+        return '<div class="workout-set '+(set.completed?'set-complete':'')+(enabled?' current-set':'')+'" data-set-row="'+esc(set.setId)+'"><b>第 '+(set.setIndex+1)+' 组'+(set.completed?' ✓':'')+'</b>'+
           '<label>重量 kg <input type="number" min="0" max="2000" step="0.5" value="'+(set.weightKg==null?esc(weight):set.weightKg)+'" data-weight '+(set.completed||!enabled||!ownsWorkout?'disabled':'')+'></label>'+
           '<label>次数 <input type="number" min="1" max="1000" value="'+(set.reps==null?repsDefault(set.targetReps):set.reps)+'" data-reps '+(set.completed||!enabled||!ownsWorkout?'disabled':'')+'></label>'+
           rirControl+action+'</div>';
-      });
+      };
+      const completedRows=sets.filter(set=>set.completed);
+      const currentRow=sets.find(set=>!set.completed&&set.setId===s.currentSetId);
+      const upcomingRows=sets.filter(set=>!set.completed&&set.setId!==s.currentSetId);
+      if(completedRows.length)html+='<details class="workout-set-group workout-set-completed"><summary>已保存 '+completedRows.length+' 组</summary><div class="workout-set-group-list">'+completedRows.map(renderSetRow).join('')+'</div></details>';
+      if(currentRow)html+=renderSetRow(currentRow);
+      if(upcomingRows.length)html+='<details class="workout-set-group workout-set-upcoming"><summary>后续 '+upcomingRows.length+' 组</summary><div class="workout-set-group-list">'+upcomingRows.map(renderSetRow).join('')+'</div></details>';
       html+='</div>';
       if(current)html+=modeContent;
       if(suggestion&&current&&suggestion.ready&&suggestion.kind==='INCREASE_LOAD')html+='<div class="ex-over">'+esc(suggestion.reason)+' <button data-accept-progression="'+
@@ -2910,12 +2937,12 @@ async function beginWorkout(date,day,body){
     if(result.status==='ACTIVE_EXISTS'){
       const claim=await BojiData.claimWorkoutOwnership(loaded.session.sessionId,TAB_OWNER_ID);
       ACTIVE_WORKOUT=claim.workout||loaded;STATE.selDate=ACTIVE_WORKOUT.session.localDateKey;
-      indexWorkoutHistory(await BojiData.listWorkoutHistory());renderTraining(body);toast(claim.status==='CLAIMED'?'已恢复这节训练':'已有一节训练进行中；当前标签页为只读');
+      indexWorkoutHistory(await BojiData.listWorkoutHistory());renderHome();renderTraining(body);toast(claim.status==='CLAIMED'?'已恢复这节训练':'已有一节训练进行中；当前标签页为只读');
       if(claim.status==='CLAIMED')broadcastWorkoutChange(ACTIVE_WORKOUT.session.sessionId,'owner');
       return;
     }
      if(result.status==='CREATED')emitProductEvent('workout.started',loaded.session);
-    ACTIVE_WORKOUT=loaded;indexWorkoutHistory(await BojiData.listWorkoutHistory());renderTraining(body);toast('训练已保存，可以开始第一组');setMood('expect',1400);
+    ACTIVE_WORKOUT=loaded;indexWorkoutHistory(await BojiData.listWorkoutHistory());renderHome();renderTraining(body);toast('训练已保存，可以开始第一组');setMood('expect',1400);
     broadcastWorkoutChange(loaded.session.sessionId,'started');requestWorkoutWakeLock();showUpdateReady();
   }catch(error){if(button)button.disabled=false;toast('训练未开始：'+(error.message||'保存失败'));}finally{START_INTENT_KEY=null;}
 }
@@ -2961,7 +2988,7 @@ async function completeWorkout(body){
 async function abandonWorkout(body){
   if(!ACTIVE_WORKOUT||!confirm('放弃这次训练？已完成组会保留，未完成组不会算作完成。'))return;
   try{const result=await BojiData.finishWorkout(ACTIVE_WORKOUT.session.sessionId,{action:'ABANDON'},TAB_OWNER_ID);if(result.status==='NOT_OWNER'){toast('训练已由其他标签页接管；此标签页已切换为只读');await refreshActiveWorkoutFromDB();return;}if(result.status!=='ABANDONED')throw new Error(result.status);
-    ACTIVE_WORKOUT=null;indexWorkoutHistory(await BojiData.listWorkoutHistory());stopRestUI();releaseWorkoutWakeLock();broadcastWorkoutChange(result.workout.session.sessionId,'finished');showUpdateReady();renderTraining(body);toast('训练已标记为放弃；已保存组仍保留');
+    ACTIVE_WORKOUT=null;indexWorkoutHistory(await BojiData.listWorkoutHistory());stopRestUI();releaseWorkoutWakeLock();broadcastWorkoutChange(result.workout.session.sessionId,'finished');showUpdateReady();renderHome();renderTraining(body);toast('训练已标记为放弃；已保存组仍保留');
   }catch(error){toast('未能保存放弃状态：'+(error.message||'本机存储不可用'));}
 }
 async function createCustomExercise(body){
@@ -2997,7 +3024,7 @@ async function requestWorkoutWakeLock(){
 function stopRestUI(){ clearInterval(restId); restId=null; const box=$('#rest-timer'); if(box) box.classList.add('hidden'); }
 function showWorkoutRest(endAt){
   const box=$('#rest-timer'),sec=$('#rt-sec');if(!box||!sec)return;
-  clearInterval(restId);restId=null;box.classList.remove('hidden');
+  clearInterval(restId);restId=null;box.classList.toggle('hidden',ACTIVE_MODULE!=='training');
   const tick=()=>{
     const left=Math.max(0,Math.ceil((endAt-Date.now())/1000));sec.textContent=left;
     if(left===0){
