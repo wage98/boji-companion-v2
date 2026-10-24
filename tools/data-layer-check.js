@@ -245,6 +245,7 @@ async function main() {
     assert.equal(catalog.templates.length, 1);
     assert.equal(catalog.exercises.length, 1);
     const start = await Data.startWorkout({ templateId: 'template:A:push', localDateKey: '2026-10-03', idempotencyKey: 'tap-1', ownerId: OWNER_A });
+    assert.equal(start.status, 'CREATED', 'new workout reports its committed start exactly once');
     assert.equal(start.session.status, 'ACTIVE');
     assert.equal(start.exerciseSessions.length, 1);
     assert.equal(start.sets.length, 2);
@@ -318,6 +319,22 @@ async function main() {
     assert.equal(abandoned.status, 'ABANDONED');
     assert.equal(abandoned.workout.session.status, 'ABANDONED');
     assert.equal((await Data.listActiveWorkouts()).length, 0);
+  });
+  await check('saved template edits become the next canonical workout and survive startup seeding', async () => {
+    const edits = [{ exerciseId: 'exercise:press', sets: 3, reps: '10-12' }];
+    const saved = await Data.saveWorkoutTemplate('template:A:push', edits);
+    assert.equal(saved.userEdited, true);
+    assert.equal(saved.exercises[0].sets, 3);
+    await assert.rejects(Data.saveWorkoutTemplate('template:A:push', [{ exerciseId: 'exercise:press', sets: 11, reps: '10' }]), /1–10 sets/);
+    await Data.seedTrainingCatalog(trainingCatalogFixture());
+    const template = (await Data.loadTrainingCatalog()).templates[0];
+    assert.equal(template.exercises[0].sets, 3, 'packaged seed does not overwrite the user prescription');
+    assert.equal(template.exercises[0].reps, '10-12');
+    const start = await Data.startWorkout({ templateId: 'template:A:push', localDateKey: '2026-10-05', idempotencyKey: 'edited-template', ownerId: workoutOwner });
+    assert.equal(start.sets.length, 3);
+    assert.equal(start.sets[0].targetReps, '10-12');
+    assert.equal(start.session.planSnapshot[0].sets, 3);
+    await Data.finishWorkout(start.session.sessionId, { action: 'ABANDON' }, workoutOwner);
   });
 
   freshStore();
@@ -412,6 +429,13 @@ async function main() {
     const incompatible = JSON.parse(JSON.stringify(valid));
     incompatible.versions.SCHEMA_VERSION += 1;
     assert.equal(Data.validateBackup(incompatible).code, 'INCOMPATIBLE_SCHEMA');
+    const newerApp = JSON.parse(JSON.stringify(valid));
+    newerApp.versions.PRODUCT_VERSION = 'future';
+    newerApp.versions.APP_CACHE_VERSION = 'future-cache';
+    newerApp.versions.FEATURE_MANIFEST_VERSION += 1;
+    newerApp.versions.EXERCISE_DATA_VERSION += 1;
+    newerApp.versions.KNOWLEDGE_VERSION += 1;
+    assert.equal(Data.validateBackup(newerApp).ok, true, 'independent product and asset versions do not block a compatible data schema');
     const withSecret = JSON.parse(JSON.stringify(valid));
     withSecret.records.appState[0].payload.token = 'no-export';
     assert.equal(Data.validateBackup(withSecret).code, 'SECRET_FIELD');
@@ -536,7 +560,15 @@ async function main() {
     }) });
     const toast = w.document.querySelector('#toast');
     toast.textContent = '';
-    w.document.querySelector('[data-complete-set]').click();
+    const completionButton = w.document.querySelector('[data-complete-set]');
+    assert.ok(completionButton, 'started workout renders its active set action: ' + JSON.stringify({
+      ownerId: w.eval('TAB_OWNER_ID'),
+      sessionOwnerId: w.eval('ACTIVE_WORKOUT.session.ownerTabId'),
+      currentSetId: w.eval('ACTIVE_WORKOUT.session.currentSetId'),
+      setIds: w.eval('ACTIVE_WORKOUT.sets.map(row=>({id:row.setId,completed:row.completed}))'),
+      html: w.document.querySelector('#mod-body').innerHTML.slice(0, 2400)
+    }));
+    completionButton.click();
     await new Promise(resolve => setTimeout(resolve, 15));
     assert.equal((await w.BojiData.loadWorkoutSession(sessionId)).sets[0].completed, false, 'set is not committed during delayed database operation');
     assert.equal(toast.textContent.includes('本组已写入'), false, 'success acknowledgement waits for transaction completion');

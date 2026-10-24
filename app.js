@@ -351,7 +351,7 @@ const KB = [
     more:'哑铃可按 0.5–2.5kg 小步加。判断标准主要是：动作不变形 + 最后 1–2 次略吃力。加了就降次数没关系，先把新重量"站稳"。' },
   { q:'怎么判断重量合适', a:'最后 2 次稍吃力但动作不变形 = 合适；变形就减。\n*[C] 证据：RPE 7–8 区间*', k:['重量','合适','选'] },
   { q:'训练时怎么呼吸', a:'发力时呼气、还原时吸气，别憋气；大重量可用瓦式呼吸但别久憋。\n*[B] 证据：力量训练呼吸与安全建议*', k:['呼吸','憋气','用力'] },
-  { q:'要练到力竭吗', a:'不必。每组留 1–2 次余量（RIR 2–3）更利于长期进步，新手尤甚。\n*[A] 证据：训练至力竭与疲劳管理研究*', k:['力竭','RIR','练到','极限'] },
+  { q:'要练到力竭吗', a:'不必。每组留 1–2 次余量，更利于长期进步，新手尤甚。\n*[A] 证据：训练至力竭与疲劳管理研究*', k:['力竭','RIR','练到','极限'] },
   { q:'肌肉酸痛还能练吗', a:'轻微延迟性酸痛可以练（换部位或降 20% 重量）；关节刺痛、单侧剧痛就停。\n*[B] 证据：DOMS 与主动恢复*', k:['酸痛','疼','DOMS','还能练'] },
   { q:'动作速度怎么控制', a:'向心 1 秒、顶峰停顿 1 秒、离心 2–3 秒，全程幅度。\n*[B] 证据：离心控制与肌肥大*', k:['速度','节奏','离心','慢'] },
   // ——— 营养 ———
@@ -433,8 +433,8 @@ const KB = [
   { q:"谢谢你", a:"不用谢啦~ 看着你一点点变强，我也很开心(｡･ω･｡)ﾉ\n下次练完记得来告诉我，我等着听好消息。", k:["谢谢", "感谢", "多谢"] },
   { q:"晚安", a:"晚安呀，睡前少刷会儿手机，灯光调暗会更容易入睡。\n*[B] 证据：睡眠不足会让肌肉合成与恢复打折*", k:["晚安", "睡觉", "睡了", "good night"] },
   { q:"早上好", a:"早！先喝杯水补上夜里的水分，昨晚睡得怎么样？\n睡够的话状态会明显不同；没睡够今天就把强度降一档。", k:["早上好", "早安", "morning", "起床"] },
-  { q:"你是谁", a:"我是你的训练伙伴——你可以在“我的”页设置称呼。\n我会协助训练和记录，并区分已核验信息与来源待核内容；不确定时会明确告诉你。", k:["你是谁", "你叫什么", "自我介绍", "介绍下你"],
-    more:"技术上我是 App 内的规则＋知识库助手，不联网编造，也不会把你的数据传出去。" },
+  { q:"你是谁", a:"我是你的训练伙伴——你可以在“我的”页设置称呼。\n我会陪你训练、记录，也会把事实和估算分清楚；不确定时会直接告诉你。", k:["你是谁", "你叫什么", "自我介绍", "介绍下你"],
+    more:"我会陪你训练、回答训练和饮食问题；不确定的内容会直接说明。" },
   { q:"你会生气吗", a:"不会真的生气，但你偷懒的时候我会委屈地蹭过来提醒你一下(｡•́︿•̀｡)\n放心，我永远不用打击的方式督促你。", k:["生气", "会生气", "发脾气", "骂我"] },
   { q:"讲个笑话", a:"健身界最好笑的一句话：「我从明天开始减肥」。\n……所以今天这顿先记一笔？拍照我帮你估~(›´ω`‹ )", k:["笑话", "讲个笑话", "逗我", "搞笑"] },
   { q:"陪我聊会儿", a:"好呀，我在的。今天练了没？还是遇到别的事了？\n训练、吃、睡眠、工作都能聊，我不会敷衍你。", k:["陪我", "聊会", "聊天", "你在吗"] },
@@ -710,7 +710,7 @@ function bojiReply(text){
   if(m.item && m.score>0){ const ans=m.item.a + (m.item.more ? '\n（回我“再详细点”，我展开讲）' : '');
     CTX.lastItem=m.item; CTX.lastQ=raw; CTX.turns++; ctxPush(raw, ans); return ans; }
   // 4) 寒暄
-  if(/你好|hi|在吗|在呢|嗨/.test(q)){ const a=`你好呀，我是${coachName()}，你的训练伙伴(｡･ω･｡)ﾉ\n我会区分已核验的信息和来源待核的内容；不确定时会明确告诉你。`; ctxPush(raw,a); return a; }
+  if(/你好|hi|在吗|在呢|嗨/.test(q)){ const a=`你好呀，我是${coachName()}，你的训练伙伴(｡･ω･｡)ﾉ\n我会把事实和估算分清楚；不确定时，会直接告诉你。`; ctxPush(raw,a); return a; }
   // 5) 兜底：不装懂
   const nm=coachName();
   const fb=`嗯…这个问题我不想拍脑袋就答你，怕误导 ${'(>_<)'}\n` +
@@ -866,11 +866,17 @@ function allMealEntries(){
     out[record.localDateKey][mi]=out[record.localDateKey][mi]||[];(record.items||[]).forEach(item=>out[record.localDateKey][mi].push({n:item.name,p:nutritionField(item,'protein'),c:nutritionField(item,'carbohydrate'),f:nutritionField(item,'fat'),q:1,kcalFix:nutritionField(item,'energyKcal')}));});return out;
 }
 function dailyWaterTotal(key){return PERSONAL_RECORDS_READY?WATER_ENTRIES.filter(row=>row.localDateKey===key).reduce((sum,row)=>sum+row.amountMl,0):(+STATE.waterMl||0);}
-function emitProductEvent(type,record){
+function emitProductEvent(type,record,context){
   if(!record)return false;
-  const recordId=record&&(record.mealId||record.runId||record.weightId||record.entryId||record.sessionId);
+  const extra=context&&typeof context==='object'?context:{};
+  const recordId=record&&(record.setId||record.mealId||record.runId||record.weightId||record.entryId||record.sessionId);
   if(!recordId)return false;
-  window.dispatchEvent(new CustomEvent('boji:product-event',{detail:{type,recordId,occurredAt:record.confirmation&&record.confirmation.confirmedAt||record.createdAt||record.measuredAt||record.endedAt||Date.now(),localDateKey:record.localDateKey||null}}));
+  const detail={type,recordId:String(recordId),occurredAt:record.confirmation&&record.confirmation.confirmedAt||record.completedAt||record.startedAt||record.finishedAt||record.updatedAt||record.createdAt||record.measuredAt||record.endedAt||Date.now(),
+    localDateKey:record.localDateKey||extra.localDateKey||null};
+  ['sessionId','exerciseSessionId','exerciseId','setIndex','weightKg','reps','restDurationSeconds'].forEach(key=>{
+    const value=record[key]!=null?record[key]:extra[key];if(value!=null)detail[key]=value;
+  });
+  window.dispatchEvent(new CustomEvent('boji:product-event',{detail}));
   return true;
 }
 let DATA_READY = false;
@@ -1004,9 +1010,9 @@ try {
   }
 } catch (_) {}
 let STORAGE_PERSISTENCE_STATUS = 'CHECKING';
-let STORAGE_PERSISTENCE_DETAIL = '正在检查浏览器本机存储保护状态…';
+let STORAGE_PERSISTENCE_DETAIL = '正在确认浏览器是否会保留本机记录…';
 let SERVICE_WORKER_STATUS = 'CHECKING';
-let SERVICE_WORKER_DETAIL = '正在检查离线应用服务…';
+let SERVICE_WORKER_DETAIL = '正在准备离线使用…';
 let HOME_POLL_ID = null;
 let WAKE_LOCK = null;
 let WAKE_LOCK_REQUEST = 0;
@@ -1734,10 +1740,10 @@ function petDashGhost(){
   });
 }
 /* ②+③ 打招呼：挥手 + "hi" 气泡（进入 App / 从后台回来 / 轻点打招呼） */
-function petGreet(){ petAct('wave'); petRoundBubble('hi'); }
+function petGreet(){ petAct('wave'); petRoundBubble('嗨'); }
 /* ⑥+⑦ 告别：挥手 + "bye" 气泡 → 淡出，随后自动淡入复位（桌宠常驻，不会真的消失） */
 function petBye(){
-  petAct('wave'); petRoundBubble('bye');
+  petAct('wave'); petRoundBubble('拜拜');
   setTimeout(()=>{ petAct('exit'); }, PET_ACT_MS.wave);
   setTimeout(()=>{                                   // 离场后 1.2s 复位，避免桌宠消失不可恢复
     const pet = $('#pet'); if(!pet) return;
@@ -1894,7 +1900,7 @@ function updateDockState(tab){
 }
 function goModule(name){
   const transitionStarted=runtimeNow();
-  const titles={training:['训练','学习动作，或进入今天的训练'],boji:['Boji','记录与陪伴都在这里'],progress:['进步','训练规律、力量记录与趋势'],data:['进步','训练规律、力量记录与趋势'],profile:['我的','档案与设置'],diet:['饮食记录','已确认的餐点与营养记录'],run:['跑步','记录路线、距离与时间'],knowledge:['训练知识','有来源边界的训练与营养问答']};
+  const titles={training:['训练','学习动作，或进入今天的训练'],boji:['Boji','记录与陪伴都在这里'],progress:['进步','训练规律、力量记录与趋势'],data:['进步','训练规律、力量记录与趋势'],profile:['我的','档案与设置'],diet:['饮食记录','已确认的餐点与营养记录'],run:['跑步','记录路线、距离与时间'],knowledge:['训练知识与营养问答','实用的训练和饮食知识']};
   if(name==='today'){
     updateDockState('today');ACTIVE_MODULE='today';renderHome();
     if($('#module').classList.contains('open'))closePanel('module');
@@ -1928,7 +1934,7 @@ function renderHome(){
   if(titleEl)titleEl.textContent=`${salutation}！今天也加油吧♡`;
   const greeting=ACTIVE_WORKOUT&&ACTIVE_WORKOUT.session.status==='ACTIVE'
     ?'你有一节训练还在进行，已保存的组会保留。'
-    :t==='rest'?'今天安排为休息日，恢复也属于训练计划。':'今天的训练安排来自你当前选择的训练方案。';
+    :t==='rest'?'今天安排为休息日，恢复也属于训练计划。':'今天按你的训练计划安排。';
   $('#home-greeting').querySelector('span:last-child').textContent=greeting;
   const weekStart=new Date(now);weekStart.setHours(0,0,0,0);weekStart.setDate(weekStart.getDate()-weekStart.getDay());
   const weekDates=Array.from({length:7},(_,i)=>{const d=new Date(weekStart);d.setDate(d.getDate()+i);return d;});
@@ -1958,8 +1964,8 @@ function renderHome(){
       <p class="hc-meta">🔥 ${plan.ex.length} 个动作${est?` · 约 ${est} 分钟`:''}</p>
       <div class="hc-chips">${plan.ex.slice(0,4).map(e=>`<span class="hc-chip">${esc(e.name)}</span>`).join('')}${plan.ex.length>4?`<span class="hc-chip more">+${plan.ex.length-4}</span>`:''}</div>
       <button class="hc-go hc-go-lg" id="hc-go">开始训练 <span aria-hidden="true">→</span></button>
-      <p class="boji-note"><b>Boji：</b>${esc(planSetMeta().name)}按星期安排今天的${esc(plan.name)}；进度只会在训练组保存后更新。</p>
-       <details class="today-why" id="home-why"><summary>为什么今天练这个？</summary><p>这是你当前训练方案按星期安排的内容。系统没有根据缺少的档案或 AI 生成新计划。</p></details>`;
+      <p class="boji-note"><b>Boji：</b>今天按你的${esc(planSetMeta().name)}计划练${esc(plan.name)}。每完成一组，进度就会更新。</p>
+       <details class="today-why" id="home-why"><summary>为什么今天练这个？</summary><p>今天的安排来自你当前的训练计划，不会因为档案不完整而临时生成新计划。</p></details>`;
     $('#hc-go').onclick = ()=>goModule('training');
   }
   const adjust=$('#home-adjust');if(adjust)adjust.onclick=()=>{STATE.selDate=todayKey();save();goModule('training');};
@@ -1977,7 +1983,7 @@ function renderHome(){
    改成只替换标记本身，正文原样保留。 */
 function md(s){
   return esc(s)
-    .replace(/\*\[([ABC])\]([^*]*)\*/g, (_, _lv, txt) => `<span class="ev">来源待核</span>${txt}`)
+    .replace(/\*\[([ABC])\]([^*]*)\*/g, (_, _lv, txt) => `<span class="ev">资料说明</span>${txt}`)
     .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
 }
 function addMsg(role,text){
@@ -1987,7 +1993,7 @@ function addMsg(role,text){
 function renderAssistant(){
   const chat=$('#chat');
   if(chat.childElementCount===0){
-    addMsg('bot',`你好呀，我是${coachName()}，你的训练伙伴(｡･ω･｡)ﾉ\n我会区分已核验的信息和来源待核的内容；不确定时会明确告诉你。`);
+    addMsg('bot',`你好呀，我是${coachName()}，你的训练伙伴(｡･ω･｡)ﾉ\n我会把事实和估算分清楚；不确定时，会直接告诉你。`);
   }
   const quick=$('#quick');
   quick.innerHTML='';
@@ -2099,7 +2105,7 @@ function renderKnowledge(body){
     <div class="card" style="padding:6px 14px">
       <h4 style="margin:8px 0 2px">肌肉生长与增肌原理 <span class="tag">${KB_ARTICLES.length} 篇</span></h4>
       <p style="font-size:11px;color:var(--faint);line-height:1.6">
-        点标题展开全文。内容为运动生理学常见结论的中文整理，属于参考性总结，尚未逐条登记可核验来源，请以“来源待核”看待；下方每条附一个 B 站科普视频（标题即视频原名，可直接核对）。
+        点标题展开全文。这里整理了常见训练知识，适合先作参考；每篇也附有相关视频，供你继续了解。
         已读 ${Object.keys(done).length}/${KB_ARTICLES.length}。
       </p>
     </div>
@@ -2213,13 +2219,13 @@ function attachRunGeolocation(){
         else RUN.dist+=distance;
       }
       segment=RUN.segments[RUN.segments.length-1];segment.push(point);RUN.pts.push(point);RUN.lastFix=timestamp;RUN.geoUnavailable=false;
-      updateRunRoute();updateRunStatus(RUN.gaps?'GPS 轨迹有间断，未连接缺失路段':'GPS 前台定位中');
+      updateRunRoute();updateRunStatus(RUN.gaps?'定位有间断，路线已分段保存':'正在定位');
     },err=>{
       RUN.geoUnavailable=true;RUN.gapPending=true;
       if(RUN.watchId!=null)try{navigator.geolocation.clearWatch(RUN.watchId);}catch(_){}
-      RUN.watchId=null;updateRunStatus('GPS 不可用：'+(err&&err.message||'定位失败')+'。可手动填写距离和时长。');toast('GPS 定位不可用，可手动记录跑步');
+      RUN.watchId=null;updateRunStatus('暂时无法定位，可以手动填写距离和时长。');toast('暂时无法定位，可以手动记录跑步');
     },{enableHighAccuracy:true,timeout:12000,maximumAge:2000});
-  }catch(error){RUN.geoUnavailable=true;updateRunStatus('GPS 不可用，可手动填写距离和时长');}
+  }catch(error){RUN.geoUnavailable=true;updateRunStatus('暂时无法定位，可以手动填写距离和时长。');}
 }
 function runStart(){
   if(RUN.active) return;
@@ -2241,7 +2247,7 @@ function runStop(){
   if(!RUN.active) return;
   RUN.active=false;const endedAt=Date.now();if(RUN.watchId!=null&&navigator.geolocation)try{navigator.geolocation.clearWatch(RUN.watchId);}catch(_){}
   RUN.watchId=null;clearInterval(runTicker);const distance=Math.round(RUN.dist),durationSeconds=Math.max(0,(endedAt-RUN.startedAt)/1000);
-  if(distance<20){RUN.pendingRecord=null;renderModule('run');toast('GPS 距离不足 20m，未保存；可在下方手动填写');return;}
+  if(distance<20){RUN.pendingRecord=null;renderModule('run');toast('路线还不够长，暂未保存；也可以手动填写距离和时长');return;}
   const routeSegments=simplifyRunRoute(RUN.segments,RUN_MAX_ROUTE_POINTS),pending={runId:BojiData.makeId('run'),startedAt:RUN.startedAt,endedAt,localDateKey:RUN.localDateKey,
     timezoneContext:RUN.timezoneContext,distanceMeters:distance,durationSeconds,distanceProvenance:'MEASURED',durationProvenance:'MEASURED',
     routeSegments,routeStatus:RUN.geoUnavailable?'PARTIAL':RUN.gaps?'PARTIAL':'MEASURED',gpsGaps:RUN.gaps,savePending:true};
@@ -2273,7 +2279,7 @@ function updateRunMetrics(){
 function updateRunStatus(message){const el=$('#run-status');if(el)el.textContent=message;}
 function updateRunRoute(){
   const host=$('#run-live-route');if(!host)return;
-  host.innerHTML=RUN.pts.length>1?(STATE.settings.runMap?runMapHTML(RUN.segments,320,190):runTrackSVG(RUN.segments,320,190)):'<p class="fs-none">等待 GPS 测量点</p>';
+  host.innerHTML=RUN.pts.length>1?(STATE.settings.runMap?runMapHTML(RUN.segments,320,190):runTrackSVG(RUN.segments,320,190)):'<p class="fs-none">等待定位点</p>';
 }
 function normalizeRunSegments(value){
   let segments=Array.isArray(value)?value:[];
@@ -2295,6 +2301,8 @@ function runRouteSegments(record){
 function runRecordDistance(record){return +(record&&record.distanceMeters!=null?record.distanceMeters:record&&record.dist||0);}
 function runRecordDurationMs(record){return +(record&&record.durationSeconds!=null?record.durationSeconds*1000:record&&record.ms||0);}
 function runRecordCalories(record){return +(record&&record.calorieEstimate&&record.calorieEstimate.energyKcal!=null?record.calorieEstimate.energyKcal:record&&record.kcal||0);}
+function runRouteStatusLabel(status){return status==='MEASURED'?'定位记录':status==='PARTIAL'?'定位有间断':status==='MANUAL'?'手动记录':'历史路线';}
+function runDistanceSourceLabel(provenance){return provenance==='USER_PROVIDED'?'手动记录':provenance==='MEASURED'?'定位记录':'来源未注明';}
 function runTrackSVG(input, w, h){
   const segments=normalizeRunSegments(input),pts=segments.flat();if(pts.length < 2) return '';
   const lats = pts.map(p=>p.lat), lons = pts.map(p=>p.lon);
@@ -2372,14 +2380,14 @@ function renderRun(body){
       </div>
     </div>
     <div class="card" style="padding:12px 14px">
-      <div class="row-btns">${live?'<button class="btn-grad" id="run-stop" style="padding:11px">■ 结束并保存</button>':'<button class="btn-grad" id="run-start" style="padding:11px">▶ 开始 GPS 跑步</button>'}
+      <div class="row-btns">${live?'<button class="btn-grad" id="run-stop" style="padding:11px">■ 结束并保存</button>':'<button class="btn-grad" id="run-start" style="padding:11px">▶ 开始户外跑步</button>'}
         ${pending?'<button class="ex-do" id="run-retry" type="button" '+(RUN.saving?'disabled':'')+'>'+ (RUN.saving?'保存中…':'重试保存上一条跑步')+'</button>':''}</div>
-      ${live?'<p id="run-status" class="provenance-note">前台 GPS 定位中；切到后台可能中断定位。本页每秒只更新计时与指标。</p>':''}
-      <p style="font-size:10.5px;color:var(--faint);line-height:1.7;padding-top:8px">GPS 轨迹点按测量保存；定位间断会拆成独立路段，不估算缺失路段。室内或高楼附近定位可能不准。热量按 ACSM 公式估算并标记为 DERIVED。</p>
+      ${live?'<p id="run-status" class="provenance-note">正在记录路线；切到后台时，定位可能暂停。</p>':''}
+      <p style="font-size:10.5px;color:var(--faint);line-height:1.7;padding-top:8px">路线只记录实际测到的位置；定位中断会分段保存，不会补连。室内或高楼附近可能不准，热量为估算值。</p>
     </div>
-    <div class="card" style="padding:12px 14px"><h4>手动记录跑步</h4><div class="pf-edit"><label>距离（米）<input id="run-manual-distance" type="number" min="10" max="1000000" step="10" inputmode="decimal" placeholder="例如 3000"></label><label>时长（秒）<input id="run-manual-duration" type="number" min="1" max="604800" step="1" inputmode="numeric" placeholder="例如 1500"></label></div><button class="btn-grad" id="run-manual-save" type="button">保存手动记录</button><p class="provenance-note">距离与时长会标记为 USER_PROVIDED；手动记录不包含 GPS 轨迹。</p></div>
-    ${(live||routePointCount>1)?`<div class="card" style="padding:12px 14px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><h4 style="margin:0;flex:1">${live?'当前 GPS 轨迹':`最近一次轨迹 · ${esc(latest&&latest.routeStatus||'LEGACY_UNKNOWN')}`}</h4><button class="ex-do ghost-btn" id="run-map-tg" style="padding:6px 10px">地图底图：${STATE.settings.runMap?'开':'关'}</button></div><div class="run-map" ${live?'id="run-live-route"':''}>${routePointCount>1?(STATE.settings.runMap?runMapHTML(route,320,190):runTrackSVG(route,320,190)):'<p class="fs-none">等待 GPS 测量点</p>'}</div><p class="provenance-note">不同 GPS 路段独立绘制，断点之间没有插值连线。地图瓦片来自 OpenStreetMap，开启后需要联网。</p></div>`:''}
-    ${rs.length?`<div class="card" style="padding:6px 14px"><h4 style="margin:8px 0 2px">跑步记录 <span class="tag">${rs.length} 次</span></h4>${rs.slice(0,20).map(r=>{const d=runRecordDistance(r),ms=runRecordDurationMs(r),cal=runRecordCalories(r),date=r.localDateKey||r.date||'日期未知',mode=r.distanceProvenance==='USER_PROVIDED'?'手动':'GPS';return `<div class="list-row run-row"><span class="lr-ic">🏃</span><span class="run-rd">${esc(date)}</span><span class="run-rv"><b>${runFmtDist(d)}</b> · ${runFmtDur(ms)} · ${runPace(d,ms)}/km · 估算 ${cal} kcal · ${mode}</span></div>`;}).join('')}</div>`:''}
+    <div class="card" style="padding:12px 14px"><h4>手动记录跑步</h4><div class="pf-edit"><label>距离（米）<input id="run-manual-distance" type="number" min="10" max="1000000" step="10" inputmode="decimal" placeholder="例如 3000"></label><label>时长（秒）<input id="run-manual-duration" type="number" min="1" max="604800" step="1" inputmode="numeric" placeholder="例如 1500"></label></div><button class="btn-grad" id="run-manual-save" type="button">保存手动记录</button><p class="provenance-note">距离和时长由你填写，不会生成路线。</p></div>
+    ${(live||routePointCount>1)?`<div class="card" style="padding:12px 14px"><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><h4 style="margin:0;flex:1">${live?'当前路线':`最近一次路线 · ${runRouteStatusLabel(latest&&latest.routeStatus)}`}</h4><button class="ex-do ghost-btn" id="run-map-tg" style="padding:6px 10px">地图：${STATE.settings.runMap?'开':'关'}</button></div><div class="run-map" ${live?'id="run-live-route"':''}>${routePointCount>1?(STATE.settings.runMap?runMapHTML(route,320,190):runTrackSVG(route,320,190)):'<p class="fs-none">等待定位点</p>'}</div><p class="provenance-note">定位间断的路段会分开绘制，不会连成一条。地图需要联网。</p></div>`:''}
+    ${rs.length?`<div class="card" style="padding:6px 14px"><h4 style="margin:8px 0 2px">跑步记录 <span class="tag">${rs.length} 次</span></h4>${rs.slice(0,20).map(r=>{const d=runRecordDistance(r),ms=runRecordDurationMs(r),cal=runRecordCalories(r),date=r.localDateKey||r.date||'日期未知',mode=runDistanceSourceLabel(r.distanceProvenance);return `<div class="list-row run-row"><span class="lr-ic">🏃</span><span class="run-rd">${esc(date)}</span><span class="run-rv"><b>${runFmtDist(d)}</b> · ${runFmtDur(ms)} · ${runPace(d,ms)}/km · 约 ${cal} 千卡 · ${mode}</span></div>`;}).join('')}</div>`:''}
   `;
   const st = $('#run-start'); if(st) st.onclick = runStart;
   const sp = $('#run-stop'); if(sp) sp.onclick = runStop;
@@ -2388,7 +2396,7 @@ function renderRun(body){
   const mt = $('#run-map-tg');
   if(mt) mt.onclick = ()=>{ STATE.settings.runMap = !STATE.settings.runMap; save(); renderModule('run');
     toast(STATE.settings.runMap ? '已开启地图底图（需联网）' : '已关闭地图底图，回到离线轨迹图'); };
-  if(live){updateRunMetrics();updateRunStatus(RUN.geoUnavailable?'GPS 不可用；可使用手动记录':'前台 GPS 定位中；切到后台可能中断定位');}
+  if(live){updateRunMetrics();updateRunStatus(RUN.geoUnavailable?'暂时无法定位，可以手动记录':'正在定位；切到后台时可能暂停');}
 }
 
 function renderModule(name){
@@ -2413,7 +2421,7 @@ function renderBoji(body){
   body.innerHTML=`<section class="boji-hero card" data-character-family="adult" data-character-state="neutral" data-character-slots="master-portrait workout-full-body icon chibi-base" data-character-states="neutral happy encourage focused proud concerned tired sleep">
       <div class="boji-art-frame"><img class="boji-portrait" data-character-slot="master-portrait" data-asset-status="final" src="${BOJI_PORTRAIT}" alt="Boji 原创训练伙伴立绘"><div class="boji-say">有我在，我们会一起变强哦！</div></div>
       <div class="boji-hero-copy"><span class="eyebrow">训练伙伴 · 角色形象</span><h2>Boji 在这里</h2><p>记录训练、饮食与身体变化；建议会说明依据。</p></div>
-      <div class="boji-bond"><span class="bb-heart" aria-hidden="true">❤</span><div class="bb-main"><b>亲密度 Lv.${bond.level}</b><span class="bb-bar" role="img" aria-label="亲密度进度"><i style="width:${bond.pct}%"></i></span><small>${bond.into} / ${bond.span} · 随已完成训练增长</small></div></div>
+      <div class="boji-bond"><span class="bb-heart" aria-hidden="true">❤</span><div class="bb-main"><b>一起训练 Lv.${bond.level}</b><span class="bb-bar" role="img" aria-label="一起训练进度"><i style="width:${bond.pct}%"></i></span><small>${bond.into} / ${bond.span} · 完成训练后成长</small></div></div>
     </section>
     <section class="card boji-primary-card"><h3>记录与变化</h3><div class="boji-primary-actions">
       <button type="button" class="boji-main-action" data-boji-action="food"><span aria-hidden="true">🍽️</span><b>记录饮食</b><small>拍照或手动添加</small></button>
@@ -2422,9 +2430,9 @@ function renderBoji(body){
     </div><button type="button" class="boji-scan-link" data-boji-action="barcode"><span aria-hidden="true">▥</span> 扫食品条码</button></section>
     <section class="boji-secondary-actions" aria-label="伙伴互动">
       <button type="button" data-boji-action="ask"><span aria-hidden="true">✦</span><b>问 Boji</b><small>训练、营养与生活</small></button>
-      <button type="button" data-boji-action="photo"><span aria-hidden="true">📷</span><b>Photo Pet</b><small>用自己的照片做伙伴</small></button>
+      <button type="button" data-boji-action="photo"><span aria-hidden="true">📷</span><b>照片伙伴</b><small>用自己的照片做伙伴</small></button>
     </section>
-    <section class="card boji-photo-note"><h3>伙伴形象</h3><p>Boji 角色与 Photo Pet 分开保存。Photo Pet 图片只保存在本机，可以随时替换或移除。</p><button class="ex-do ghost-btn" data-boji-action="photo">管理 Photo Pet</button></section>
+    <section class="card boji-photo-note"><h3>伙伴形象</h3><p>Boji 形象与照片伙伴分开保存。照片只保存在本机，可以随时替换或移除。</p><button class="ex-do ghost-btn" data-boji-action="photo">管理照片伙伴</button></section>
     <p class="boji-signoff">今天也辛苦了！记得喝水和拉伸哦～</p>`;
   body.querySelectorAll('[data-boji-action]').forEach(button=>button.onclick=()=>{
     const action=button.dataset.bojiAction;
@@ -2587,7 +2595,7 @@ function progressOverviewSection(){
   section.innerHTML=`<div class="card progress-trend"><div class="pt-head"><h3>总体趋势</h3><div class="progress-ranges" role="group" aria-label="趋势时间范围">${ranges.map(([key,label])=>`<button type="button" data-progress-range="${key}" class="${progressRange===key?'active':''}" aria-pressed="${progressRange===key}">${label}</button>`).join('')}</div></div><p class="pt-line">${esc(trendLine)}</p>
       ${progressTrendSvg(trend)}</div>
     <div class="metric-grid">
-      <div class="metric-card"><span class="mc-ic" aria-hidden="true">💪</span><b>${e1.value!=null?esc(e1.value)+' kg':'—'}</b><span>${e1.exerciseName?esc(e1.exerciseName)+' · e1RM 估算':'e1RM 估算 · 尚无动作记录'}</span><em class="${e1.delta>0?'up':e1.delta<0?'down':''}">${e1.delta==null?(e1.exerciseName?'同动作再记录一次可比较':'等待记录'):'同动作 '+sign(e1.delta)+e1.delta+'%'}</em></div>
+      <div class="metric-card"><span class="mc-ic" aria-hidden="true">💪</span><b>${e1.value!=null?esc(e1.value)+' kg':'—'}</b><span>${e1.exerciseName?esc(e1.exerciseName)+' · 最大力量估算':'最大力量估算 · 尚无动作记录'}</span><em class="${e1.delta>0?'up':e1.delta<0?'down':''}">${e1.delta==null?(e1.exerciseName?'同动作再记录一次可比较':'等待记录'):'同动作 '+sign(e1.delta)+e1.delta+'%'}</em></div>
       <div class="metric-card"><span class="mc-ic" aria-hidden="true">⚖</span><b>${latestW?esc(latestW.w)+' kg':'—'}</b><span>体重</span><em class="${wDelta>0?'up':wDelta<0?'down':''}">${wDelta==null?'未记录变化':sign(wDelta)+wDelta+' kg'}</em></div>
       <div class="metric-card"><span class="mc-ic" aria-hidden="true">✅</span><b>${rate!=null?rate+'%':'—'}</b><span>训练完成率</span><em>近 4 周计划日</em></div>
       <div class="metric-card"><span class="mc-ic" aria-hidden="true">🔥</span><b>${hasCompletedHistory?st+' 天':'—'}</b><span>连续训练</span><em>${hasCompletedHistory?'已保存组':'暂无训练记录'}</em></div>
@@ -2601,6 +2609,40 @@ function refreshProgressSurface(body){
 const PROGRESSION_SUGGESTIONS = new Map();
 let PENDING_ADJUSTMENT = null;
 function trainingTemplate(id){return TRAINING_CATALOG&&TRAINING_CATALOG.templates.find(row=>row.templateId===id)||null;}
+function videoStatusLabel(video){
+  if(!video||!video.sourceUrl)return'暂未提供';
+  if(video.availability==='UNAVAILABLE')return'暂不可用';
+  if(video.manualReviewed!==true||video.matchLevel!=='VERIFIED'||video.availability==='UNKNOWN')return'仅供参考';
+  return'可播放';
+}
+async function migrateLegacyPlanEdits(){
+  if(!TRAINING_CATALOG||!STATE.planEdits||typeof STATE.planEdits!=='object')return false;
+  const code=PLAN_SETS[STATE.planSet]?STATE.planSet:'A',remaining=Object.assign({},STATE.planEdits);let changed=false;
+  for(const [day,edits] of Object.entries(remaining)){
+    if(!['push','pull','legs','core'].includes(day)||!edits||typeof edits!=='object')continue;
+    const template=trainingTemplate('template:'+code+':'+day);if(!template||!Array.isArray(template.exercises))continue;
+    const next=template.exercises.map((row,index)=>{
+      const edit=edits[index]||edits[String(index)];if(!edit||typeof edit!=='object')return{exerciseId:row.exerciseId,sets:row.sets,reps:row.reps};
+      const sets=Number.isInteger(+edit.sets)&&+edit.sets>=1&&+edit.sets<=10?+edit.sets:row.sets;
+      const reps=typeof edit.reps==='string'&&edit.reps.trim()&&edit.reps.trim().length<=16&&!/[\u0000-\u001f<>]/.test(edit.reps)?edit.reps.trim():row.reps;
+      if(sets!==row.sets||reps!==row.reps)changed=true;
+      return{exerciseId:row.exerciseId,sets,reps};
+    });
+    if(!next.some((row,index)=>row.sets!==template.exercises[index].sets||row.reps!==template.exercises[index].reps))continue;
+    const saved=await BojiData.saveWorkoutTemplate(template.templateId,next);
+    TRAINING_CATALOG.templates=TRAINING_CATALOG.templates.map(row=>row.templateId===saved.templateId?saved:row);
+    const migrated=Object.assign({},edits);next.forEach((row,index)=>{
+      const prior=edits[index]||edits[String(index)];if(prior&&((prior.sets==null||+prior.sets===row.sets)&&(prior.reps==null||String(prior.reps).trim()===row.reps)))delete migrated[index];
+    });
+    if(Object.keys(migrated).length)remaining[day]=migrated;else delete remaining[day];
+  }
+  if(changed&&JSON.stringify(remaining)!==JSON.stringify(STATE.planEdits)){
+    const snapshot=JSON.parse(JSON.stringify(STATE));snapshot.planEdits=remaining;
+    try{await BojiData.saveState(snapshot);STATE.planEdits=remaining;}
+    catch(_){/* The canonical template remains authoritative; the old mirror can be retried on next startup. */}
+  }
+  return changed;
+}
 function exerciseDefinition(id){return TRAINING_CATALOG&&TRAINING_CATALOG.exercises.find(row=>row.exerciseId===id)||null;}
 function previousExerciseSet(exerciseId,excludeSessionId){
   const sessions=WORKOUT_HISTORY_RECORDS.filter(row=>row&&row.session&&row.session.status==='COMPLETED'&&row.session.sessionId!==excludeSessionId)
@@ -2717,9 +2759,9 @@ function renderTraining(body){
       const modeContent=workout?'<details class="learning-details"><summary>'+(mode==='learning'?'展开动作要点':'动作教学与安全')+'</summary>'+learningContent+'</details>':
         mode==='learning'?learningContent:'<details class="learning-details"><summary>动作教学与安全</summary>'+learningContent+'</details>';
       const videoContent=video&&video.sourceUrl?'<button class="ex-video" data-video-url="'+esc(video.sourceUrl)+'" data-video-label="'+esc(video.title||def.name)+'">▶ '+
-        esc(video.title||'打开动作教学')+'</button><span class="tag">'+esc(video.matchLevel||'UNVERIFIED')+' · '+esc(video.availability||'UNKNOWN')+'</span>':'';
-      const demoContent=current?'<div class="exercise-demo"><div class="exercise-demo-art"><span aria-hidden="true">'+(videoContent?'有来源':'无视频')+'</span><small>演示状态</small></div><div class="exercise-demo-copy"><b>动作演示与要点</b><p>'+
-        (videoContent?'教学媒体标记为 '+esc(video.matchLevel||'UNVERIFIED')+' · '+esc(video.availability||'UNKNOWN')+'，匹配状态仍待核验。':'当前没有已验证的视频素材；动作要点可离线查看。')+
+        esc(video.title||'打开动作教学')+'</button><span class="tag">'+videoStatusLabel(video)+'</span>':'';
+      const demoContent=current?'<div class="exercise-demo"><div class="exercise-demo-art"><span aria-hidden="true">'+(videoContent?'视频':'动作要点')+'</span><small>动作提示</small></div><div class="exercise-demo-copy"><b>动作要点</b><p>'+
+        (videoContent?'视频内容仅供参考，先看下面的动作要点。':'暂时没有教学视频，下面的动作要点可离线查看。')+
         '</p>'+videoContent+'</div></div>':'';
       const suggestionCopy=!suggestion?'':!suggestion.ready?'尚无足够的已保存同动作组，暂不提供重量建议。':suggestion.kind==='INCREASE_LOAD'?
         '建议重量 '+esc(suggestion.suggestedKg)+' kg · 需要你确认':'保持 '+esc(suggestion.currentKg)+' kg，先逐步达到目标次数';
@@ -2729,6 +2771,8 @@ function renderTraining(body){
         (suggestion?'<span class="suggested-load">'+suggestionCopy+'</span>':'')+
         '<button class="ex-do ghost-btn" data-progression="'+esc(ex.exerciseId)+'" data-target-reps="'+esc(ex.targetReps)+'">'+(suggestion?'重新计算建议':'查看建议重量')+'</button></div>':
         mode==='performance'?'<div class="performance-context"><span>当前：'+(currentSet?('第 '+(currentSet.setIndex+1)+' 组 · 目标 '+esc(currentSet.targetReps)+' 次'):'本动作各组均已保存')+'</span></div>':'';
+      const doneSets=sets.filter(set=>set.completed).length;
+      if(!current)html+='<details class="workout-next"><summary><span>'+esc(ex.nameSnapshot)+'</span><small>'+doneSets+'/'+sets.length+' 组已保存 · '+esc(ex.targetReps)+' 次</small></summary>';
       html+='<div class="ex '+(current?'exercise-current':'')+'"><div class="ex-top"><span class="ex-no">'+(i+1)+'</span><span class="ex-name">'+esc(ex.nameSnapshot)+
         '</span><span class="ex-sets">'+ex.targetSets+'×'+esc(ex.targetReps)+' · 休'+(p.restSeconds||60)+'s</span></div>'+
         (def&&def.targetMuscles&&def.targetMuscles.length?'<div class="ex-muscle">'+esc(def.targetMuscles.join(' · '))+'</div>':'')+
@@ -2739,8 +2783,8 @@ function renderTraining(body){
         const action=set.completed?'<span>已保存：'+(set.weightKg==null?'重量未填':set.weightKg+' kg')+' · '+set.reps+' 次</span>':
           enabled&&ownsWorkout?'<button class="ex-do" data-complete-set="'+esc(set.setId)+'">保存并完成本组</button>':
           !ownsWorkout?'<small>只读标签页无法保存训练组</small>':'<small>按顺序完成上一组后解锁</small>';
-        const rirField='<label>RIR <select data-rir '+(set.completed||!enabled||!ownsWorkout?'disabled':'')+'><option value="">未记录</option>'+rirOptions+'</select></label>';
-        const rirControl=enabled?rirField:'<details '+(mode==='performance'?'open':'')+'><summary>RIR 进阶记录（选填）</summary>'+rirField+'</details>';
+        const rirField='<label>还能再做几次 <select data-rir '+(set.completed||!enabled||!ownsWorkout?'disabled':'')+'><option value="">不记录</option>'+rirOptions+'</select></label>';
+        const rirControl=enabled?rirField:'<details '+(mode==='performance'?'open':'')+'><summary>余力次数（选填）</summary>'+rirField+'</details>';
         html+='<div class="workout-set '+(set.completed?'set-complete':'')+(enabled?' current-set':'')+'" data-set-row="'+esc(set.setId)+'"><b>第 '+(set.setIndex+1)+' 组'+(set.completed?' ✓':'')+'</b>'+
           '<label>重量 kg <input type="number" min="0" max="2000" step="0.5" value="'+(set.weightKg==null?esc(weight):set.weightKg)+'" data-weight '+(set.completed||!enabled||!ownsWorkout?'disabled':'')+'></label>'+
           '<label>次数 <input type="number" min="1" max="1000" value="'+(set.reps==null?repsDefault(set.targetReps):set.reps)+'" data-reps '+(set.completed||!enabled||!ownsWorkout?'disabled':'')+'></label>'+
@@ -2751,6 +2795,7 @@ function renderTraining(body){
       if(suggestion&&current&&suggestion.ready&&suggestion.kind==='INCREASE_LOAD')html+='<div class="ex-over">'+esc(suggestion.reason)+' <button data-accept-progression="'+
         esc(ex.exerciseId)+'" data-load="'+suggestion.suggestedKg+'">采用建议</button></div>';
       html+='</div>';
+      if(!current)html+='</details>';
     });
     if(ownsWorkout)html+='<button class="btn-grad" id="finish-workout" '+(complete?'':'disabled')+'>'+(complete?'完成训练':'完成所有组后可结束训练')+
       '</button><button class="ex-do ghost-btn" id="abandon-workout">放弃本次训练</button>';
@@ -2759,14 +2804,19 @@ function renderTraining(body){
     const plan=PLAN_SETS[code].days[day],estimate=templateMinutes(template),override=STATE.planOverrides[key];
     html+='<div class="card"><h4>'+esc(plan.name)+' <span class="tag">'+esc(PLAN_SETS[code].name)+'</span><span class="tag">约 '+estimate+' 分钟</span></h4>'+
       '<p>'+esc(plan.greeting)+'</p>'+(override?'<p>已采用今日调整：'+esc(override.reason||'器械与时间限制')+'</p>':'')+
-      '<button class="btn-grad" id="start-workout" '+(active?'disabled':'')+'>'+(active?'请先完成当前训练':'开始今天训练')+'</button><div class="dash"></div><h4>调整今天</h4>'+
-      '<p>选择可用器械和时间，预览动作与依据；确认后才会应用。</p><div class="mx-grid"><label>器械档案<select id="adjust-profile">'+
+      '<button class="btn-grad" id="start-workout" '+(active?'disabled':'')+'>'+(active?'请先完成当前训练':'开始今天训练')+'</button>'+
+      '<details class="plan-outline"><summary>动作安排 · '+(template&&template.exercises?template.exercises.length:0)+' 项</summary><div class="plan-exercise-list">'+
+      (template&&template.exercises?template.exercises.map((row,index)=>'<div><b>'+(index+1)+'. '+esc(exerciseDefinition(row.exerciseId)?.name||'训练动作')+'</b><span>'+row.sets+' 组 · '+esc(row.reps)+' 次 · 休息 '+row.restSeconds+' 秒</span></div>').join(''):'')+
+      '</div></details><button class="ex-do ghost-btn" id="plan-edit-toggle">'+(STATE.editPlan?'收起计划编辑':'编辑训练计划')+'</button>'+
+      (STATE.editPlan&&template?'<div class="plan-edit-list">'+template.exercises.map((row,index)=>'<div class="plan-edit-row"><b>'+esc(exerciseDefinition(row.exerciseId)?.name||'训练动作')+'</b><label>组数<input type="number" min="1" max="10" inputmode="numeric" data-plan-sets="'+index+'" value="'+row.sets+'"></label><label>次数<input type="text" maxlength="16" data-plan-reps="'+index+'" value="'+esc(row.reps)+'"></label></div>').join('')+
+        '<button class="btn-grad" id="save-plan-edits">保存训练计划</button></div>':'')+
+      '<details class="training-adjust"><summary id="training-adjust-toggle">调整今天的训练</summary><p>按今天可用的器械和时间预览变更，确认后才会采用。</p><div class="mx-grid"><label>训练地点<select id="adjust-profile">'+
       ['A','B','C'].map(k=>'<option value="'+k+'" '+(k===code?'selected':'')+'>'+esc(PLAN_SETS[k].name)+'</option>').join('')+
       '</select></label><label>可用时间<select id="adjust-minutes">'+minuteChoices.map(n=>'<option value="'+n+'" '+(n===defaultMinutes?'selected':'')+'>'+n+' 分钟</option>').join('')+
-      '</select></label></div><button class="ex-do" id="preview-adjustment">预览调整</button><div id="adjustment-preview"></div></div>';
+      '</select></label></div><button class="ex-do" id="preview-adjustment">预览调整</button><div id="adjustment-preview"></div></details></div>';
   }
   const customs=Array.isArray(STATE.myEx)?STATE.myEx.filter(item=>item&&typeof item.id==='string'&&typeof item.name==='string'&&item.name.trim()):[];
-  html+='<div class="card"><h4>我的动作 <span class="tag">'+customs.length+' 个</span><span class="tag">独立记录</span></h4>';
+  html+='<details class="card custom-exercises"><summary><b>我的自定义动作</b><small>'+customs.length+' 个 · 单独记录</small></summary>';
   if(!customs.length)html+='<p>自定义动作记录与计划训练分开保存。</p>';
   customs.forEach(item=>{
     const done=!!(STATE.customLogs[key]&&STATE.customLogs[key][item.id]);
@@ -2780,7 +2830,7 @@ function renderTraining(body){
     '<label>次数<input id="mx-reps" value="12"></label><label>休息秒<input id="mx-rest" type="number" min="10" max="600" value="60"></label>'+
     '<label>要点备注<input id="mx-note" maxlength="240"></label><button class="btn-grad" id="mx-save">保存动作</button><button class="ex-do" id="mx-cancel">取消</button></div>';
   else html+='<button class="btn-grad ghost-btn" id="mx-add">＋ 添加自定义动作</button>';
-  html+='</div>';body.innerHTML=html;
+  html+='</details>';body.innerHTML=html;
   body.querySelectorAll('details.learning-details > summary').forEach(summary=>{
     const measureOpen=()=>{const started=runtimeNow();requestAnimationFrame(()=>{if(summary.parentElement&&summary.parentElement.open)metricAfterPaint(RUNTIME_METRICS.teachingDrawerMs,started);});};
     summary.addEventListener('click',measureOpen,{capture:true});
@@ -2791,6 +2841,18 @@ function renderTraining(body){
   const resume=$('#resume-workout');if(resume)resume.onclick=()=>{STATE.selDate=active.session.localDateKey;save();renderTraining(body);};
   const takeover=$('#takeover-workout');if(takeover)takeover.onclick=()=>takeOverActiveWorkout(body);
   const start=$('#start-workout');if(start)start.onclick=()=>beginWorkout(key,day,body);
+  const planEdit=$('#plan-edit-toggle');if(planEdit)planEdit.onclick=()=>{STATE.editPlan=!STATE.editPlan;renderTraining(body);};
+  const savePlan=$('#save-plan-edits');if(savePlan)savePlan.onclick=async()=>{
+    const source=trainingTemplate('template:'+code+':'+day);if(!source)return;
+    const edits=source.exercises.map((row,index)=>({exerciseId:row.exerciseId,sets:+body.querySelector('[data-plan-sets="'+index+'"]')?.value,
+      reps:body.querySelector('[data-plan-reps="'+index+'"]')?.value||''}));
+    savePlan.disabled=true;
+    try{
+      const saved=await BojiData.saveWorkoutTemplate(source.templateId,edits);
+      TRAINING_CATALOG.templates=TRAINING_CATALOG.templates.map(row=>row.templateId===saved.templateId?saved:row);
+      STATE.editPlan=false;await saveAsync();renderTraining(body);toast('训练计划已保存，之后开始的训练会按新计划记录');
+    }catch(error){savePlan.disabled=false;toast('计划未保存：'+(error.message||'请检查填写内容后重试'));}
+  };
   const preview=$('#preview-adjustment');if(preview)preview.onclick=()=>{
     PENDING_ADJUSTMENT=adjustmentProposal(key,day,$('#adjust-profile').value,+$('#adjust-minutes').value);const p=PENDING_ADJUSTMENT,out=$('#adjustment-preview');
     let changes='';if(p.ok)p.changes.forEach(x=>changes+='<div>'+esc(x.from)+' → '+esc(x.to)+'</div>');
@@ -2852,6 +2914,7 @@ async function beginWorkout(date,day,body){
       if(claim.status==='CLAIMED')broadcastWorkoutChange(ACTIVE_WORKOUT.session.sessionId,'owner');
       return;
     }
+     if(result.status==='CREATED')emitProductEvent('workout.started',loaded.session);
     ACTIVE_WORKOUT=loaded;indexWorkoutHistory(await BojiData.listWorkoutHistory());renderTraining(body);toast('训练已保存，可以开始第一组');setMood('expect',1400);
     broadcastWorkoutChange(loaded.session.sessionId,'started');requestWorkoutWakeLock();showUpdateReady();
   }catch(error){if(button)button.disabled=false;toast('训练未开始：'+(error.message||'保存失败'));}finally{START_INTENT_KEY=null;}
@@ -2873,9 +2936,12 @@ async function commitWorkoutSet(button,body){
   const weight=row.querySelector('[data-weight]').value,reps=+row.querySelector('[data-reps]').value,rir=row.querySelector('[data-rir]').value;button.disabled=true;
   try{const result=await BojiData.completeWorkoutSet(ACTIVE_WORKOUT.session.sessionId,id,{weightKg:weight,reps:reps,rir:rir===''?null:+rir},TAB_OWNER_ID);
     if(result.status==='NOT_OWNER'){toast('训练已由其他标签页接管；此标签页已切换为只读');await refreshActiveWorkoutFromDB();return;}
-    if(result.status!=='COMPLETED')throw new Error(result.status);ACTIVE_WORKOUT=result.workout;indexWorkoutHistory(await BojiData.listWorkoutHistory());
+    if(result.status!=='COMPLETED')throw new Error(result.status);
+    const committedSet=result.workout.sets.find(set=>set.setId===id);if(committedSet)emitProductEvent('workout.set_completed',committedSet,{localDateKey:result.workout.session.localDateKey});
+    ACTIVE_WORKOUT=result.workout;indexWorkoutHistory(await BojiData.listWorkoutHistory());
     broadcastWorkoutChange(ACTIVE_WORKOUT.session.sessionId,'set');
     renderTraining(body);
+    const nextExercise=body.querySelector('.exercise-current');if(nextExercise&&typeof nextExercise.scrollIntoView==='function')nextExercise.scrollIntoView({block:'start',behavior:prefersReducedMotion()?'auto':'smooth'});
     if(Number.isFinite(result.commitCompletedAtPerformance)){const now=runtimeNow();if(Number.isFinite(now))RUNTIME_METRICS.setUiAckMs.push(Math.max(0,now-result.commitCompletedAtPerformance));}
     setMood('cheer',1300);toast('本组已写入本机训练记录');
   }catch(error){button.disabled=false;toast('本组未保存：'+(error.message||'请重试'));}
@@ -2884,6 +2950,7 @@ async function completeWorkout(body){
   if(!ACTIVE_WORKOUT)return;try{const result=await BojiData.finishWorkout(ACTIVE_WORKOUT.session.sessionId,{},TAB_OWNER_ID);
     if(result.status==='NOT_OWNER'){toast('训练已由其他标签页接管；此标签页已切换为只读');await refreshActiveWorkoutFromDB();return;}
     if(result.status!=='COMPLETED'){toast('仍有未完成组；训练保持可恢复');return;}
+    emitProductEvent('workout.completed',result.workout.session);
     indexWorkoutHistory(await BojiData.listWorkoutHistory());ACTIVE_WORKOUT=null;stopRestUI();releaseWorkoutWakeLock();broadcastWorkoutChange(result.workout.session.sessionId,'finished');showUpdateReady();setMood('cheer',3500);setTimeout(()=>setMood('proud',3000),3600);
     $('#done-emoji').textContent='🎉';$('#done-title').textContent='今日训练完成！';$('#done-sub').textContent=result.workout.session.localDateKey+' · 所有训练组已保存';
     $('#done-stats').innerHTML='<div class="ds"><b>'+result.workout.sets.length+'</b><span>组</span></div><div class="ds"><b>'+
@@ -2937,9 +3004,11 @@ function showWorkoutRest(endAt){
       stopRestUI();
       if(ACTIVE_WORKOUT&&ACTIVE_WORKOUT.session.ownerTabId===TAB_OWNER_ID&&ACTIVE_WORKOUT.session.activeRestEndAt===endAt&&restClearPendingAt!==endAt){
         restClearPendingAt=endAt;
+        const restStartedAt=ACTIVE_WORKOUT.session.activeRestStartedAt;
         BojiData.clearWorkoutRest(ACTIVE_WORKOUT.session.sessionId,TAB_OWNER_ID).then(updated=>{
           if(!updated)return refreshActiveWorkoutFromDB();
-          ACTIVE_WORKOUT=updated;broadcastWorkoutChange(ACTIVE_WORKOUT.session.sessionId,'rest');setMood('happy',1600);toast('休息结束，开始下一组！');
+          ACTIVE_WORKOUT=updated;emitProductEvent('rest.finished',updated.session,{restDurationSeconds:Math.max(0,Math.round((endAt-(restStartedAt||endAt))/1000))});
+          broadcastWorkoutChange(ACTIVE_WORKOUT.session.sessionId,'rest');setMood('happy',1600);toast('休息结束，开始下一组！');
         }).catch(error=>toast('休息计时已到；恢复状态将在下次读取：'+(error.message||''))).finally(()=>{restClearPendingAt=null;});
       }
     }
@@ -2989,7 +3058,7 @@ function renderDiet(body){
     <div class="sum-row"><span>蛋白质${itemsTotal&&!pComplete?'已知小计':'记录'}</span><b>${Math.round(pTot)} g${pComplete&&goal.protein?' / 估算 '+goal.protein+' g':''}</b></div>
     ${goal.protein&&pPct!=null?bar2(pPct,'p'):''}
     <div class="sum-row"><span>碳水${itemsTotal&&!cComplete?'已知小计':''}</span><b>${Math.round(cTot)} g</b><span style="margin-left:14px">脂肪${itemsTotal&&!fComplete?'已知小计':''}</span><b>${Math.round(fTot)} g</b></div>
-    <p class="provenance-note">汇总只含已确认的 MealRecord。AI 识别结果和份量在确认前属于草稿。</p></div>`;
+    <p class="provenance-note">汇总只包含你确认保存的餐点；识别结果和份量在确认前都可以修改。</p></div>`;
   const waterPct=goal.water?Math.min(100,Math.round(water/goal.water*100)):null;
   html+=`<div class="card"><h4>饮水记录 <span class="tag">${water} ml${goal.water?' / 估算 '+goal.water+' ml':''}</span></h4>
     ${goal.water?`<div class="water-bar"><i style="width:${waterPct}%"></i></div>`:'<p>饮水只记实际录入量。系统提供的 35 ml/kg 是可修改的粗略估算。</p>'}
@@ -3006,8 +3075,8 @@ function renderDiet(body){
       const rows=MEAL_RECORDS.filter(record=>record.localDateKey===key&&record.mealTypeIndex===mi);
       rows.forEach(record=>(record.items||[]).forEach((item,index)=>{
         const amount=item.quantity==null?'份量未记录':`${item.quantity} ${item.unit==='g'?'g':'份'}`;
-        const source=Object.values(item.provenance||{}).join(' · '),energy=nutritionField(item,'energyKcal');
-        html+=`<div class="list-row food-record-row"><span class="lr-ic">🍽️</span><span class="fd-n">${esc(item.name)}</span><span class="fd-q">${amount}${energy?' · '+Math.round(energy)+' kcal':''}</span><button class="ex-do ghost-btn" data-meal-remove="${esc(record.mealId)}" data-item-index="${index}">移除</button><small>${esc(source)} · ${esc(item.identityConfidence||'UNASSESSED')} 信心档 · ${esc(item.nutritionSource&&item.nutritionSource.type||'来源待核')}</small></div>`;
+        const source=foodRecordDetail(item),energy=nutritionField(item,'energyKcal');
+        html+=`<div class="list-row food-record-row"><span class="lr-ic">🍽️</span><span class="fd-n">${esc(item.name)}</span><span class="fd-q">${amount}${energy?' · '+Math.round(energy)+' kcal':''}</span><button class="ex-do ghost-btn" data-meal-remove="${esc(record.mealId)}" data-item-index="${index}">移除</button><small>${esc(source)}</small></div>`;
       }));
     } else {
       html+=`<p style="font-size:12px;color:var(--faint)">还没记录</p>`;
@@ -3024,7 +3093,7 @@ function renderDiet(body){
   });
   const legacyCount=PERSONAL_RECORDS_READY?Object.values(STATE.meals||{}).reduce((sum,day)=>sum+Object.values(day||{}).reduce((n,items)=>n+(Array.isArray(items)?items.length:0),0),0):0;
   if(legacyCount)html+=`<div class="card"><h4>旧版饮食记录待复核</h4><p>${legacyCount} 条旧记录缺少字段来源，未合并进已确认汇总。可按需重新录入。</p></div>`;
-  html+=`<div class="card"><p class="provenance-note">系统营养目标仅为可调整的估算；AI、数据库、用户输入和计算值逐字段保留来源。照片仅在本次识别期间使用，不保存到餐点记录。</p></div>`;
+  html+=`<div class="card"><p class="provenance-note">营养目标只是估算参考，可以随时调整。食物来源会保留在记录中；照片只用于本次识别，不会保存到餐点记录。</p></div>`;
   body.innerHTML=html;
   $('#water-100').onclick=()=>addWater(100,body);
   $('#water-250').onclick=()=>addWater(250,body);
@@ -3248,10 +3317,10 @@ function renderFoodDraft(list,mi){
   if(!draft){host.innerHTML=FOOD_DRAFTS.some(x=>x.localDateKey===todayKey()&&x.mealTypeIndex===mi)?'<p class="fs-none">这餐有未完成草稿，可在下方继续。</p>':'';return;}
   const items=(draft.items||[]).map((item,index)=>{
     const kcal=nutritionField(item,'energyKcal'),portion=`${item.quantity} ${item.unit==='g'?'g':'份'}`;
-    const sources=Object.entries(item.provenance||{}).map(([key,value])=>`${key}:${value}`).join(' · ');
+  const sources=foodRecordDetail(item);
     return `<div class="food-draft-row"><b>${esc(item.name)}</b><span>${portion}${kcal?' · '+Math.round(kcal)+' kcal':''}</span><small>${esc(sources)}</small><button type="button" data-draft-remove="${index}" aria-label="删除${esc(item.name)}">删除</button></div>`;
   }).join('');
-  host.innerHTML=`<div class="fs-draft-card"><h4>待确认的${MEAL_NAMES[mi]}草稿 · ${draft.items.length} 项</h4>${items}<p>名称信心、份量来源和营养来源已分开记录。草稿还没有计入当天汇总。</p><div class="row-btns"><button class="btn-grad" id="fs-confirm-draft">核对后确认并记录</button><button class="ex-do" id="fs-discard-draft">丢弃草稿</button></div></div>`;
+  host.innerHTML=`<div class="fs-draft-card"><h4>待确认的${MEAL_NAMES[mi]}草稿 · ${draft.items.length} 项</h4>${items}<p>食物名、份量和营养信息都可以修改，确认后才会计入当天记录。</p><div class="row-btns"><button class="btn-grad" id="fs-confirm-draft">确认并记录</button><button class="ex-do" id="fs-discard-draft">丢弃草稿</button></div></div>`;
   host.querySelectorAll('[data-draft-remove]').forEach(button=>button.onclick=async()=>{
     try{const next=draft.items.filter((_,i)=>i!==+button.dataset.draftRemove);if(!next.length){await BojiData.deleteFoodDraft(draft.draftId);FOOD_DRAFTS=FOOD_DRAFTS.filter(x=>x.draftId!==draft.draftId);ACTIVE_FOOD_DRAFT=null;}
       else ACTIVE_FOOD_DRAFT=await BojiData.updateFoodDraft(draft.draftId,{items:next});renderFoodDraft(list,mi);
@@ -3299,13 +3368,23 @@ function openPhotoIntake(mi, body, camera){
 /* ---------- 置信度分级（诚实标注：来源 + 档位） ---------- */
 const CONF_TABLE = { barcode:0.95, ai:0.88, off:0.8, history:0.75, lib:0.7, fuzzy:0.45 };
 function foodConfidence(src){ const c=CONF_TABLE[src]; return (typeof c==='number') ? c : 0; }
+const FOOD_SOURCE_LABELS={USER_PROVIDED:'你填写',AI_ESTIMATED:'图片估算',DATABASE:'食物库',DERIVED:'按营养信息估算',LEGACY_UNKNOWN:'旧记录未注明',MANUAL:'你填写',PHOTO_AI:'图片估算',HISTORY_COPY:'历史记录',BARCODE:'条码查询',ONLINE:'在线食物库'};
+function foodSourceLabel(value){return FOOD_SOURCE_LABELS[String(value||'').toUpperCase()]||'未注明';}
+function foodRecordDetail(item){
+  const provenance=item&&item.provenance||{},nutrientKeys=['protein','carbohydrate','fat','energyKcal'];
+  const nutrition=[...new Set(nutrientKeys.map(key=>provenance[key]).filter(Boolean).map(foodSourceLabel))];
+  const name=provenance.name?foodSourceLabel(provenance.name):foodSourceLabel(item&&item.nutritionSource&&item.nutritionSource.type);
+  const portion=provenance.quantity?foodSourceLabel(provenance.quantity):'未注明';
+  const confidence=({HIGH:'匹配较高',MEDIUM:'匹配一般',LOW:'匹配较低',UNASSESSED:'手动记录'})[item&&item.identityConfidence]||'匹配情况未记录';
+  return `食物名：${name} · 份量：${portion} · 营养：${nutrition.join('、')||foodSourceLabel(item&&item.nutritionSource&&item.nutritionSource.type)} · ${confidence}`;
+}
 function confLabel(c){
   if(c>=0.85) return ['高','cf-hi'];
   if(c>=0.6) return ['中','cf-mid'];
   if(c>0)    return ['低','cf-lo'];
   return ['无','cf-no'];
 }
-const CONF_SRC_TXT = { barcode:'条码识别', ai:'AI 视觉识别', off:'在线食物库', history:'你的历史记录', lib:'本地食物库', fuzzy:'模糊匹配' };
+const CONF_SRC_TXT = { barcode:'条码查询', ai:'图片估算', off:'在线食物库', history:'你的历史记录', lib:'常见食物', fuzzy:'相近食物' };
 // 历史高频食物（真实来自已存记录；本地库同名优先以获得宏量基准）
 function favFoods(){
   const stat={};
@@ -3434,7 +3513,7 @@ function openFoodSheet(mi, body, photo){
   const canBarcode = (typeof BarcodeDetector==='function') && !!photo;
   const photoHtml = photo
     ? `<div class="fs-hero"><img src="${photo}" alt="">
-        <div class="fs-hero-tip">照片仅在当前识别期间使用；匹配信心、份量估算和营养来源分开显示。</div></div>`
+        <div class="fs-hero-tip">照片只用于本次识别，不会保存到餐点记录；食物名和份量都可以修改。</div></div>`
     : `<div class="fs-photo no"><span>未带照片 · 从常见食物中选取，份量与热量都可改</span></div>`;
   list.innerHTML=`<input id="food-search" type="text" placeholder="搜索食物，如：鸡胸、米饭、饺子…" maxlength="30">
     ${photoHtml}
@@ -3447,24 +3526,24 @@ function openFoodSheet(mi, body, photo){
   // —— 结果卡（选中候选后出现）：名称 / 份量 / 宏量 / 置信度徽章 / 主行动按钮 ——
   const renderEditor=()=>{
     const ed=list.querySelector('#food-editor'); if(!ed) return;
-    if(!_fsSel){ ed.innerHTML=`<p class="fs-none">先选本地、历史、条码或在线结果；也可以手动填写食物和营养字段。</p><button class="ex-do" id="fe-manual" type="button">手动录入食物</button>`;
+    if(!_fsSel){ ed.innerHTML=`<p class="fs-none">从常见食物、历史记录、条码或联网搜索中选择，也可以手动填写。</p><button class="ex-do" id="fe-manual" type="button">手动录入食物</button>`;
       const manual=ed.querySelector('#fe-manual');if(manual)manual.onclick=()=>{_fsSel={n:'',p:null,c:null,f:null,q:1,src:'manual',conf:0,manual:true};_fsOriginalName='';renderEditor();};return; }
     const per100=!!_fsSel.per100, unit=per100?'克':'份', amt=per100?(_fsSel.grams||100):_fsSel.q;
     const conf=Math.max(0, Math.min(1, +_fsSel.conf||0));
     const [cl, cc]=confLabel(conf);
     const srcTxt=CONF_SRC_TXT[_fsSel.src] || '手动选择';
-    const hint = _fsSel.src==='manual'?'<div class="fs-warn">手动提供的身份、份量或营养字段会分别标记来源。</div>':conf>=0.75
-      ? `<div class="fs-warn">匹配信心档：${cl}（${srcTxt}）。请核对份量。</div>`
-      : `<div class="fs-warn warn-lo">匹配信心档：${cl}（${srcTxt}）。请核对名称与份量；模型信心不是校准概率。</div>`;
+    const hint = _fsSel.src==='manual'?'<div class="fs-warn">食物名、份量和营养信息都由你填写。</div>':conf>=0.75
+      ? `<div class="fs-warn">匹配参考：${cl}（${srcTxt}）。确认一下份量。</div>`
+      : `<div class="fs-warn warn-lo">匹配参考：${cl}（${srcTxt}）。请确认食物名和份量。</div>`;
     ed.innerHTML=`<div class="fs-edit">
-      <div class="fs-conf"><span class="cf-badge ${cc}">${cl} 信心档</span><span class="cf-src">身份依据：${esc(srcTxt)}</span></div>
+      <div class="fs-conf"><span class="cf-badge ${cc}">匹配参考：${cl}</span><span class="cf-src">${esc(srcTxt)}</span></div>
       ${hint}
       <label>食物名（可改）<input id="fe-name" type="text" maxlength="80" value="${esc(_fsSel.n)}"></label>
       <div class="fs-qrow">${_fsSel.manual?'份量':unit+'数'}
         <button id="fe-dec" type="button">−</button>
         <input id="fe-q" type="number" inputmode="decimal" min="${per100||(_fsSel.manual&&_fsSel.manualUnit==='g')?'1':'0.1'}" step="${per100||(_fsSel.manual&&_fsSel.manualUnit==='g')?'10':'0.5'}" value="${_fsSel.manual&&_fsSel.manualUnit==='g'?(_fsSel.grams||100):amt}">
         <button id="fe-inc" type="button">＋</button>
-        <span id="fe-kcal">${_fsSel.manual?'填写营养字段':selKcal(_fsSel)==null?'热量未提供':'约 '+selKcal(_fsSel)+' kcal'}</span></div>
+        <span id="fe-kcal">${_fsSel.manual?'填写营养信息':selKcal(_fsSel)==null?'热量未提供':'约 '+selKcal(_fsSel)+' kcal'}</span></div>
       ${_fsSel.manual?'<label>计量单位<select id="fe-unit"><option value="serving">份</option><option value="g">克（实测）</option></select></label>':''}
       <label>蛋白质 g（当前份量）<input id="fe-p" type="number" min="0" max="2000" step="0.1" value="${_fsSel.manual?'':_fsSel.nutrientOverrides&&_fsSel.nutrientOverrides.p!=null?_fsSel.nutrientOverrides.p:_fsSel.p==null?'':(+(_fsSel.p*selFactor(_fsSel)).toFixed(1))}"></label>
       <label>碳水 g（当前份量）<input id="fe-c" type="number" min="0" max="3000" step="0.1" value="${_fsSel.manual?'':_fsSel.nutrientOverrides&&_fsSel.nutrientOverrides.c!=null?_fsSel.nutrientOverrides.c:_fsSel.c==null?'':(+(_fsSel.c*selFactor(_fsSel)).toFixed(1))}"></label>
@@ -3521,7 +3600,7 @@ function openFoodSheet(mi, body, photo){
       const s=_fsSel; if(!s) return;
       if(s.manual){s.manualUnit=$('#fe-unit')&&$('#fe-unit').value||'serving';if(s.manualUnit==='g'){s.grams=Math.max(1,Math.min(2000,+$('#fe-q').value||100));}else{s.q=Math.max(0.1,Math.min(50,+$('#fe-q').value||1));}
         s.p=$('#fe-p').value===''?null:+$('#fe-p').value;s.c=$('#fe-c').value===''?null:+$('#fe-c').value;s.f=$('#fe-f').value===''?null:+$('#fe-f').value;}
-      const item=foodDraftItemFromSelection(s);if(!item||(!Object.keys(item.nutrients).length)){toast('至少填写一个营养字段，或选择有营养数据的食物');return;}
+      const item=foodDraftItemFromSelection(s);if(!item||(!Object.keys(item.nutrients).length)){toast('至少填写一项营养信息，或选择有营养数据的食物');return;}
       addSelectedFoodToDraft(s,mi,list,renderEditor);
     };
   };
@@ -3597,17 +3676,17 @@ function openFoodSheet(mi, body, photo){
     const aiBox=document.createElement('div');
     aiBox.className='fs-ai';
     resEl.appendChild(aiBox);
-    const aiWait=()=>{ aiBox.innerHTML=`<div class="fs-ai-title">🤖 AI 视觉识别中…</div>
+    const aiWait=()=>{ aiBox.innerHTML=`<div class="fs-ai-title">🤖 正在识别照片…</div>
       <div class="sk-row"><i></i><i></i><i></i></div>
-      <p class="fs-none">正在调用视觉大模型（约 3–15 秒）。失败会自动降级为本地匹配，不会卡住。</p>`; };
+      <p class="fs-none">通常需要几秒钟。识别失败时仍可使用食物库或手动记录。</p>`; };
     // 错误分类：给可操作的下一步，而不是一句干巴巴的「失败」
     const aiErrTip=e=>{
-      if(/HTTP 401|HTTP 403/.test(e)) return '访问凭据无效——到「我的 → AI 食物识别」核对代理访问凭据';
-      if(/HTTP 429/.test(e)) return '请求太频繁或额度用尽，稍等再试';
-      if(/HTTP 5\d\d/.test(e)) return '识别服务暂时不可用（服务器错误），稍后再试';
-      if(e==='请求超时') return '请求超时——网络慢或服务未响应';
-      if(e==='网络错误') return '网络不可用——检查网络后重试';
-      return String(e);
+      if(/HTTP 401|HTTP 403/.test(e)) return '代理凭据未通过，请到“我的 → 照片食物识别”检查设置。';
+      if(/HTTP 429/.test(e)) return '请求太多，请稍后再试。';
+      if(/HTTP 5\d\d/.test(e)) return '识别服务暂时不可用，请稍后再试。';
+      if(e==='请求超时') return '等待时间过长，请检查网络后再试。';
+      if(e==='网络错误') return '网络暂时不可用，请检查网络后再试。';
+      return '识别没有完成，可以使用食物库或手动记录。';
     };
       const run=()=>{
       const request=FOOD_AI_OWNER.begin();
@@ -3631,24 +3710,24 @@ function openFoodSheet(mi, body, photo){
         if(item.p!=null)fields.push(`蛋白 ${item.p}g`);if(item.c!=null)fields.push(`碳水 ${item.c}g`);if(item.f!=null)fields.push(`脂肪 ${item.f}g`);
         if(item.kcal!=null)fields.push(`${item.kcal} kcal`);else if(fields.length)fields.push('热量按宏量计算');
         const [cl,cc]=confLabel(item.conf);
-        return `<div class="food-row ai" data-ai="${index}"><div class="fr-m"><b>${esc(item.name)}</b><span>${g}g 估算 · ${esc(fields.join(' · ')||'营养字段未识别')} · ${cl}信心档</span></div><span class="lr-ar">选 ›</span></div>`;
+        return `<div class="food-row ai" data-ai="${index}"><div class="fr-m"><b>${esc(item.name)}</b><span>${g}g 估算 · ${esc(fields.join(' · ')||'未识别营养信息')} · ${cl}匹配程度</span></div><span class="lr-ar">选 ›</span></div>`;
       }).join('');
-      aiBox.innerHTML=`<div class="fs-ai-title">🤖 AI 识别结果 · ${rows.length} 项</div>
+      aiBox.innerHTML=`<div class="fs-ai-title">🤖 智能识别 · ${rows.length} 项</div>
         ${rowHtml}
-        <p class="fs-none warn-lo">照片份量与营养是模型估算，请逐项核对。模型信心是描述档位，不是校准概率。${rows.some(item=>item.inconsistent)?'部分项目的热量与宏量明显不一致，原始字段已保留，请自行核对。':''}</p>
+        <p class="fs-none warn-lo">照片识别可能有误，请确认食物名、份量和营养信息。${rows.some(item=>item.inconsistent)?'部分热量和营养数值对不上，请检查后再记录。':''}</p>
         <button class="btn-grad ghost-btn" id="ai-retry" type="button">🔄 重新识别这张照片</button>`;
       aiBox.querySelectorAll('[data-ai]').forEach(row=>row.onclick=()=>{
         const item=rows[+row.dataset.ai],g=Math.max(10,item.grams||150);
         const selected={n:item.name,p:item.p==null?null:+(item.p*100/g).toFixed(2),c:item.c==null?null:+(item.c*100/g).toFixed(2),f:item.f==null?null:+(item.f*100/g).toFixed(2),
           kcal100:item.kcal==null?null:+(item.kcal*100/g).toFixed(2),per100:true,grams:g,q:1,src:'ai',conf:item.conf,
           sourceNutrients:{p:item.p,c:item.c,f:item.f},inconsistent:item.inconsistent};
-        selectCandidate(selected);toast('已采用 AI 项目估算，请核对克数与营养字段');
+        selectCandidate(selected);toast('已采用识别结果估算，请确认份量和营养信息');
       });
       const rb=aiBox.querySelector('#ai-retry');
       if(rb) rb.onclick=run;
     };
     const aiFail=(msg, retry)=>{
-      aiBox.innerHTML=`<div class="fs-ai-title">🤖 AI 识别未成功</div>
+      aiBox.innerHTML=`<div class="fs-ai-title">🤖 照片识别未完成</div>
         <p class="fs-none warn-lo">${esc(msg)} · 已降级为下方本地库/历史匹配，可手动选择并校正。</p>
         ${retry?'<button class="btn-grad ghost-btn" id="ai-retry" type="button">🔄 重试识别</button>':''}`;
       const rb=aiBox.querySelector('#ai-retry');
@@ -3667,7 +3746,7 @@ function openFoodSheet(mi, body, photo){
     FOOD_SEARCH_TIMER=setTimeout(()=>{if(!FOOD_SEARCH_OWNER||!FOOD_SEARCH_OWNER.isCurrent(request,'food-sheet'))return;queryOFF(kw.trim(),(err,rows)=>{
       if(!FOOD_SEARCH_OWNER||!FOOD_SEARCH_OWNER.isCurrent(request,'food-sheet'))return;
       if(err||!rows||!rows.length){offEl.innerHTML='<p class="fs-none">在线库没有匹配项，可选择本地结果或手动录入。</p>';return;}
-      offEl.innerHTML='<div class="fs-off-t">在线食物库</div>'+rows.map((f,i)=>`<div class="food-row" data-search-off="${i}"><div class="fr-m"><b>${esc(f.n.slice(0,40))}</b><span>${f.kcal100==null?'热量未提供':Math.round(f.kcal100)+' kcal'} /100g · 营养字段按来源保留</span></div><span class="lr-ar">选 ›</span></div>`).join('');
+      offEl.innerHTML='<div class="fs-off-t">在线食物库</div>'+rows.map((f,i)=>`<div class="food-row" data-search-off="${i}"><div class="fr-m"><b>${esc(f.n.slice(0,40))}</b><span>${f.kcal100==null?'热量未提供':Math.round(f.kcal100)+' kcal'} /100g · 营养信息保留来源说明</span></div><span class="lr-ar">选 ›</span></div>`).join('');
       offEl.querySelectorAll('[data-search-off]').forEach(row=>row.onclick=()=>{const item=rows[+row.dataset.searchOff];item.src='off';item.conf=foodConfidence('off');item.sourceNutrients={p:item.p,c:item.c,f:item.f};selectCandidate(item);});
     },request.signal);},350);
   };
@@ -3838,7 +3917,7 @@ function renderData(body){
       <div class="cal-grid">${cells}</div>
       <p style="font-size:10.5px;color:var(--faint);margin-top:8px">✓ 已打卡 · 点日期可补录/查看当天训练评分</p></div>
     ${scoreCard}`;
-  body.insertAdjacentHTML('afterbegin',`<section class="card storage-health" aria-live="polite"><h4>本机存储健康</h4><p id="storage-health-status">${esc(STORAGE_PERSISTENCE_DETAIL)}<br>${esc(SERVICE_WORKER_DETAIL)}</p><p id="runtime-performance-status">${esc(runtimePerformanceSummary())}</p><p class="provenance-note">V2 记录保存在当前安装身份的本机数据库。请定期导出备份；浏览器持久存储状态不能代替备份。</p></section>`);
+  body.insertAdjacentHTML('afterbegin',`<section class="card storage-health" aria-live="polite"><h4>本机数据保护</h4><p id="storage-health-status">${esc(STORAGE_PERSISTENCE_DETAIL)}<br>${esc(SERVICE_WORKER_DETAIL)}</p><p class="provenance-note">训练、饮食和跑步记录保存在当前设备。请定期导出备份，浏览器保护不能替代备份。</p></section>`);
   // 近 7 日动作数：最近 7 个自然日（今天及前 6 天），每根柱子 = 当天完成的动作个数（无记录记 0）
   const base7=new Date(); base7.setHours(0,0,0,0);
   const days7=[]; for(let i=6;i>=0;i--){ const d=new Date(base7); d.setDate(d.getDate()-i); days7.push(BojiData.localDateKey(d)); }
@@ -3849,7 +3928,7 @@ function renderData(body){
     bars+=`<div class="bar" style="height:${h}px"><span>${dt.getDate()}</span></div>`; });
   body.innerHTML+=`<div class="card"><h4>近 7 日动作数 <span class="tag">最近 7 天</span></h4><div class="chart">${bars}</div><p style="font-size:10.5px;color:var(--faint);margin-top:6px">统计口径：今天及前 6 个自然日，每根柱子为当天完成的动作个数（含未打卡但已勾选的动作）。</p></div>
     ${weightCardHtml()}
-    <div class="card"><h4>知识库</h4><p style="font-size:12.5px;color:var(--ink2);line-height:1.7">Boji内置 <b style="color:var(--pink)">${KB.length}</b> 条训练/营养问答。旧版证据标签尚无可核验的来源登记，相关内容已标记为“来源待核”。点“聊天”随时问。</p></div>`;
+    <div class="card"><h4>知识库</h4><p style="font-size:12.5px;color:var(--ink2);line-height:1.7">Boji内置 <b style="color:var(--pink)">${KB.length}</b> 条训练和营养问答。部分旧内容的出处暂不明确，适合作为日常参考；点“聊天”可以继续问。</p></div>`;
   // 绑定：月历翻页 / 选日 / 评分
   const pm=body.querySelector('[data-pm]'); if(pm) pm.onclick=()=>{ dataMonth.m--; if(dataMonth.m<0){ dataMonth.m=11; dataMonth.y--; } refreshProgressSurface(body); };
   const nm=body.querySelector('[data-nm]'); if(nm) nm.onclick=()=>{ dataMonth.m++; if(dataMonth.m>11){ dataMonth.m=0; dataMonth.y++; } refreshProgressSurface(body); };
@@ -3954,7 +4033,10 @@ function saveSafe(){
 function renderProfile(body){
   const p=STATE.profile; const g=dailyGoal();
   const avatar = p && p.avatar ? p.avatar : BOJI_PORTRAIT;
-  body.innerHTML=`<div class="profile-head"><img id="pf-av" src="${avatar}" alt=""><b id="pf-name">${esc(p?(p.name||'训练者'):'训练者')}</b><span>${p?`${p.height}cm · ${p.weight}kg · 哑铃${p.dumbbell}kg`:'未设置档案'}</span>
+  const profileSummary=p?[p.height!=null?`${esc(p.height)}cm`:null,p.weight!=null?`${esc(p.weight)}kg`:null,
+    p.dumbbell!=null?`哑铃${esc(p.dumbbell)}kg`:null].filter(Boolean).join(' · ')||'资料可随时补充':'未设置档案';
+  const profileValue=key=>p&&p[key]!=null?esc(p[key]):'';
+  body.innerHTML=`<div class="profile-head"><img id="pf-av" src="${avatar}" alt=""><b id="pf-name">${esc(p?(p.name||'训练者'):'训练者')}</b><span>${profileSummary}</span>
     <button class="hc-go" id="pf-av-btn">📷 更换头像</button></div>
     <section class="settings-group"><header><span>🏋</span><div><h3>训练与档案</h3><p>训练背景、计划和营养偏好</p></div></header>
     <details class="sg-body" id="sg-train"><summary class="sg-summary"><span class="sg-caret">⌄</span>展开设置 · 档案、目标与训练方案</summary>
@@ -3962,9 +4044,9 @@ function renderProfile(body){
       <h4 style="margin:8px 0 2px">档案（改完立即生效）</h4>
       <div class="pf-edit">
         <label>昵称<input id="pe-name" type="text" maxlength="12" value="${esc(p&&p.name||'训练者')}"></label>
-        <label>身高 cm<input id="pe-h" type="number" inputmode="decimal" value="${p?p.height:''}"></label>
-        <label>体重 kg<input id="pe-w" type="number" inputmode="decimal" value="${p?p.weight:''}"></label>
-        <label>单哑铃 kg<input id="pe-d" type="number" inputmode="decimal" value="${p?p.dumbbell:''}"></label>
+        <label>身高 cm<input id="pe-h" type="number" inputmode="decimal" value="${profileValue('height')}" placeholder="选填"></label>
+        <label>体重 kg<input id="pe-w" type="number" inputmode="decimal" value="${profileValue('weight')}" placeholder="选填"></label>
+        <label>单哑铃 kg<input id="pe-d" type="number" inputmode="decimal" value="${profileValue('dumbbell')}" placeholder="选填"></label>
         <label>训练目标<select id="pe-goal"><option value=""${!p||!p.trainingGoal?' selected':''}>未设置</option><option value="HYPERTROPHY"${p&&p.trainingGoal==='HYPERTROPHY'?' selected':''}>增肌</option><option value="GENERAL_FITNESS"${p&&p.trainingGoal==='GENERAL_FITNESS'?' selected':''}>综合体能 / 建立习惯</option><option value="STRENGTH"${p&&p.trainingGoal==='STRENGTH'?' selected':''}>提升力量</option></select></label>
         <label>训练经验<select id="pe-experience"><option value=""${!p||!p.experienceLevel?' selected':''}>未设置</option><option value="BEGINNER"${p&&p.experienceLevel==='BEGINNER'?' selected':''}>刚开始 / 正在学习</option><option value="INTERMEDIATE"${p&&p.experienceLevel==='INTERMEDIATE'?' selected':''}>有规律训练经验</option><option value="ADVANCED"${p&&p.experienceLevel==='ADVANCED'?' selected':''}>熟悉训练与自我调节</option></select></label>
         <label>器械与地点<select id="pe-equipment"><option value="A"${(!p||!p.equipmentProfileCode?STATE.planSet:p.equipmentProfileCode)==='A'?' selected':''}>居家哑铃 · 有卧推椅</option><option value="B"${(!p||!p.equipmentProfileCode?STATE.planSet:p.equipmentProfileCode)==='B'?' selected':''}>居家哑铃 · 无卧推椅</option><option value="C"${(!p||!p.equipmentProfileCode?STATE.planSet:p.equipmentProfileCode)==='C'?' selected':''}>健身房器械</option></select></label>
@@ -3986,7 +4068,7 @@ function renderProfile(body){
     </div>
     </details>
     </section>
-    <section class="settings-group"><header><span>♡</span><div><h3>Boji 与外观</h3><p>角色、Photo Pet、语音和陪伴偏好</p></div></header>
+    <section class="settings-group"><header><span>♡</span><div><h3>Boji 与外观</h3><p>角色形象、照片伙伴、语音和陪伴偏好</p></div></header>
     <details class="sg-body" id="sg-boji"><summary class="sg-summary"><span class="sg-caret">⌄</span>展开设置 · 角色、外观与陪伴</summary>
     <div class="card" style="padding:6px 14px">
       <div class="list-row"><span class="lr-ic">🔥</span>连续打卡<b style="margin-left:auto">${streak()} 天</b></div>
@@ -4043,15 +4125,15 @@ function renderProfile(body){
     </div>
     </details>
     </section>
-    <section class="settings-group"><header><span>⊕</span><div><h3>数据与隐私</h3><p>数据状态、备份恢复与 AI 控制</p></div></header>
-    <details class="sg-body" id="sg-data"><summary class="sg-summary"><span class="sg-caret">⌄</span>展开设置 · 数据、备份与 AI</summary>
+    <section class="settings-group"><header><span>⊕</span><div><h3>数据与隐私</h3><p>本机记录、备份与照片识别</p></div></header>
+    <details class="sg-body" id="sg-data"><summary class="sg-summary"><span class="sg-caret">⌄</span>展开设置 · 数据与照片识别</summary>
     <div class="card app-tools-card">
-      <div class="list-row" id="profile-health" role="button" tabindex="0"><span class="lr-ic">◉</span>数据健康与诊断<span class="lr-ar">查看 ›</span></div>
-      <p>记录和来源信息保存在本机；AI 识别仅在启用自建服务端代理时发送请求。</p>
+      <div class="list-row" id="profile-health" role="button" tabindex="0"><span class="lr-ic">◉</span>检查本机数据<span class="lr-ar">查看 ›</span></div>
+      <p>记录和来源信息保存在本机；照片识别只通过你设置的代理进行。</p>
     </div>
     <div class="card" style="padding:6px 14px">
-      <h4 style="margin:8px 0 2px">AI 食物识别 <span class="tag" id="vs-state">${(STATE.vision&&STATE.vision.mode&&STATE.vision.mode!=='off')?'已开启':'未开启'}</span></h4>
-      <p style="font-size:11px;color:var(--faint);line-height:1.6">AI 拍照识别仅通过你控制的 HTTPS 服务端代理；此静态应用不会直接连接模型供应商。请在代理端限制允许来源、模型、请求大小、超时和频率，关闭图片正文日志并清理错误信息。代理访问凭据只保留在当前页面内存中，通过 Authorization 发送，且不会进入本地备份。关闭 AI 后仍可使用条码、在线库、历史和本地匹配。</p>
+      <h4 style="margin:8px 0 2px">照片食物识别 <span class="tag" id="vs-state">${(STATE.vision&&STATE.vision.mode&&STATE.vision.mode!=='off')?'已开启':'未开启'}</span></h4>
+      <p style="font-size:11px;color:var(--faint);line-height:1.6">照片只会发送到你填写的 HTTPS 代理；不会直接连接识别服务。访问凭据只在当前页面使用，不会放进本机备份。请确认代理保护好凭据，并限制请求大小、等待时间和频率，不要记录图片内容。关闭后仍可使用条码、食物库、历史和手动记录。</p>
       <div class="pf-edit">
         <label>模式<select id="vs-mode">
           <option value="off">关闭（本地匹配）</option>
@@ -4059,7 +4141,7 @@ function renderProfile(body){
         </select></label>
         <label>服务地址<input id="vs-ep" type="text" maxlength="120" placeholder="https://xxx.workers.dev/recognize"></label>
         <label>代理访问凭据<input id="vs-tk" type="password" maxlength="200" placeholder="此代理的访问令牌" autocomplete="off"></label>
-        <label>模型<input id="vs-md" type="text" maxlength="40" placeholder="glm-4v-flash"></label>
+        <label>识别服务名称<input id="vs-md" type="text" maxlength="40" placeholder="glm-4v-flash"></label>
       </div>
       <div class="row-btns" style="margin-top:8px">
         <button class="btn-grad" id="vs-save" style="padding:9px">保存并测试</button>
@@ -4080,7 +4162,7 @@ function renderProfile(body){
     </div>
     </details>
     </section>
-    <section class="settings-group"><header><span>▣</span><div><h3>应用</h3><p>PWA、更新、诊断与版本信息</p></div></header>
+    <section class="settings-group"><header><span>▣</span><div><h3>应用</h3><p>安装方式、更新与版本信息</p></div></header>
     <details class="sg-body" id="sg-app"><summary class="sg-summary"><span class="sg-caret">⌄</span>展开设置 · 关于与更新</summary>
     <div class="card app-tools-card">
       <p>应用可添加到主屏幕并像应用一样打开；是否支持安装入口由当前浏览器决定。Boji 不会常驻系统桌面浮窗。</p>
@@ -4105,15 +4187,18 @@ function renderProfile(body){
   };
   const saveProfileEdits=async()=>{
     if(!STATE.profile)return;
-    const h=+$('#pe-h').value,w=+$('#pe-w').value,d=+$('#pe-d').value;
-    if(!Number.isFinite(h)||h<140||h>220||!Number.isFinite(w)||w<30||w>200||!Number.isFinite(d)||d<=0||d>100){toast('请核对身高 140–220、体重 30–200、哑铃 0–100 kg');return;}
+    const numberField=id=>$('#'+id).value===''?null:Number($('#'+id).value);
+    const h=numberField('pe-h'),w=numberField('pe-w'),d=numberField('pe-d');
+    if(h!=null&&(!Number.isFinite(h)||h<140||h>220)||w!=null&&(!Number.isFinite(w)||w<30||w>200)||
+      d!=null&&(!Number.isFinite(d)||d<=0||d>100)){toast('请核对已填写的身高、体重或哑铃重量');return;}
     const prefs=readNutritionPreferences('pe-',STATE.profile);if(!prefs.ok){toast(prefs.message);return;}
     const name=($('#pe-name').value||'').trim().slice(0,12)||'训练者';
     const trainingGoal=$('#pe-goal').value||null,experienceLevel=$('#pe-experience').value||null,equipmentProfileCode=$('#pe-equipment').value||null;
     const minutesField=$('#pe-session-minutes').value,typicalSessionMinutes=minutesField===''?null:+minutesField;
     if(trainingGoal&&!['HYPERTROPHY','GENERAL_FITNESS','STRENGTH'].includes(trainingGoal)||experienceLevel&&!['BEGINNER','INTERMEDIATE','ADVANCED'].includes(experienceLevel)||
       equipmentProfileCode&&!['A','B','C'].includes(equipmentProfileCode)||typicalSessionMinutes!=null&&(!Number.isFinite(typicalSessionMinutes)||typicalSessionMinutes<10||typicalSessionMinutes>180)){toast('请核对训练背景选项与 10–180 分钟时长');return;}
-    const next=Object.assign({},STATE.profile,{height:h,weight:+w.toFixed(1),dumbbell:d,name,trainingGoal,experienceLevel,equipmentProfileCode,typicalSessionMinutes},prefs.value),weightChanged=STATE.profile.weight!==+w.toFixed(1);
+    const next=Object.assign({},STATE.profile,{height:h,weight:w==null?null:+w.toFixed(1),dumbbell:d,name,trainingGoal,experienceLevel,equipmentProfileCode,typicalSessionMinutes},prefs.value),
+      weightChanged=w!=null&&STATE.profile.weight!==+w.toFixed(1);
     try{
       await BojiData.putProfile(profileDomainRecord(next));STATE.profile=next;
       if(equipmentProfileCode){STATE.planSet=equipmentProfileCode;applyPlanSet();}
@@ -4245,11 +4330,11 @@ function renderProfile(body){
     try{ r=await visionRecognize(testImg); }catch(_){ r={ ok:false, error:'请求异常' }; }
     const ms=Date.now()-t0;
     vtip.innerHTML = (r && r.ok)
-      ? `<b style="color:#3fa893">✅ 服务可用（${ms} ms）</b> · 拍照时会自动调用 AI 识别；结果仍可在结果页校正。`
-      : `<b style="color:#e58aa6">❌ 未通过：${esc((r&&r.error)||'未知错误')}</b> · 已保存配置，拍照失败会自动降级为本地匹配。`;
+      ? `<b style="color:#3fa893">✅ 已连接（${ms} 毫秒）</b> · 拍照识别后仍可修改食物名和份量。`
+      : `<b style="color:#e58aa6">❌ 暂未连通：${esc((r&&r.error)||'请检查代理设置')}</b> · 配置已保存，识别失败时仍可使用本地食物库。`;
   };
   const vsOff=$('#vs-off');
-  if(vsOff) vsOff.onclick=()=>{ STATE.vision={ mode:'off', endpoint:'', token:'', model:(STATE.vision&&STATE.vision.model)||'glm-4v-flash' }; save(); renderProfile(body); toast('已停用 AI 识别'); };
+  if(vsOff) vsOff.onclick=()=>{ STATE.vision={ mode:'off', endpoint:'', token:'', model:(STATE.vision&&STATE.vision.model)||'glm-4v-flash' }; save(); renderProfile(body); toast('已关闭照片识别'); };
   $('#reset-pet').onclick=()=>{ STATE.petDock={edge:'right', off:0.62}; delete STATE.petPos; delete STATE.selDate; save(); applyDock(); toast('桌宠位置已重置'); };
   $('#reset-all').onclick=async()=>{ if(confirm('确定清空 V2 本地数据？V1 记录不会被改动。')){ try{ await BojiData.clearV2Data(); location.reload(); }catch(error){ toast(`清空失败：${error.message||'存储错误'}`); } } };
   $('#exp-json') && ($('#exp-json').onclick=exportJSON);
@@ -4281,6 +4366,18 @@ async function exportJSON(){
   }catch(error){ toast(`备份失败：${error && error.message ? error.message : '导出错误'}`); }
 }
 function exportCSV(){
+  const trainingRows=[['训练日期','训练状态','训练开始','训练结束','动作','组次','目标次数','重量(kg)','完成次数','余力次数','已完成','记录时间']];
+  WORKOUT_HISTORY_RECORDS.slice().sort((a,b)=>String(a.session&&a.session.localDateKey||'').localeCompare(String(b.session&&b.session.localDateKey||''))).forEach(workout=>{
+    const session=workout&&workout.session;if(!session)return;
+    const status=session.status==='COMPLETED'?'已完成':session.status==='ABANDONED'?'已放弃':session.status==='ACTIVE'?'进行中':'状态未知';
+    const exercises=new Map((workout.exerciseSessions||[]).map(row=>[row.exerciseSessionId,row]));
+    (workout.sets||[]).slice().sort((a,b)=>a.exerciseOrder-b.exerciseOrder||a.setIndex-b.setIndex).forEach(set=>{
+      const exercise=exercises.get(set.exerciseSessionId);
+      trainingRows.push([session.localDateKey,status,session.startedAt?new Date(session.startedAt).toISOString():'',session.finishedAt?new Date(session.finishedAt).toISOString():'',
+        exercise&&exercise.nameSnapshot||exercise&&exercise.exerciseId||set.exerciseId||'训练动作',set.setIndex+1,set.targetReps||'',set.weightKg==null?'':set.weightKg,
+        set.reps==null?'':set.reps,set.rir==null?'':set.rir,set.completed?'是':'否',set.completedAt?new Date(set.completedAt).toISOString():'']);
+    });
+  });
   const ckRows=[['日期','星期','计划','完成动作数','动作总数']];
   Object.keys(STATE.checkins).sort().forEach(k=>{
     const [Y,M,D]=k.split('-').map(Number); const dt=new Date(Y,M-1,D); const t=getDayType(dt.getDay());
@@ -4316,13 +4413,13 @@ function exportCSV(){
       (STATE.meals[k][mi]||[]).forEach(f=>{
         const q=mealQty(f),quantity=f.quantity!=null?f.quantity:q,unit=f.unit||'serving';
         const scaled=value=>value==null||!Number.isFinite(+value)?'':+(+value*q).toFixed(1);
-        mRows.push([k,MEAL_NAMES[mi]||mi,f.n,quantity,unit,scaled(f.p),'LEGACY_UNKNOWN',scaled(f.c),'LEGACY_UNKNOWN',scaled(f.f),'LEGACY_UNKNOWN',foodKcal(f)==null?'':foodKcal(f),'LEGACY_UNKNOWN','LEGACY_UNKNOWN','LEGACY_UNKNOWN']);
+        mRows.push([k,MEAL_NAMES[mi]||mi,f.n,quantity,unit,scaled(f.p),'旧记录未注明来源',scaled(f.c),'旧记录未注明来源',scaled(f.f),'旧记录未注明来源',foodKcal(f)==null?'':foodKcal(f),'旧记录未注明来源','旧记录未注明来源','旧记录未注明来源']);
       });
     }));
   }
-  const csv = ckRows.map(_csvRow).join('\r\n') + '\r\n\r\n' + wRows.map(_csvRow).join('\r\n') + '\r\n\r\n' + mRows.map(_csvRow).join('\r\n');
+  const csv = trainingRows.map(_csvRow).join('\r\n') + '\r\n\r\n' + ckRows.map(_csvRow).join('\r\n') + '\r\n\r\n' + wRows.map(_csvRow).join('\r\n') + '\r\n\r\n' + mRows.map(_csvRow).join('\r\n');
   downloadFile(`Boji-记录-${todayKey()}.csv`, 'text/csv;charset=utf-8', '\ufeff' + csv);   // BOM：Excel 不乱码
-  toast('已导出 CSV（打卡/重量/饮食三段）');
+  toast('已导出 CSV（训练组、旧打卡、体重和饮食）');
 }
 async function importLegacySnapshot(snapshot, sourceLabel){
   const preflight = BojiData.preflightLegacy(snapshot);
@@ -4453,18 +4550,18 @@ async function requestPersistentStorage(){
     const storage=navigator.storage;
     if(!storage||typeof storage.persisted!=='function'){
       STORAGE_PERSISTENCE_STATUS='UNSUPPORTED';
-      STORAGE_PERSISTENCE_DETAIL='此浏览器未提供持久存储申请；Boji 仍使用本机数据库，请定期导出备份。';
+      STORAGE_PERSISTENCE_DETAIL='浏览器暂不支持额外的数据保护。记录仍保存在本机，请定期备份。';
     }else{
       let granted=await storage.persisted();
       if(!granted&&typeof storage.persist==='function')granted=await storage.persist();
       STORAGE_PERSISTENCE_STATUS=granted?'PERSISTED':'NOT_GRANTED';
       STORAGE_PERSISTENCE_DETAIL=granted
-        ?'浏览器已授予持久存储。请仍保留定期导出的备份。'
-        :'浏览器未授予持久存储；训练、文字教学和记录仍可使用本机数据库，但浏览器可能按自身策略清理数据，请定期导出备份。';
+        ?'浏览器已为本机记录开启额外保护，仍建议定期备份。'
+        :'浏览器未开启额外的数据保护。记录仍可使用，建议定期备份。';
     }
   }catch(_){
     STORAGE_PERSISTENCE_STATUS='UNKNOWN';
-    STORAGE_PERSISTENCE_DETAIL='无法确认浏览器的持久存储状态；本机记录仍可使用，请定期导出备份。';
+    STORAGE_PERSISTENCE_DETAIL='暂时无法确认本机记录的保护情况。记录仍可使用，请定期备份。';
   }
   refreshRuntimeHealth();
   if(ACTIVE_MODULE==='data'||ACTIVE_MODULE==='progress')renderData($('#mod-body'));
@@ -4492,13 +4589,13 @@ function showUpdateReady(){
 }
 async function registerServiceWorker(){
   if(!('serviceWorker' in navigator)||!(location.protocol==='https:'||location.hostname==='localhost')){
-    SERVICE_WORKER_STATUS='UNAVAILABLE';SERVICE_WORKER_DETAIL='此环境未提供安全上下文中的 Service Worker；联网功能仍可使用。';refreshRuntimeHealth();return;
+    SERVICE_WORKER_STATUS='UNAVAILABLE';SERVICE_WORKER_DETAIL='当前浏览器无法提供离线打开；联网时仍可正常记录。';refreshRuntimeHealth();return;
   }
   const base=new URL('./',document.baseURI);
   try{
     const registration=await navigator.serviceWorker.register(new URL('sw.js',base),{scope:base.pathname});
     SERVICE_WORKER_REGISTRATION=registration;
-    SERVICE_WORKER_STATUS='REGISTERED';SERVICE_WORKER_DETAIL=`离线应用已注册，作用范围为 ${registration.scope}`;refreshRuntimeHealth();
+    SERVICE_WORKER_STATUS='REGISTERED';SERVICE_WORKER_DETAIL='离线使用已准备好。';refreshRuntimeHealth();
     WAITING_SERVICE_WORKER=registration.waiting||null;
     if(WAITING_SERVICE_WORKER)showUpdateReady();
     registration.addEventListener('updatefound',()=>{
@@ -4521,13 +4618,11 @@ async function registerServiceWorker(){
     document.addEventListener('visibilitychange',()=>{
       if(!document.hidden&&SERVICE_WORKER_REGISTRATION)SERVICE_WORKER_REGISTRATION.update().catch(()=>{});
     });
-  }catch(error){SERVICE_WORKER_STATUS='FAILED';SERVICE_WORKER_DETAIL=`离线应用注册失败：${error&&error.message?error.message:'浏览器未接受注册'}`;refreshRuntimeHealth();}
+  }catch(error){SERVICE_WORKER_STATUS='FAILED';SERVICE_WORKER_DETAIL='暂时无法准备离线打开，联网时仍可正常记录。';refreshRuntimeHealth();}
 }
 function refreshRuntimeHealth(){
   const status=$('#storage-health-status');
   if(status)status.innerHTML=`${esc(STORAGE_PERSISTENCE_DETAIL)}<br>${esc(SERVICE_WORKER_DETAIL)}`;
-  const performanceStatus=$('#runtime-performance-status');
-  if(performanceStatus)performanceStatus.textContent=runtimePerformanceSummary();
 }
 function showStorageStatus(){
   const notice=$('#critical-storage-error');if(!notice)return;
@@ -4535,18 +4630,20 @@ function showStorageStatus(){
 }
 function showOnboard(){ if(STATE.isFirstLaunch){ const el=$('#onboard'); el.classList.add('show'); el.setAttribute('aria-hidden','false'); navOpen('onboard'); el.focus({preventScroll:true}); } }
 $('#ob-save') && ($('#ob-save').onclick=async()=>{
-  const h=+$('#ob-h').value, w=+$('#ob-w').value, d=+$('#ob-d').value;
-  if(h<140||h>220||w<30||w>200||!d){ toast('身高140-220、体重30-200、哑铃重量必填'); return; }
-  const trainingGoal=$('#ob-goal').value,experienceLevel=$('#ob-experience').value,equipmentProfileCode=$('#ob-equipment').value,typicalSessionMinutes=+$('#ob-session-minutes').value;
-  if(!['HYPERTROPHY','GENERAL_FITNESS','STRENGTH'].includes(trainingGoal)||!['BEGINNER','INTERMEDIATE','ADVANCED'].includes(experienceLevel)||
-    !['A','B','C'].includes(equipmentProfileCode)||!Number.isFinite(typicalSessionMinutes)||typicalSessionMinutes<10||typicalSessionMinutes>180){toast('请填写训练目标、经验、器械方案和 10–180 分钟的训练时长');return;}
+  const optionalNumber=id=>$('#'+id).value===''?null:Number($('#'+id).value);
+  const h=optionalNumber('ob-h'),w=optionalNumber('ob-w'),d=optionalNumber('ob-d');
+  if((h!=null&&(!Number.isFinite(h)||h<140||h>220))||(w!=null&&(!Number.isFinite(w)||w<30||w>200))||
+    (d!=null&&(!Number.isFinite(d)||d<1||d>200))){toast('身高、体重或哑铃重量超出可填写范围');return;}
+  const trainingGoal=$('#ob-goal').value||null,experienceLevel=$('#ob-experience').value||null,equipmentProfileCode=$('#ob-equipment').value,typicalSessionMinutes=+$('#ob-session-minutes').value;
+  if((trainingGoal&&!['HYPERTROPHY','GENERAL_FITNESS','STRENGTH'].includes(trainingGoal))||(experienceLevel&&!['BEGINNER','INTERMEDIATE','ADVANCED'].includes(experienceLevel))||
+    !['A','B','C'].includes(equipmentProfileCode)||!Number.isFinite(typicalSessionMinutes)||typicalSessionMinutes<10||typicalSessionMinutes>180){toast('请选择训练地点，并填写 10–180 分钟的训练时长');return;}
   const prefs=readNutritionPreferences('ob-',{});if(!prefs.ok){toast(prefs.message);return;}
-  const profile=Object.assign({height:h,weight:+w.toFixed(1),dumbbell:d,name:'训练者',trainingGoal,experienceLevel,equipmentProfileCode,typicalSessionMinutes},prefs.value);
+  const profile=Object.assign({height:h,weight:w==null?null:+w.toFixed(1),dumbbell:d,name:'训练者',trainingGoal,experienceLevel,equipmentProfileCode,typicalSessionMinutes},prefs.value);
   try{
     await BojiData.putProfile(profileDomainRecord(profile));
-    await logWeight(w,'ONBOARDING');
+    if(w!=null)await logWeight(w,'ONBOARDING');
     STATE.profile=profile;STATE.planSet=equipmentProfileCode;STATE.settings.trainingMode=experienceLevel==='ADVANCED'?'performance':'learning';applyPlanSet();
-    STATE.isFirstLaunch=false;if(!save())throw new Error('本机应用状态保存失败');
+    STATE.isFirstLaunch=false;if(!await saveAsync())throw new Error('本机应用状态保存失败');
     navUIClose('onboard');setMood('cheer',3000);toast(`开始和${coachName()}一起练吧！`);renderHome();
   }catch(error){toast('档案未完整保存：'+(error.message||'本机存储不可用'));}
 });
@@ -4584,10 +4681,11 @@ async function boot(){
   try{
     await BojiData.open();
     await BojiData.seedKnowledgeRegistry(KB.map(item=>({question:item.q, text:[item.a,item.more].filter(Boolean).join('\n\n'), scope:item.q})));
-    await BojiData.seedTrainingCatalog(await buildTrainingCatalog());
-    TRAINING_CATALOG = await BojiData.loadTrainingCatalog();
     const persisted = await BojiData.loadState();
     if(persisted) hydrateState(persisted);
+    await BojiData.seedTrainingCatalog(await buildTrainingCatalog());
+    TRAINING_CATALOG = await BojiData.loadTrainingCatalog();
+    await migrateLegacyPlanEdits();
     const canonicalProfile=(await BojiData.listProfiles()).find(row=>row.profileId==='profile-primary');
     if(canonicalProfile)STATE.profile=Object.assign({},STATE.profile||{},{
       name:canonicalProfile.displayName||STATE.profile&&STATE.profile.name||'训练者',
@@ -4660,12 +4758,12 @@ function bindUI(){
   document.addEventListener('visibilitychange', ()=>{
     if(document.hidden){
       syncHomePolling();clearInterval(runTicker);runTicker=null;clearInterval(restId);restId=null;releaseWorkoutWakeLock();
-      syncPetMotion();petRoundBubble('bye');voicePause();
-      if(RUN.active){if(RUN.watchId!=null&&navigator.geolocation)try{navigator.geolocation.clearWatch(RUN.watchId);}catch(_){}RUN.watchId=null;RUN.gapPending=true;RUN.gaps++;updateRunStatus('应用进入后台，GPS 前台记录已暂停；返回后从新测量点继续。');}
+      syncPetMotion();petRoundBubble('拜拜');voicePause();
+      if(RUN.active){if(RUN.watchId!=null&&navigator.geolocation)try{navigator.geolocation.clearWatch(RUN.watchId);}catch(_){}RUN.watchId=null;RUN.gapPending=true;RUN.gaps++;updateRunStatus('已暂停定位；回来后会从新位置继续记录。');}
     }else{
       syncHomePolling();if(RUN.active)startRunTicker();
       petWake();if(!$('#pet').classList.contains('mood-sleep')){petGreet();setMood('wave',2200);}voiceResume();syncPetMotion();
-      if(RUN.active){attachRunGeolocation();updateRunStatus('应用回到前台，等待新的 GPS 测量点；中断路段不会连接。');}
+      if(RUN.active){attachRunGeolocation();updateRunStatus('等待新的定位点；中断路段不会连接。');}
       if(ACTIVE_WORKOUT&&ACTIVE_WORKOUT.session.activeRestEndAt)showWorkoutRest(ACTIVE_WORKOUT.session.activeRestEndAt);
       refreshActiveWorkoutFromDB().then(()=>requestWorkoutWakeLock());
       if(WAITING_SERVICE_WORKER)showUpdateReady();
@@ -4674,6 +4772,6 @@ function bindUI(){
   window.addEventListener('pagehide', ()=>{pausePetMotion();releaseLocalVideoObjectUrl();clearInterval(HOME_POLL_ID);HOME_POLL_ID=null;clearInterval(runTicker);runTicker=null;clearInterval(restId);restId=null;releaseWorkoutWakeLock();
     if(RUN.active&&RUN.watchId!=null){if(navigator.geolocation)try{navigator.geolocation.clearWatch(RUN.watchId);}catch(_){}RUN.watchId=null;RUN.gapPending=true;RUN.gaps++;}
   });
-  window.addEventListener('pageshow', ()=>{petWake();syncPetMotion();syncHomePolling();if(RUN.active){startRunTicker();attachRunGeolocation();updateRunStatus('应用回到前台，等待新的 GPS 测量点；中断路段不会连接。');}if(ACTIVE_WORKOUT&&ACTIVE_WORKOUT.session.activeRestEndAt)showWorkoutRest(ACTIVE_WORKOUT.session.activeRestEndAt);refreshActiveWorkoutFromDB();});
+  window.addEventListener('pageshow', ()=>{petWake();syncPetMotion();syncHomePolling();if(RUN.active){startRunTicker();attachRunGeolocation();updateRunStatus('等待新的定位点；中断路段不会连接。');}if(ACTIVE_WORKOUT&&ACTIVE_WORKOUT.session.activeRestEndAt)showWorkoutRest(ACTIVE_WORKOUT.session.activeRestEndAt);refreshActiveWorkoutFromDB();});
 }
 document.addEventListener('DOMContentLoaded', boot);

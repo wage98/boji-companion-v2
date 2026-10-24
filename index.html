@@ -144,7 +144,7 @@ window.__T0 = Date.now();
         <section class="panel assistant" id="assistant" aria-hidden="true">
           <header class="panel-head">
             <img class="ph-av" src="assets/boji/portrait-master.png" alt="">
-            <div class="ph-meta"><b>Boji</b><span id="ph-status">训练伙伴 · 回答会标明来源边界</span></div>
+            <div class="ph-meta"><b>Boji</b><span id="ph-status">训练伙伴 · 陪你聊训练和生活</span></div>
             <button class="ph-close" data-close="assistant">✕</button>
           </header>
           <div class="chat" id="chat"></div>
@@ -180,21 +180,24 @@ window.__T0 = Date.now();
 <!-- 首启引导 -->
 <div class="modal-mask" id="onboard" role="dialog" aria-modal="true" aria-labelledby="onboard-title" aria-hidden="true" tabindex="-1">
   <div class="modal">
-    <h3 id="onboard-title">先认识一下你(｡･ω･｡)ﾉ</h3>
-    <p class="sub">我是 Boji，你的训练伙伴。你可以从力量训练开始，也可以记录饮食、跑步和身体变化。</p>
-    <label>身高 (cm)<input id="ob-h" type="number" inputmode="decimal" placeholder="170"></label>
-    <label>体重 (kg)<input id="ob-w" type="number" inputmode="decimal" placeholder="65"></label>
-    <label>单哑铃最大重量 (kg)<input id="ob-d" type="number" inputmode="decimal" placeholder="10"></label>
-    <label>训练目标<select id="ob-goal" required><option value="">请选择目标</option><option value="HYPERTROPHY">增肌</option><option value="GENERAL_FITNESS">建立运动习惯 / 综合体能</option><option value="STRENGTH">提升力量</option></select></label>
-    <label>训练经验<select id="ob-experience" required><option value="">请选择经验</option><option value="BEGINNER">刚开始 / 正在学习动作</option><option value="INTERMEDIATE">有规律训练经验</option><option value="ADVANCED">熟悉训练与自我调节</option></select></label>
-    <label>器械与训练地点<select id="ob-equipment" required><option value="">请选择现有方案</option><option value="A">居家哑铃 · 有卧推椅</option><option value="B">居家哑铃 · 无卧推椅</option><option value="C">健身房器械</option></select></label>
-    <label>通常可训练时长（分钟）<input id="ob-session-minutes" type="number" inputmode="numeric" min="10" max="180" value="45" required></label>
-    <label>营养记录目标<select id="ob-intent"><option value="LOG_ONLY">仅记录，不设营养目标</option><option value="MAINTAIN">维持体重估算</option><option value="GAIN">增重估算</option><option value="LOSE">减重估算</option><option value="CUSTOM">自定义</option></select></label>
-    <label>自定义热量目标 kcal<input id="ob-custom-kcal" type="number" inputmode="numeric" min="500" max="10000" placeholder="仅自定义模式填写"></label>
-    <label>自定义蛋白质目标 g<input id="ob-custom-protein" type="number" inputmode="decimal" min="1" max="500" placeholder="仅自定义模式填写"></label>
-    <label>饮水目标 ml<input id="ob-water-goal" type="number" inputmode="numeric" min="250" max="10000" placeholder="留空使用 35 ml/kg 粗略估算"></label>
-    <p class="sub" style="text-align:left;font-size:11.5px;line-height:1.65;margin:2px 0 0">当前训练计划为现有增肌模板。目标、经验、器械与时长用于保存你的训练背景；不会据此自动生成未经验证的计划。营养和饮水值是可修改估算，不是处方。</p>
-    <p class="sub" style="text-align:left;font-size:11.5px;line-height:1.65;margin:2px 0 0">关于拍照记饮食：拍照 = <b>留档 + 估算</b>。未开启 AI 识别时走条码 / 在线库 / 历史 / 本地库匹配，开启后才会调用云端视觉模型；不管走哪条路径，<b>热量都要你确认后才写入</b>，估算存在 ±15~35% 误差。</p>
+    <h3 id="onboard-title">今天想怎么练？</h3>
+    <p class="sub">先选训练地点，其他资料之后再补也可以。</p>
+    <label>训练地点<select id="ob-equipment" required><option value="">选择常用器械</option><option value="A">居家哑铃 · 有卧推椅</option><option value="B">居家哑铃 · 无卧推椅</option><option value="C">健身房器械</option></select></label>
+    <label>通常可训练时长<input id="ob-session-minutes" type="number" inputmode="numeric" min="10" max="180" value="45" required></label>
+    <details class="onboard-more"><summary>补充训练背景（选填）</summary>
+      <label>训练目标<select id="ob-goal"><option value="">之后再选</option><option value="HYPERTROPHY">增肌</option><option value="GENERAL_FITNESS">运动习惯与体能</option><option value="STRENGTH">提升力量</option></select></label>
+      <label>训练经验<select id="ob-experience"><option value="">之后再选</option><option value="BEGINNER">刚开始或正在学习动作</option><option value="INTERMEDIATE">有规律训练经验</option><option value="ADVANCED">熟悉训练与自我调节</option></select></label>
+      <label>身高（cm）<input id="ob-h" type="number" inputmode="decimal" min="140" max="220" placeholder="选填"></label>
+      <label>体重（kg）<input id="ob-w" type="number" inputmode="decimal" min="30" max="200" placeholder="选填"></label>
+      <label>单只哑铃最大重量（kg）<input id="ob-d" type="number" inputmode="decimal" min="1" max="200" placeholder="选填"></label>
+    </details>
+    <details class="onboard-more"><summary>设置饮食记录目标（选填）</summary>
+      <label>营养记录目标<select id="ob-intent"><option value="LOG_ONLY">只记录，不设目标</option><option value="MAINTAIN">维持体重估算</option><option value="GAIN">增重估算</option><option value="LOSE">减重估算</option><option value="CUSTOM">自定义</option></select></label>
+      <label>自定义热量目标（kcal）<input id="ob-custom-kcal" type="number" inputmode="numeric" min="500" max="10000" placeholder="仅自定义时填写"></label>
+      <label>自定义蛋白质目标（g）<input id="ob-custom-protein" type="number" inputmode="decimal" min="1" max="500" placeholder="仅自定义时填写"></label>
+      <label>饮水目标（ml）<input id="ob-water-goal" type="number" inputmode="numeric" min="250" max="10000" placeholder="选填"></label>
+    </details>
+    <p class="sub onboard-note">训练计划使用现有模板，不会自动生成新计划。身体资料和饮食目标都可以稍后补充。</p>
     <button class="btn-grad" id="ob-save">开始和 Boji 一起练</button>
   </div>
 </div>
@@ -214,7 +217,7 @@ window.__T0 = Date.now();
 <div class="modal-mask sheet" id="food-sheet" aria-hidden="true">
   <div class="modal">
     <h3>记录食物</h3>
-    <p class="sub">拍照留档后按条码 / 历史 / 食物库匹配并标注置信度；低置信度会明确提示，名称份量热量都能改。</p>
+    <p class="sub">支持拍照、条码、常见食物和历史记录。食物名、份量和营养信息都能修改，确认后才会计入记录。</p>
     <div class="food-list" id="food-list"></div>
     <button class="btn-grad ghost" id="food-close">取消</button>
   </div>

@@ -328,8 +328,10 @@ check('F4 休息计时按 wall-clock end timestamp 渲染且支持持久化跳�
   w.stopRestUI();
   return shown && remaining > 0 && remaining <= 45 && typeof w.skipWorkoutRest === 'function' && w.document.querySelector('#rest-timer').classList.contains('hidden');
 });
-check('F5 动作教学媒体来源与匹配状态明确标为未核验', () => { const w = boot(J({ profile: { weight:70 } }));
-  return w.eval('TRAINING_CATALOG.exercises.some(row => row.teaching.video && row.teaching.video.matchLevel === "UNVERIFIED" && row.teaching.video.availability === "UNKNOWN")'); });
+check('F5 动作教学保留来源状态且用自然文案提醒参考边界', () => { const w = boot(J({ profile: { weight:70 } }));
+  return w.eval('TRAINING_CATALOG.exercises.some(row => row.teaching.video && row.teaching.video.matchLevel === "UNVERIFIED" && row.teaching.video.availability === "UNKNOWN")')
+    &&w.eval('videoStatusLabel({sourceUrl:"https://example.test/video",manualReviewed:false,matchLevel:"UNVERIFIED",availability:"UNKNOWN"})')==='仅供参考'
+    &&w.eval('videoStatusLabel({sourceUrl:"https://example.test/video",manualReviewed:true,matchLevel:"VERIFIED",availability:"UNAVAILABLE"})')==='暂不可用'; });
 check('F6 打卡口径：仅完成全部动作并打卡（at）才计成功；部分勾选不计入连续/累计', () => { const d = new Date(); const k = dateKey(d);
   const w = boot(J({ profile: { weight: 70 }, checkins: { [k]: { ex: { 0: true } } } }));
   return w.eval('isDayComplete')(k) === false && w.eval('dayCompleteCount')() === 0 && w.eval('streak')() === 0; });
@@ -872,8 +874,9 @@ function v81Checks() {
     w.__S.selDate=dateKey(monday);
     w.goModule('training');
     const htmlA = w.document.getElementById('mod-body').innerHTML;
-    check('M10 训练页渲染：规范模板入口、器械档案与时间调整控件', () =>
-      htmlA.indexOf('开始今天训练')>=0&&htmlA.indexOf('调整今天')>=0&&htmlA.indexOf('器械档案')>=0&&htmlA.indexOf('可用时间')>=0);
+    check('M10 训练页渲染：今天入口、训练地点与时间调整控件', () =>
+      htmlA.indexOf('开始今天训练')>=0&&htmlA.indexOf('id="training-adjust-toggle"')>=0
+        &&htmlA.indexOf('训练地点')>=0&&htmlA.indexOf('可用时间')>=0);
     w.goModule('profile');
     const phtml = w.document.getElementById('mod-body').innerHTML;
     check('M11 设置页含训练方案切换 UI（A/B 两个选项 + 适用场景）',
@@ -912,7 +915,7 @@ function v80Checks() {
     const md = w.eval('md');
     check('L9 助手保留知识正文并将无来源登记的旧证据标签降级', () => {
       const out = md('先降重量。\n*[B] 证据：NSCA 建议肩胛稳定是卧推安全前提*');
-      return out.indexOf('来源待核') >= 0 && out.indexOf('证据等级 B') < 0 && out.indexOf('NSCA 建议肩胛稳定是卧推安全前提') >= 0;
+      return out.indexOf('资料说明') >= 0 && out.indexOf('来源待核') < 0 && out.indexOf('证据等级 B') < 0 && out.indexOf('NSCA 建议肩胛稳定是卧推安全前提') >= 0;
     });
     check('L10 coach avatar uses the local Boji final asset', () => w.eval('coachAvatarSrc')() === 'assets/boji/portrait-master.png');
     check('L11 气泡文本为非字符串时不崩溃', () => w.eval('md')(undefined) === '' && w.eval('md')(null) === '');
@@ -986,7 +989,7 @@ function g5SurfaceChecks() {
       &&!!title;
   });
   check('G5 onboarding explains existing presets and has no generated-program control', () =>
-    onboarding.document.querySelector('#onboard').textContent.includes(String.fromCharCode(0x4e0d,0x4f1a,0x636e,0x6b64,0x81ea,0x52a8,0x751f,0x6210))
+    onboarding.document.querySelector('#onboard').textContent.includes('不会自动生成新计划')
       && !onboarding.document.querySelector('#onboard [data-generate-program]'));
   check('G5 Today has one Boji note, weekly progress, two helper entries, a main action, and rationale', () => {
     const w = boot(J({ profile: { weight: 70 } }));
@@ -1013,7 +1016,7 @@ function g5SurfaceChecks() {
     const css = fs.readFileSync(path.join(PROJ,'styles.css'),'utf8');
     w.__click(ask);
     return expected.every(x => actions.has(x)) && actions.size === 6 && w.document.getElementById('assistant').classList.contains('open')
-      && !!bond && bond.textContent.includes('亲密度 Lv.') && !!bond.querySelector('.bb-bar i')
+      && !!bond && bond.textContent.includes('一起训练 Lv.') && !!bond.querySelector('.bb-bar i')
       && css.includes('.boji-hero{display:flex;flex:0 0 auto') && css.includes('.boji-hero .boji-bond{flex:0 0 auto');
   });
   check('G5 Progress leads with real range-based trend, four metrics, and weekly highlight', () => {
@@ -1028,10 +1031,11 @@ function g5SurfaceChecks() {
       && !!first.querySelector('.progress-week-highlight')
       && !!first.querySelector('.pt-empty')
       && !!details && !details.open && explanationLabels.join('|') === '力量变化|训练规律|值得留意'
-      && details.textContent.includes('本机存储健康') && details.textContent.includes('统计口径：今天及前 6 个自然日')
+      && details.textContent.includes('本机数据保护') && !details.textContent.includes('LCP')
+      && !details.textContent.includes('Service Worker') && details.textContent.includes('统计口径：今天及前 6 个自然日')
       && details.textContent.includes('建议固定早晨空腹、如厕后称重');
   });
-  check('G5 e1RM names its exercise and compares only that exercise', () => {
+  check('G5 最大力量估算标明动作，并只比较同一动作', () => {
     const w = boot(J({ profile: { weight: 70 } }));
     const record=(id,date,exerciseId,name,weight,reps)=>({
       session:{sessionId:id,status:'COMPLETED',localDateKey:date,startedAt:Date.parse(date+'T10:00:00')},
@@ -1048,7 +1052,7 @@ function g5SurfaceChecks() {
     const label=w.document.querySelector('#mod-body > .progress-overview .metric-card span:not(.mc-ic)');
     const delta=w.document.querySelector('#mod-body > .progress-overview .metric-card em');
     return estimate.exerciseId==='bench_press' && estimate.exerciseName==='卧推' && estimate.value===122.5 && estimate.delta===5
-      && !!label && label.textContent.includes('卧推') && label.textContent.includes('e1RM 估算')
+      && !!label && label.textContent.includes('卧推') && label.textContent.includes('最大力量估算')
       && !!delta && delta.textContent.includes('同动作 +5%');
   });
   check('G5 Learning and Performance share one active workout record', () => {
@@ -1077,7 +1081,7 @@ function g5SurfaceChecks() {
     const sessionKept = w.eval('ACTIVE_WORKOUT.session.sessionId') === 'active-session';
     return sessionKept && w.__S.settings.trainingMode === 'performance' && !!performance
       && performance.textContent.includes('12 kg') && performance.textContent.includes('10')
-      && !!demo && demo.textContent.includes('演示状态') && !!demo.querySelector('.exercise-demo-art')
+      && !!demo && demo.textContent.includes('视频内容仅供参考') && !!demo.querySelector('.exercise-demo-art')
       && !!teaching && !!currentSet && !!currentSet.querySelector('[data-weight]')
       && !!currentSet.querySelector('[data-reps]') && !!currentRir
       && !!currentSet.querySelector('[data-complete-set]')
@@ -1315,8 +1319,8 @@ function v120Checks() {
       }});
       await w.eval('requestPersistentStorage')();
       return w.eval('STORAGE_PERSISTENCE_STATUS') === 'NOT_GRANTED'
-        && /浏览器未授予持久存储/.test(w.eval('STORAGE_PERSISTENCE_DETAIL'))
-        && /定期导出备份/.test(w.eval('STORAGE_PERSISTENCE_DETAIL'));
+        && /浏览器未开启额外的数据保护/.test(w.eval('STORAGE_PERSISTENCE_DETAIL'))
+        && /定期备份/.test(w.eval('STORAGE_PERSISTENCE_DETAIL'));
     });
     check('Q6 页面隐藏时停止非关键轮询与计时器 interval', () => {
       const intervals=[];

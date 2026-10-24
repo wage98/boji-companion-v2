@@ -121,6 +121,7 @@ const q = $('#fe-q'); q.value = '2'; input(q);
 ok($('#fe-kcal').textContent.includes('388'), '份量×2 后热量实时重算（鸡胸肉150g: 194×2=388 kcal）');
 click($('#fe-add'));
 ok(await waitFor(()=>fakeRecords.drafts.length===1&&$('#fs-confirm-draft')!==null), '选中的食物先持久化为 FoodDraft');
+ok($('#fs-draft').textContent.includes('食物名、份量和营养信息都可以修改')&&$('#fs-confirm-draft').textContent==='确认并记录', '饮食草稿用清楚的中文提示可修改项与确认时机');
 ok(fakeRecords.meals.length===0, '明确确认前没有 MealRecord');
   click($('#fs-confirm-draft'));
   ok(await waitFor(async()=>fakeRecords.meals.length===1), '明确确认后提交 MealRecord');
@@ -141,6 +142,8 @@ ok(manualBtn.length === 4, '四餐均保留「手动选」兜底按钮');
 // 9. 饮食条目显示规范记录和 kcal，不复制照片
 ok(await waitFor(()=>$('#mod-body').innerHTML.includes('food-record-row')), '已记录条目显示规范 MealRecord');
 ok($('#mod-body').innerHTML.includes('kcal'), '条目显示 kcal');
+const mealUi=$('#mod-body').textContent;
+ok(mealUi.includes('食物名：食物库')&&mealUi.includes('份量：你填写')&&!/USER_PROVIDED|AI_ESTIMATED|DATABASE|UNASSESSED|来源待核|信心档/.test(mealUi), '饮食历史保留来源含义且不显示内部枚举');
 
 // 10. 档案实时编辑：体重 70→80，立即影响目标
 w.goModule('profile');
@@ -221,6 +224,19 @@ ok(!$('#module').classList.contains('open'), '回归：navUIClose 正常关闭�
   ok(w.__S.planOverrides[selected] === undefined, '预览不会自动应用训练调整');
 }
 
+// 23. 旧版 planEdits 只迁移一次，并进入规范模板供之后的训练读取。
+{
+  w.eval("TRAINING_CATALOG.exercises=[{exerciseId:'exercise:legacy',name:'旧计划动作',goal:'HYPERTROPHY',equipmentProfileIds:['equipment:A','equipment:B','equipment:C'],targetMuscles:['chest'],movementPattern:'chest_push'}]; TRAINING_CATALOG.templates.forEach(row=>row.exercises=[{exerciseId:'exercise:legacy',sets:3,reps:'10-12',restSeconds:60}]);");
+  w.BojiData.saveWorkoutTemplate=async(id,edits)=>{
+    const row=w.eval('TRAINING_CATALOG.templates.find(item=>item.templateId==='+JSON.stringify(id)+')');
+    row.exercises=row.exercises.map((entry,index)=>Object.assign({},entry,edits[index]));row.userEdited=true;return row;
+  };
+  w.eval("STATE.planEdits={push:{0:{sets:4,reps:'8-12'}}}");
+  await w.eval('(async()=>await migrateLegacyPlanEdits())()');
+  const migrated=w.eval("TRAINING_CATALOG.templates.find(row=>row.templateId==='template:A:push').exercises[0]");
+  ok(migrated.sets===4&&migrated.reps==='8-12'&&!w.__S.planEdits.push,'legacy plan edits migrate into the canonical template and clear only after save');
+}
+
 // 24. 自然语言处理层（NLP）：归一化 / 同义词 / 意图 / 模糊匹配 / 异常边界 / 可复现
 {
   const norm = w.eval('nlpNormalize');
@@ -264,18 +280,61 @@ ok(!$('#module').classList.contains('open'), '回归：navUIClose 正常关闭�
   ok(kb('怎么练胸').item === kb('怎么练胸').item, 'NLP 可复现：匹配结果确定性');
 }
 
-// 23. 回归：导出 CSV 带 BOM（若 Blob 支持 arrayBuffer）
+// 24. 回归：导出 CSV 带 BOM（若 Blob 支持 arrayBuffer）
 await (async () => {
+  const csvWorkout={session:{sessionId:'session:csv',status:'COMPLETED',localDateKey:'2026-10-03',startedAt:1000,finishedAt:2000},
+    exerciseSessions:[{exerciseSessionId:'exercise-session:csv',exerciseId:'exercise:press',nameSnapshot:'哑铃卧推'}],
+    sets:[{setId:'set:csv',sessionId:'session:csv',exerciseSessionId:'exercise-session:csv',exerciseId:'exercise:press',exerciseOrder:0,setIndex:0,targetReps:'8-10',weightKg:20,reps:9,rir:2,completed:true,completedAt:1500}]};
+  w.eval('indexWorkoutHistory('+JSON.stringify([csvWorkout])+')');
   let bomOk = false;
+  let csvText='';
   try {
     let captured = null;
     w.URL.createObjectURL = (blob) => { captured = blob; return 'blob:x'; };
     w.URL.revokeObjectURL = () => {};
     w.exportCSV();
-    if (captured) { const buf = await captured.arrayBuffer(); const u8 = new w.Uint8Array(buf); bomOk = u8[0] === 0xEF && u8[1] === 0xBB && u8[2] === 0xBF; }
+    if (captured) { const buf = await captured.arrayBuffer(); const u8 = new w.Uint8Array(buf); bomOk = u8[0] === 0xEF && u8[1] === 0xBB && u8[2] === 0xBF; csvText=Buffer.from(buf).toString('utf8'); }
   } catch (e) { bomOk = false; }
   ok(bomOk, '回归：exportCSV 仍带 UTF-8 BOM');
+  const trainingBlock=csvText.replace(/^\uFEFF/,'').split('\r\n\r\n')[0],lines=trainingBlock.split('\r\n');
+  const parseRow=line=>{const cells=[];let value='',quoted=false;for(let i=0;i<line.length;i++){const ch=line[i];if(ch==='"'){if(quoted&&line[i+1]==='"'){value+='"';i++;}else quoted=!quoted;}else if(ch===','&&!quoted){cells.push(value);value='';}else value+=ch;}cells.push(value);return cells;};
+  const readBack=lines.length>1?parseRow(lines[1]):[];
+  ok(readBack[0]==='2026-10-03'&&readBack[4]==='哑铃卧推'&&readBack[5]==='1'&&readBack[7]==='20'&&readBack[8]==='9'&&readBack[9]==='2',
+    '训练 CSV 回读还原规范化组记录、负重、次数与余力次数');
   ok(w.eval('_csvRow')(['=1+1','@SUM(A1:A2)']).includes("'=1+1") && w.eval('_csvRow')(['=1+1','@SUM(A1:A2)']).includes("'@SUM"), 'CSV 公式前缀被转为文本');
+  w.eval('STATE.isFirstLaunch=true;STATE.profile=null');
+  w.eval('showOnboard()');
+  ok(!$('#ob-h').required&&!$('#ob-w').required&&!$('#ob-d').required&&!$('#ob-goal').required&&!$('#ob-experience').required,
+    '首启只要求训练地点与时长，身体与训练背景可跳过');
+  const weightsBeforeOnboard=fakeRecords.weights.length;
+  $('#ob-equipment').value='B';click($('#ob-save'));
+  const onboardingSaved=await waitFor(()=>!$('#onboard').classList.contains('show'));
+  ok(onboardingSaved&&w.eval('STATE.profile.weight')==null&&w.eval('STATE.profile.trainingGoal')==null&&fakeRecords.weights.length===weightsBeforeOnboard,
+    '跳过个人数据也能开始，且不会补造体重记录');
+  w.goModule('profile');
+  const optionalProfileFields=$('#pe-h').value===''&&$('#pe-w').value===''&&$('#pe-d').value===''
+    &&!$('#mod-body').textContent.includes('null')&&$('#mod-body').textContent.includes('资料可随时补充');
+  $('#pe-goal').value='STRENGTH';change($('#pe-goal'));
+  const optionalProfileSaved=await waitFor(()=>w.eval('STATE.profile.trainingGoal==="STRENGTH"'));
+  ok(optionalProfileFields&&optionalProfileSaved&&w.eval('STATE.profile.weight')==null&&fakeRecords.weights.length===weightsBeforeOnboard,
+    '空身体资料保持自然留空，其他档案设置仍可单独保存');
+  const productEvents=[];w.addEventListener('boji:product-event',event=>productEvents.push(event.detail));
+  w.eval("emitProductEvent('workout.started',{sessionId:'session:start',startedAt:100,localDateKey:'2026-10-03'}); emitProductEvent('workout.set_completed',{setId:'set:1',sessionId:'session:start',exerciseId:'exercise:press',setIndex:0,completedAt:200,reps:8}); emitProductEvent('workout.completed',{sessionId:'session:start',finishedAt:300}); emitProductEvent('rest.finished',{sessionId:'session:start',updatedAt:400},{restDurationSeconds:60}); emitProductEvent('meal.confirmed',{mealId:'meal:1',createdAt:500,confirmation:{confirmedAt:501},localDateKey:'2026-10-03'});");
+  ok(productEvents.length===5&&productEvents[0].recordId==='session:start'&&productEvents[0].occurredAt===100&&
+    productEvents[1].recordId==='set:1'&&productEvents[1].sessionId==='session:start'&&productEvents[1].occurredAt===200&&
+    productEvents[3].restDurationSeconds===60&&productEvents[4].recordId==='meal:1'&&productEvents[4].occurredAt===501,
+    '桌宠事件带有真实记录标识、提交时间和必要上下文');
+  // 跑步页面以自然中文展示定位与手动记录，不泄露内部估算标签
+  w.goModule('run');
+  const runUi=$('#mod-body').textContent;
+  ok(runUi.includes('开始户外跑步')&&runUi.includes('不会生成路线')&&!/GPS|ACSM|DERIVED|USER_PROVIDED|UNKNOWN|UNVERIFIED|HOLD/.test(runUi), '跑步说明自然中文表达，测量和估算状态不显示内部标签');
+  w.eval("RUN_RECORDS=[{runId:'legacy-run',localDateKey:'legacy-date',distanceMeters:3000,durationSeconds:1800,routeStatus:'LEGACY_UNKNOWN'},{runId:'manual-run',localDateKey:'manual-date',distanceMeters:2500,durationSeconds:1500,distanceProvenance:'USER_PROVIDED',routeStatus:'MANUAL'},{runId:'measured-run',localDateKey:'measured-date',distanceMeters:3200,durationSeconds:1700,distanceProvenance:'MEASURED',routeStatus:'MEASURED'}];renderModule('run')");
+  const runRows=Array.from($('#mod-body').querySelectorAll('.run-row')).map(row=>row.textContent);
+  ok(runRows.length===3&&runRows[0].includes('legacy-date')&&runRows[0].includes('来源未注明')&&!runRows[0].includes('定位记录')&&
+    runRows[1].includes('manual-date')&&runRows[1].includes('手动记录')&&runRows[2].includes('measured-date')&&runRows[2].includes('定位记录'),
+    '跑步历史只按已知来源标注，旧记录不冒充定位记录');
+  w.eval("bubbleBusy=false;petRoundBubble('拜拜',1)");
+  ok($('#pet-bubble').textContent==='拜拜', '桌宠问候和告别气泡显示中文短句');
   dom.window.close();
   console.log(`\n==== 结果：${pass} PASS / ${fail} FAIL ====`);
   process.exitCode = fail ? 1 : 0;

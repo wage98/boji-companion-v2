@@ -33,11 +33,36 @@ const PROMPT =
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 };
+const MAX_REQUEST_BYTES = 8 * 1024 * 1024;
 const json = (obj, status) => new Response(JSON.stringify(obj), {
   status: status || 200, headers: Object.assign({ 'Content-Type': 'application/json; charset=utf-8' }, CORS),
 });
+
+async function readJsonLimited(request) {
+  const declared = Number(request.headers.get('Content-Length'));
+  if (Number.isFinite(declared) && declared > MAX_REQUEST_BYTES) return { tooLarge: true };
+  if (!request.body) return { invalid: true };
+  const reader = request.body.getReader(), chunks = [];
+  let total = 0;
+  try {
+    while (true) {
+      const part = await reader.read();
+      if (part.done) break;
+      total += part.value.byteLength;
+      if (total > MAX_REQUEST_BYTES) {
+        await reader.cancel();
+        return { tooLarge: true };
+      }
+      chunks.push(part.value);
+    }
+    const bytes = new Uint8Array(total);
+    let offset = 0;
+    chunks.forEach(chunk => { bytes.set(chunk, offset); offset += chunk.byteLength; });
+    return { body: JSON.parse(new TextDecoder().decode(bytes)) };
+  } catch (_) { return { invalid: true }; }
+}
 
 function extractJSON(text) {
   const s = String(text == null ? '' : text).trim().replace(/^```(?:json)?/i, '').replace(/```$/, '');
@@ -53,11 +78,15 @@ export default {
     if (request.method !== 'POST') return json({ ok: false, error: '仅支持 POST' }, 405);
     if (url.pathname !== '/recognize') return json({ ok: false, error: '接口不存在' }, 404);
 
-    // 1) 访问口令校验：没配 ACCESS_TOKEN 时拒绝全部请求（防止被白嫖）
-    let body = null;
-    try { body = await request.json(); } catch (e) { return json({ ok: false, error: '请求体不是合法 JSON' }, 400); }
+    // 1) Validate the same Bearer header the client uses, before reading image data.
     if (!env.ACCESS_TOKEN) return json({ ok: false, error: '服务端未配置 ACCESS_TOKEN' }, 500);
-    if (String(body.token || '') !== env.ACCESS_TOKEN) return json({ ok: false, error: '访问口令不正确' }, 401);
+    const authorization = request.headers.get('Authorization') || '';
+    const bearer = authorization.match(/^Bearer\s+(.+)$/i);
+    if (!bearer || bearer[1] !== env.ACCESS_TOKEN) return json({ ok: false, error: '访问口令不正确' }, 401);
+    const parsed = await readJsonLimited(request);
+    if (parsed.tooLarge) return json({ ok: false, error: '图片请求过大' }, 413);
+    if (parsed.invalid || !parsed.body || typeof parsed.body !== 'object' || Array.isArray(parsed.body)) return json({ ok: false, error: '请求体不是合法 JSON' }, 400);
+    const body = parsed.body;
 
     const image = String(body.image || '');
     if (image.length < 200 || image.length > 6 * 1024 * 1024) return json({ ok: false, error: '图片数据异常' }, 400);
@@ -88,14 +117,14 @@ export default {
         signal: (typeof AbortSignal !== 'undefined' && AbortSignal.timeout) ? AbortSignal.timeout(25000) : undefined,
       });
       const j = await r.json().catch(() => null);
-      if (!r.ok) return json({ ok: false, error: '模型服务返回 ' + r.status + ' ' + (j && j.error && j.error.message ? j.error.message : '') }, 502);
+      if (!r.ok) return json({ ok: false, error: '模型服务暂时不可用（' + r.status + '）' }, 502);
       const content = j && j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content;
       const text = typeof content === 'string' ? content : (Array.isArray(content) ? content.map(x => x.text || '').join('') : '');
       const data = extractJSON(text);
       if (!data) return json({ ok: false, error: '模型返回无法解析' }, 502);
       return json({ ok: true, data });
     } catch (e) {
-      return json({ ok: false, error: '调用模型失败：' + (e && e.message ? e.message : '未知错误') }, 502);
+      return json({ ok: false, error: '调用模型失败，请稍后重试' }, 502);
     }
   },
 };

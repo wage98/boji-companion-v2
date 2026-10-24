@@ -597,8 +597,8 @@
     }
     if (!isObject(backup) || backup.format !== 'boji-companion-v2-backup' || backup.formatVersion !== 1 || !isObject(backup.records)) return { ok: false, code: 'INVALID_FORMAT', message: 'Backup format or version is unsupported.' };
     if (!isObject(backup.versions) || backup.versions.SCHEMA_VERSION !== VERSION.SCHEMA_VERSION) return { ok: false, code: 'INCOMPATIBLE_SCHEMA', message: 'Backup schema is incompatible with this app version.' };
-    const incompatibleVersions = Object.keys(VERSION).filter(key => backup.versions[key] !== VERSION[key]);
-    if (incompatibleVersions.length) return { ok: false, code: 'INCOMPATIBLE_VERSION', message: `Backup version dimensions are incompatible: ${incompatibleVersions.join(', ')}` };
+    // Backup format and record schema govern restore safety. Product, cache, catalog,
+    // and knowledge versions are descriptive and may change independently.
     const records = {};
     const errors = [];
     if (hasSecretField(backup)) return { ok: false, code: 'SECRET_FIELD', message: 'Backup contains a credential-like field and was rejected.' };
@@ -779,7 +779,17 @@
       });
     });
     return transaction(Object.keys(rows), 'readwrite', tx => {
-      Object.entries(rows).forEach(([name, list]) => list.forEach(row => tx.objectStore(name).put(clone(row))));
+      Object.entries(rows).forEach(([name, list]) => {
+        const store = tx.objectStore(name);
+        if (name !== 'templates') { list.forEach(row => store.put(clone(row))); return; }
+        list.forEach(row => {
+          const request = store.get(row.templateId);
+          request.onsuccess = () => {
+            if (!request.result || request.result.userEdited !== true) store.put(clone(row));
+          };
+          request.onerror = () => { try { tx.abort(); } catch (_) {} };
+        });
+      });
       return Object.values(rows).reduce((sum, list) => sum + list.length, 0);
     });
   }
@@ -788,6 +798,38 @@
     const names = ['equipmentProfiles', 'programs', 'templates', 'exercises', 'customExercises'];
     const values = await Promise.all(names.map(name => readAll(db, name)));
     return Object.fromEntries(names.map((name, index) => [name, values[index]]));
+  }
+  async function saveWorkoutTemplate(templateId, exercises) {
+    if (typeof templateId !== 'string' || !templateId || !Array.isArray(exercises)) throw new TypeError('Training plan needs a template and exercise prescriptions.');
+    let saved = null, validationError = null;
+    const db = await open();
+    await transaction('templates', 'readwrite', tx => {
+      const store = tx.objectStore('templates'), request = store.get(templateId);
+      request.onsuccess = () => {
+        try {
+          const prior = request.result;
+          if (!prior || !Array.isArray(prior.exercises) || exercises.length !== prior.exercises.length) throw new TypeError('Training plan no longer matches its exercise template.');
+          const next = clone(prior);
+          next.exercises = prior.exercises.map((entry, index) => {
+            const edit = exercises[index];
+            if (!isObject(edit) || edit.exerciseId !== entry.exerciseId || !Number.isInteger(edit.sets) || edit.sets < 1 || edit.sets > 10 ||
+                typeof edit.reps !== 'string' || !edit.reps.trim() || edit.reps.trim().length > 16 || /[\u0000-\u001f<>]/.test(edit.reps)) {
+              throw new TypeError('Each exercise needs 1–10 sets and a short repetition target.');
+            }
+            return Object.assign({}, entry, { sets: edit.sets, reps: edit.reps.trim() });
+          });
+          next.userEdited = true;
+          next.updatedAt = now();
+          store.put(next);
+          saved = next;
+        } catch (error) {
+          validationError = error;
+          try { tx.abort(); } catch (_) {}
+        }
+      };
+      request.onerror = () => { try { tx.abort(); } catch (_) {} };
+    }).catch(error => { throw validationError || error; });
+    return saved;
   }
   async function putCustomExercise(record) {
     const value = clone(record || {});
@@ -919,7 +961,7 @@
       keyed.onerror = () => { try { tx.abort(); } catch (_) {} };
       activeRows.onerror = () => { try { tx.abort(); } catch (_) {} };
     });
-    if (outcome.status === 'CREATED') return loadWorkoutSession(sessionId);
+    if (outcome.status === 'CREATED') return Object.assign(await loadWorkoutSession(sessionId), { status: 'CREATED' });
     return Object.assign(outcome, { workout: await loadWorkoutSession(outcome.sessionId) });
   }
   async function completeWorkoutSet(sessionId, setId, input, ownerId) {
@@ -1229,7 +1271,7 @@
     localDateKey, timezoneContext, makeId, canonical, sha256, open, saveState, loadState,
     readLegacySnapshot, parseLegacyValue, preflightLegacy, migrateLegacy, hasCompletedMigration,
     exportBackup, validateBackup, restoreBackup, counts, clearV2Data, validateDomainRecord,
-    seedTrainingCatalog, loadTrainingCatalog, putCustomExercise, deleteCustomExercise, loadWorkoutSession, listActiveWorkouts,
+    seedTrainingCatalog, loadTrainingCatalog, saveWorkoutTemplate, putCustomExercise, deleteCustomExercise, loadWorkoutSession, listActiveWorkouts,
     listWorkoutHistory, claimWorkoutOwnership, startWorkout, completeWorkoutSet, finishWorkout, clearWorkoutRest, suggestProgression,
     createFoodDraft, listFoodDrafts, listMealRecords, updateFoodDraft, deleteFoodDraft, confirmFoodDraft, validateFoodDraft,
     putProfile, listProfiles, updateMealRecord, deleteMealRecord, listBodyWeights, putBodyWeight, listWaterEntries, putWaterEntry, listRuns, putRun,
