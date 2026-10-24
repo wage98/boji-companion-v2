@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
-  "head": "7fec11c92a653775d5d88b028477cdb0b285e47b",
+  "head": "351474d36f9019e37d9bbb2deb0f6fe08680a434",
   "status": "PASS",
   "scanScope": "All current V2 files including unreferenced assets, plus every file in dist.",
-  "sourceFilesScanned": 142,
-  "releaseFilesScanned": 13,
+  "sourceFilesScanned": 163,
+  "releaseFilesScanned": 24,
   "forbiddenNameFindings": [],
   "artifactErrors": [],
   "releaseWorkflowChecks": {
@@ -19,5 +19,5 @@
     "deploy-waits-for-qualification": "PASS"
   },
   "symlinksNotFollowed": [],
-  "reviewBoundary": "Filename checks do not establish copyright or originality. Review the G5 asset provenance record and retain AUTH-004 owner approval as pending."
+  "reviewBoundary": "Filename checks do not establish copyright or originality. Review evidence/BOJI_V2_FINAL_ASSET_PROVENANCE.md for the owner-approved final asset record; the remaining AUTH-004 items (physical device/PWA qualification, post-Luna independent release qualification, Production approval) stay pending."
 }

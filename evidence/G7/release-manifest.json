@@ -1,59 +1,109 @@
 {
   "schemaVersion": 1,
-  "head": "7fec11c92a653775d5d88b028477cdb0b285e47b",
+  "head": "351474d36f9019e37d9bbb2deb0f6fe08680a434",
   "channel": "rc",
   "artifactPath": "dist/rc",
-  "artifactFileCount": 13,
+  "artifactFileCount": 23,
   "files": [
     {
       "path": "dist/rc/app.js",
-      "sizeBytes": 355503,
-      "sha256": "743ca5019465163ea057394c3d7142ae4ba5310e284585041a65023781f356a5"
+      "sizeBytes": 384735,
+      "sha256": "d065b90d0385915b37782709fedc5765769b2d1cc76d48161a0e78a05437164a"
     },
     {
-      "path": "dist/rc/assets/boji-companion-candidate.png",
-      "sizeBytes": 1798639,
-      "sha256": "e74eef409a0544272f02df2e90788c94a07da45cd5dca56d556c5d11708bdd83"
+      "path": "dist/rc/assets/boji/chibi-base.png",
+      "sizeBytes": 421074,
+      "sha256": "5df7bbdbb5816a9f55dccd26ba3355ba5250135246c28b319c540ab87219165d"
     },
     {
-      "path": "dist/rc/assets/boji-companion-icon-candidate.png",
-      "sizeBytes": 1805718,
-      "sha256": "93d9ee562330a093fa71334a2410b67c83d1e1cd1b0ed63702282c33fa33d873"
+      "path": "dist/rc/assets/boji/chibi-states/encourage.png",
+      "sizeBytes": 327352,
+      "sha256": "d1f9fd941c9204bb4306a60c9e2c26965f671370af3dc281b9ddd1c90526062c"
     },
     {
-      "path": "dist/rc/assets/boji-companion-pet-candidate.png",
-      "sizeBytes": 1831188,
-      "sha256": "c0016422458825bad46e6a8171d05da5777f1c4cbe0594bb3d7178789fb437ae"
+      "path": "dist/rc/assets/boji/chibi-states/happy.png",
+      "sizeBytes": 325295,
+      "sha256": "ad81573b3fb1b9573466d7196fc9f9a81af3dbe8183a41f03b702b29489955ef"
     },
     {
-      "path": "dist/rc/assets/boji-icon-192.png",
-      "sizeBytes": 78531,
-      "sha256": "719a59f09b473e249f07e0d053da09b58b7927394cf4e0173ac99ae3e319d20a"
+      "path": "dist/rc/assets/boji/chibi-states/neutral.png",
+      "sizeBytes": 351376,
+      "sha256": "c7d2cacb5b68d06e15039c81756a40a20d8468715f658e470f2c89c90a469861"
     },
     {
-      "path": "dist/rc/assets/boji-icon-512.png",
-      "sizeBytes": 503030,
-      "sha256": "690e95a320c1154761351cf3f832357b05781022a1b4731738a311a75ec12d41"
+      "path": "dist/rc/assets/boji/chibi-states/sit.png",
+      "sizeBytes": 323553,
+      "sha256": "17e8ef59a813e6edd774c5aab2e2b0769a07a11ce72750ffa1bc9c4e2d99d278"
     },
     {
-      "path": "dist/rc/assets/icon.svg",
-      "sizeBytes": 570,
-      "sha256": "e3848d34d5c4f8e19817621559f469e79eadb61b11dd3e0cb55931c2f77a2dbb"
+      "path": "dist/rc/assets/boji/chibi-states/sleep.png",
+      "sizeBytes": 260151,
+      "sha256": "d7a114f88690616192809eb3319cb532246a28ed550719b89972acf526d2af74"
+    },
+    {
+      "path": "dist/rc/assets/boji/chibi-states/think.png",
+      "sizeBytes": 323969,
+      "sha256": "1bc2514486f27fb6fd405e543ae682b21a44dc25fa6f51e9becf355effe8476b"
+    },
+    {
+      "path": "dist/rc/assets/boji/chibi-states/walk.png",
+      "sizeBytes": 321197,
+      "sha256": "9e021d9b0303431dc5aed4dd4ecd204e7e029b42d7ddf64c51e0fa22faf7be95"
+    },
+    {
+      "path": "dist/rc/assets/boji/chibi-states/wave.png",
+      "sizeBytes": 322508,
+      "sha256": "8935c7b496ecef6bcdba01078fc93d21eeb24c071995f5c13ba1b8d44b5a81c3"
+    },
+    {
+      "path": "dist/rc/assets/boji/icon-192.png",
+      "sizeBytes": 79614,
+      "sha256": "aaaa5dd11f9fd8e3dbf34edc0f9099105e56d2567257a75cfada133513477088"
+    },
+    {
+      "path": "dist/rc/assets/boji/icon-512.png",
+      "sizeBytes": 521262,
+      "sha256": "9d03ae3aa6cf1ecf1aae5cc56b79a88e2a2ef07feb9099ea8160519e0d752cc5"
+    },
+    {
+      "path": "dist/rc/assets/boji/icon-source.png",
+      "sizeBytes": 1962035,
+      "sha256": "aa0d00d434f7d263f137f2d94469bd0a50ffdc5d9f9a18e7fb270c7cf63305c6"
+    },
+    {
+      "path": "dist/rc/assets/boji/portrait-master.png",
+      "sizeBytes": 1969259,
+      "sha256": "99c360cd4d827f3f8611d7130874dfb3ac97f8fe162b7f105979a1b44d6fe514"
+    },
+    {
+      "path": "dist/rc/assets/boji/source/adult-expressions.png",
+      "sizeBytes": 2932884,
+      "sha256": "f73b6b2972adc9a66dbc25c6c3a74faea6fada0967b1bfc96cbe41e95ccdacab"
+    },
+    {
+      "path": "dist/rc/assets/boji/source/adult-turnaround.png",
+      "sizeBytes": 1462834,
+      "sha256": "bc15737bbffa9298a7a6dbd1ed2da879144393759a2bda8f451230c9410ab923"
+    },
+    {
+      "path": "dist/rc/assets/boji/source/chibi-sheet.png",
+      "sizeBytes": 2588341,
+      "sha256": "fa88b42aae79d0f4f3d01448e77ad9ccd152e7379e49f921d749a599fb041d71"
     },
     {
       "path": "dist/rc/data-layer.js",
-      "sizeBytes": 85044,
-      "sha256": "2bea675b315747c89b34e8b8a3e348072f62dad67da56f66c7d0c5f6b3773796"
+      "sizeBytes": 87136,
+      "sha256": "2bdabaa5df1edfbf4bc9dea60a1881dfac58483216e5d18bcb16e7df6a95e9f0"
     },
     {
       "path": "dist/rc/index.html",
-      "sizeBytes": 13886,
-      "sha256": "088a91f4ecc45fa56cdefc79f5dfe54d50db9415fa010405173881b1c5228c60"
+      "sizeBytes": 15210,
+      "sha256": "dec2e69e27bdef6eaf8be60aaf0111eddeea79008da03113974a9ee6771d0236"
     },
     {
       "path": "dist/rc/manifest.json",
-      "sizeBytes": 873,
-      "sha256": "aba27e0646710496c872cd0ddac013cf1f19475c9df41440c9647182dad30948"
+      "sizeBytes": 752,
+      "sha256": "c818205d5c7a68e6a4675d5f8753b8c24cbe522a6b62c4d013ef7d14442e1a02"
     },
     {
       "path": "dist/rc/release-config.js",
@@ -62,13 +112,13 @@
     },
     {
       "path": "dist/rc/styles.css",
-      "sizeBytes": 56439,
-      "sha256": "bf1f7582a092b7750e626ad77232207b380587620e6067827f1b4320e4beb87a"
+      "sizeBytes": 97001,
+      "sha256": "7ed22f7b5ddeb1fe0da3bbb0dbd980c44665c1f9c9518827abd1f6a60f5d4e04"
     },
     {
       "path": "dist/rc/sw.js",
-      "sizeBytes": 3718,
-      "sha256": "9aed99a9e3a77885ef32758d3b6a878affdcae03f887d670375d1f40867eb289"
+      "sizeBytes": 4010,
+      "sha256": "3808ddcca1d35ca6239b1b0ee3beb29e67ecfdaedda5d8c3132a884da2804c30"
     }
   ],
   "manifest": {
